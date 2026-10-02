@@ -12,7 +12,8 @@
         </flux:button>
 
         <flux:modal.trigger name="right-panel">
-            <flux:button variant="ghost" size="sm" icon="bars-3-bottom-right" class="xl:hidden" :aria-label="__('Open panel')" />
+            <flux:button variant="ghost" size="sm" icon="bars-3-bottom-right" class="xl:hidden"
+                :aria-label="__('Open panel')" />
         </flux:modal.trigger>
 
         <flux:dropdown position="bottom" align="end">
@@ -32,7 +33,8 @@
     </flux:header>
 @else
     {{-- Gość: wąski pasek tylko poniżej xl, z przyciskami otwierającymi panele --}}
-    <div class="sticky top-0 z-10 flex h-16 items-center gap-2 border-b border-zinc-200 bg-zinc-50 px-4 dark:border-zinc-700 dark:bg-zinc-900 xl:hidden">
+    <div
+        class="sticky top-0 z-10 flex h-16 items-center gap-2 border-b border-zinc-200 bg-zinc-50 px-4 dark:border-zinc-700 dark:bg-zinc-900 xl:hidden">
         <flux:sidebar.toggle class="lg:hidden" icon="bars-2" />
 
         <flux:brand href="{{ route('home') }}" name="{{ config('app.name') }}" class="lg:hidden" />
@@ -40,7 +42,9 @@
         <flux:spacer />
 
         <flux:button :href="route('login')" variant="ghost" size="sm">{{ __('Log in') }}</flux:button>
-
+        @if (Route::has('register'))
+            <flux:button :href="route('register')" variant="primary" size="sm">{{ __('Register') }}</flux:button>
+        @endif
         <flux:modal.trigger name="right-panel">
             <flux:button variant="ghost" size="sm" icon="bars-3-bottom-right" :aria-label="__('Open panel')" />
         </flux:modal.trigger>
