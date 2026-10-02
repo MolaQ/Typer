@@ -43,5 +43,22 @@
     "Status": "Status",
     "Source": "Źródło",
     "Direct": "Bezpośrednio",
-    "Permissions outside the Permission enum": "Uprawnienia spoza enuma Permission"
+    "Permissions outside the Permission enum": "Uprawnienia spoza enuma Permission",
+    "Team": "Drużyna",
+    "You can change your team details at any time.": "Możesz zmieniać dane drużyny w dowolnym momencie.",
+    "Changes to your team details must be approved by an administrator.": "Zmiany danych drużyny musi zatwierdzić administrator.",
+    "Request awaiting approval": "Prośba oczekuje na zatwierdzenie",
+    "Pending": "Oczekuje",
+    "Sent": "Wysłano",
+    "Cancel request": "Anuluj prośbę",
+    "Cancel this request?": "Anulować tę prośbę?",
+    "Request cancelled.": "Prośba anulowana.",
+    "Available": "Wolna",
+    "Send change request": "Wyślij prośbę o zmianę",
+    "Saving...": "Zapisywanie...",
+    "Change at least one of the values.": "Zmień co najmniej jedną z wartości.",
+    "One of these values has just been taken. Try different ones.": "Jedna z tych wartości została właśnie zajęta. Wybierz inne.",
+    "Team details saved.": "Dane drużyny zapisane.",
+    "You already have a request awaiting approval.": "Masz już prośbę oczekującą na zatwierdzenie.",
+    "Request sent. An administrator will review it.": "Prośba wysłana. Administrator ją rozpatrzy."
 }
