@@ -6,10 +6,12 @@
         <flux:brand href="{{ route('home') }}" name="{{ config('app.name') }}" class="ms-2 lg:hidden" />
 
         <flux:spacer />
+        @can(\App\Enums\Permission::DashboardAccess->value)
+            <flux:button :href="route('dashboard')" variant="ghost" size="sm" icon="squares-2x2" class="hidden sm:inline-flex">
+                {{ __('Dashboard') }}
+            </flux:button>
+        @endcan
 
-        <flux:button :href="route('dashboard')" variant="ghost" size="sm" icon="squares-2x2" class="hidden sm:inline-flex">
-            {{ __('Dashboard') }}
-        </flux:button>
 
         <flux:modal.trigger name="right-panel">
             <flux:button variant="ghost" size="sm" icon="bars-3-bottom-right" class="xl:hidden"
