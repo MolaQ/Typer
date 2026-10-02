@@ -24,7 +24,7 @@ class UniqueTeamValue implements ValidationRule
     public function validate(string $attribute, mixed $value, Closure $fail): void
     {
         $taken = DB::table('users')
-            ->whereRaw("LOWER({$this->column}) = ?", [mb_strtolower((string) $value)])
+            ->whereRaw("LOWER({$this->column}) = ?", [mb_strtolower(trim((string) $value))])
             ->when($this->ignoreUserId, fn($query) => $query->where('id', '!=', $this->ignoreUserId))
             ->exists();
 
