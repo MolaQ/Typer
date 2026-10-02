@@ -21,7 +21,11 @@ enum Permission: string
     case PermissionEdit = 'permission-edit';
     case PermissionDelete = 'permission-delete';
 
+    // Zatwierdzanie próśb o zmianę nazwy drużyny
     case TeamChangeName = 'team-changename';
+
+    // Przeglądanie dziennika zmian
+    case LogView = 'log-view';
 
     /** Wszystkie nazwy jako tablica tekstów, np. do seedera. */
     public static function values(): array
