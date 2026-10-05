@@ -24,7 +24,7 @@ class CreateAdminUserSeeder extends Seeder
         $role = Role::firstOrCreate(['name' => 'Admin']);
 
         // Get all permissions
-        $permissions = Permission::pluck('id','id')->all();
+        $permissions = Permission::pluck('id', 'id')->all();
 
         // Sync all permissions to admin role
         $role->syncPermissions($permissions);
