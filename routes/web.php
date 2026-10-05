@@ -21,6 +21,14 @@ Route::middleware(['auth', 'verified', 'permission:' . Permission::DashboardAcce
     Route::livewire('dashboard/users', 'pages::dashboard.users')
         ->middleware('role:Admin')
         ->name('dashboard.users');
+
+    Route::livewire('dashboard/team-requests', 'pages::dashboard.team-requests')
+        ->middleware('permission:' . Permission::TeamChangeName->value)
+        ->name('dashboard.team-requests');
+
+    Route::livewire('dashboard/logs', 'pages::dashboard.logs')
+        ->middleware('permission:' . Permission::LogView->value)
+        ->name('dashboard.logs');
 });
 
 require __DIR__ . '/settings.php';
