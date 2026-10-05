@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\TeamNameChangeRequest;
+use App\Support\Audit;
 use App\Support\TeamRules;
 use Flux\Flux;
 use Illuminate\Database\UniqueConstraintViolationException;
@@ -61,7 +62,7 @@ new class extends Component {
     }
 
     /* ------------------------------------------------------------------
-     | Walidacja na żywo (podczas pisania)
+     | Walidacja na żywo
      * ----------------------------------------------------------------*/
 
     public function updated(string $property, mixed $value = null): void
@@ -105,27 +106,25 @@ new class extends Component {
         $this->validate();
 
         if (!$this->hasChanges()) {
-            $this->addError('teamName', __('Change at least one of the values.'));
+            $this->addError('form', __('Change at least one of the values.'));
 
             return;
         }
 
         $user = auth()->user();
+        $before = $this->currentValues();
+        $after = $this->formValues();
 
         if ($this->canRenameDirectly) {
             try {
-                $user->update([
-                    'team_name' => $this->teamName,
-                    'team_short_name' => $this->teamShortName,
-                    'team_abbr' => $this->teamAbbr,
-                ]);
+                $user->update($after);
             } catch (UniqueConstraintViolationException) {
-                // Ktoś zajął nazwę między walidacją a zapisem.
-                $this->addError('teamName', __('One of these values has just been taken. Try different ones.'));
+                $this->addError('form', __('One of these values has just been taken. Try different ones.'));
 
                 return;
             }
 
+            Audit::log('team_name.changed', $user, $before, $after, __('Changed by the user.'));
             Flux::toast(text: __('Team details saved.'), variant: 'success');
 
             return;
@@ -137,15 +136,17 @@ new class extends Component {
             return;
         }
 
-        TeamNameChangeRequest::create([
+        $request = TeamNameChangeRequest::create([
             'user_id' => $user->id,
-            'current_team_name' => $user->team_name,
-            'current_team_short_name' => $user->team_short_name,
-            'current_team_abbr' => $user->team_abbr,
-            'requested_team_name' => $this->teamName,
-            'requested_team_short_name' => $this->teamShortName,
-            'requested_team_abbr' => $this->teamAbbr,
+            'current_team_name' => $before['team_name'],
+            'current_team_short_name' => $before['team_short_name'],
+            'current_team_abbr' => $before['team_abbr'],
+            'requested_team_name' => $after['team_name'],
+            'requested_team_short_name' => $after['team_short_name'],
+            'requested_team_abbr' => $after['team_abbr'],
         ]);
+
+        Audit::log('team_name.requested', $user, $before, $after, __('Request #:id', ['id' => $request->id]));
 
         unset($this->pendingRequest);
         $this->fillFromUser();
@@ -155,7 +156,25 @@ new class extends Component {
 
     public function cancelRequest(): void
     {
-        $this->pendingRequest?->delete();
+        $request = $this->pendingRequest;
+
+        if (!$request) {
+            return;
+        }
+
+        Audit::log(
+            'team_name.cancelled',
+            auth()->user(),
+            [
+                'team_name' => $request->requested_team_name,
+                'team_short_name' => $request->requested_team_short_name,
+                'team_abbr' => $request->requested_team_abbr,
+            ],
+            [],
+            __('Request #:id cancelled by the user.', ['id' => $request->id]),
+        );
+
+        $request->delete();
 
         unset($this->pendingRequest);
         Flux::toast(text: __('Request cancelled.'));
@@ -165,13 +184,29 @@ new class extends Component {
      | Pomocnicze
      * ----------------------------------------------------------------*/
 
-    private function normalizeFields(): void
+    private function currentValues(): array
     {
-        $normalized = TeamRules::normalize([
+        $user = auth()->user();
+
+        return [
+            'team_name' => $user->team_name,
+            'team_short_name' => $user->team_short_name,
+            'team_abbr' => $user->team_abbr,
+        ];
+    }
+
+    private function formValues(): array
+    {
+        return [
             'team_name' => $this->teamName,
             'team_short_name' => $this->teamShortName,
             'team_abbr' => $this->teamAbbr,
-        ]);
+        ];
+    }
+
+    private function normalizeFields(): void
+    {
+        $normalized = TeamRules::normalize($this->formValues());
 
         $this->teamName = $normalized['team_name'];
         $this->teamShortName = $normalized['team_short_name'];
@@ -180,11 +215,11 @@ new class extends Component {
 
     private function fillFromUser(): void
     {
-        $user = auth()->user();
+        $values = $this->currentValues();
 
-        $this->teamName = (string) $user->team_name;
-        $this->teamShortName = (string) $user->team_short_name;
-        $this->teamAbbr = (string) $user->team_abbr;
+        $this->teamName = (string) $values['team_name'];
+        $this->teamShortName = (string) $values['team_short_name'];
+        $this->teamAbbr = (string) $values['team_abbr'];
         $this->resetValidation();
     }
 };
@@ -241,7 +276,7 @@ new class extends Component {
     {{-- Formularz --}}
     <form wire:submit="save" class="space-y-6">
         <div class="space-y-1">
-            <flux:input wire:model.live.debounce.500ms="teamName" :label="__('Team name')" type="text" maxlength="40"
+            <flux:input wire:model.live.blur="teamName" :label="__('Team name')" type="text" maxlength="40"
                 :disabled="$this->pendingRequest !== null" />
             @if ($this->changed('teamName') && !$errors->has('teamName'))
                 <p class="text-sm text-green-600 dark:text-green-400">{{ __('Available') }}</p>
@@ -249,20 +284,22 @@ new class extends Component {
         </div>
 
         <div class="space-y-1">
-            <flux:input wire:model.live.debounce.500ms="teamShortName" :label="__('Team short name')" type="text"
-                maxlength="20" :disabled="$this->pendingRequest !== null" />
+            <flux:input wire:model.live.blur="teamShortName" :label="__('Team short name')" type="text" maxlength="20"
+                :disabled="$this->pendingRequest !== null" />
             @if ($this->changed('teamShortName') && !$errors->has('teamShortName'))
                 <p class="text-sm text-green-600 dark:text-green-400">{{ __('Available') }}</p>
             @endif
         </div>
 
         <div class="space-y-1">
-            <flux:input wire:model.live.debounce.500ms="teamAbbr" :label="__('Team abbreviation')" type="text"
-                maxlength="6" class="uppercase" :disabled="$this->pendingRequest !== null" />
+            <flux:input wire:model.live.blur="teamAbbr" :label="__('Team abbreviation')" type="text" maxlength="6"
+                class="uppercase" :disabled="$this->pendingRequest !== null" />
             @if ($this->changed('teamAbbr') && !$errors->has('teamAbbr'))
                 <p class="text-sm text-green-600 dark:text-green-400">{{ __('Available') }}</p>
             @endif
         </div>
+
+        <flux:error name="form" />
 
         <flux:button variant="primary" type="submit" :disabled="$this->pendingRequest !== null">
             <span wire:loading.remove wire:target="save">
