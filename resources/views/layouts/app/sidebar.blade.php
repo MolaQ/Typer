@@ -33,12 +33,18 @@
 
                 {{-- Grupa "LechTyper": sezony, a później liga, puchar, mecze. --}}
                 @if ($canSeasons)
-                    <flux:sidebar.group expandable :expanded="request()->routeIs('dashboard.seasons')"
+                    <flux:sidebar.group expandable
+                        :expanded="request()->routeIs('dashboard.seasons', 'dashboard.matchdays')"
                         :heading="__('LechTyper')" class="grid">
 
                         <flux:sidebar.item icon="calendar-days" :href="route('dashboard.seasons')"
                             :current="request()->routeIs('dashboard.seasons')" wire:navigate>
                             {{ __('Season setup') }}
+                        </flux:sidebar.item>
+
+                        <flux:sidebar.item icon="calendar" :href="route('dashboard.matchdays')"
+                            :current="request()->routeIs('dashboard.matchdays')" wire:navigate>
+                            {{ __('Matchdays') }}
                         </flux:sidebar.item>
                     </flux:sidebar.group>
                 @endif
@@ -64,8 +70,8 @@
                         @if ($canRequests)
                             <flux:sidebar.item icon="identification" :href="route('dashboard.team-requests')"
                                 :current="request()->routeIs('dashboard.team-requests')"
-                                :badge="\App\Models\TeamNameChangeRequest::pending()->count() ?: null" badge-color="amber"
-                                wire:navigate>
+                                :badge="\App\Models\TeamNameChangeRequest::pending()->count() ?: null"
+                                badge-color="amber" wire:navigate>
                                 {{ __('Team requests') }}
                             </flux:sidebar.item>
                         @endif
@@ -145,9 +151,9 @@
     {{ $slot }}
 
     @persist('toast')
-    <flux:toast.group>
-        <flux:toast />
-    </flux:toast.group>
+        <flux:toast.group>
+            <flux:toast />
+        </flux:toast.group>
     @endpersist
 
     @fluxScripts

@@ -7,10 +7,12 @@ use App\Support\Roman;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Facades\Storage;
 
 /**
- * Sezon rozgrywek. Do sezonu będą należeć liga i puchar (kolejne etapy).
+ * Sezon rozgrywek. Do sezonu należą kolejki (mecze Lecha), a w kolejnych
+ * etapach liga, puchar i pozostałe rozgrywki.
  *
  * @property int $number
  * @property string|null $slogan
@@ -48,19 +50,29 @@ class Season extends Model
     }
 
     /* ------------------------------------------------------------------
+     | Relacje
+     * ----------------------------------------------------------------*/
+
+    /** $season->matchdays  ->  kolejki 1-9 posortowane po numerze. */
+    public function matchdays(): HasMany
+    {
+        return $this->hasMany(Matchday::class)->orderBy('number');
+    }
+
+    /* ------------------------------------------------------------------
      | Atrybuty wyliczane
      * ----------------------------------------------------------------*/
 
     /** $season->roman_number  ->  "IV" */
     protected function romanNumber(): Attribute
     {
-        return Attribute::get(fn() => Roman::toRoman((int) $this->number));
+        return Attribute::get(fn () => Roman::toRoman((int) $this->number));
     }
 
     /** $season->title  ->  "IV sezon" (tekst z pliku tłumaczeń) */
     protected function title(): Attribute
     {
-        return Attribute::get(fn() => __(':roman season', ['roman' => $this->roman_number]));
+        return Attribute::get(fn () => __(':roman season', ['roman' => $this->roman_number]));
     }
 
     /**
@@ -69,7 +81,7 @@ class Season extends Model
      */
     protected function sponsorLogoUrl(): Attribute
     {
-        return Attribute::get(fn() => $this->sponsor_logo_path
+        return Attribute::get(fn () => $this->sponsor_logo_path
             ? Storage::disk('public')->url($this->sponsor_logo_path)
             : null);
     }

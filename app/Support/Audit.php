@@ -52,6 +52,10 @@ class Audit
             'season.activated' => __('Season activated'),
             'season.finished' => __('Season finished'),
             'season.deleted' => __('Season deleted'),
+
+            // Kolejki sezonu (mecze Lecha)
+            'matchday.created' => __('Matchdays created'),
+            'matchday.updated' => __('Matchday updated'),
         ];
     }
 
