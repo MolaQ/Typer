@@ -6,6 +6,15 @@
 </head>
 
 <body class="min-h-screen bg-white dark:bg-zinc-800">
+    @php
+        $user = auth()->user();
+
+        // Uprawnienia decydujące o tym, co widać w grupie "System".
+        $canRoles = $user->hasRole('Admin');
+        $canRequests = $user->can(\App\Enums\Permission::TeamChangeName->value);
+        $canLogs = $user->can(\App\Enums\Permission::LogView->value);
+    @endphp
+
     <flux:sidebar sticky collapsible="mobile"
         class="border-e border-zinc-200 bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900">
         <flux:sidebar.header>
@@ -20,33 +29,41 @@
                     {{ __('Dashboard') }}
                 </flux:sidebar.item>
 
+                {{-- Grupa "System": role, użytkownicy, prośby, dziennik. Pusta grupa się nie pokazuje. --}}
+                @if ($canRoles || $canRequests || $canLogs)
+                    <flux:sidebar.group expandable
+                        :expanded="request()->routeIs('dashboard.roles', 'dashboard.users', 'dashboard.team-requests', 'dashboard.logs')"
+                        :heading="__('System')" class="grid">
 
-                <flux:sidebar.item icon="shield-check" :href="route('dashboard.roles')"
-                    :current="request()->routeIs('dashboard.roles')" wire:navigate>
-                    {{ __('Role i uprawnienia') }}
-                </flux:sidebar.item>
+                        @if ($canRoles)
+                            <flux:sidebar.item icon="shield-check" :href="route('dashboard.roles')"
+                                :current="request()->routeIs('dashboard.roles')" wire:navigate>
+                                {{ __('Roles and permissions') }}
+                            </flux:sidebar.item>
 
-                <flux:sidebar.item icon="users" :href="route('dashboard.users')"
-                    :current="request()->routeIs('dashboard.users')" wire:navigate>
-                    {{ __('Users') }}
-                </flux:sidebar.item>
+                            <flux:sidebar.item icon="users" :href="route('dashboard.users')"
+                                :current="request()->routeIs('dashboard.users')" wire:navigate>
+                                {{ __('Users') }}
+                            </flux:sidebar.item>
+                        @endif
 
-                @can(\App\Enums\Permission::TeamChangeName->value)
-                    <flux:sidebar.item icon="identification" :href="route('dashboard.team-requests')"
-                        :current="request()->routeIs('dashboard.team-requests')"
-                        :badge="\App\Models\TeamNameChangeRequest::pending()->count() ?: null" badge-color="amber"
-                        wire:navigate>
-                        {{ __('Team requests') }}
-                    </flux:sidebar.item>
-                @endcan
+                        @if ($canRequests)
+                            <flux:sidebar.item icon="identification" :href="route('dashboard.team-requests')"
+                                :current="request()->routeIs('dashboard.team-requests')"
+                                :badge="\App\Models\TeamNameChangeRequest::pending()->count() ?: null" badge-color="amber"
+                                wire:navigate>
+                                {{ __('Team requests') }}
+                            </flux:sidebar.item>
+                        @endif
 
-                @can(\App\Enums\Permission::LogView->value)
-                    <flux:sidebar.item icon="clipboard-document-list" :href="route('dashboard.logs')"
-                        :current="request()->routeIs('dashboard.logs')" wire:navigate>
-                        {{ __('Change log') }}
-                    </flux:sidebar.item>
-                @endcan
-
+                        @if ($canLogs)
+                            <flux:sidebar.item icon="clipboard-document-list" :href="route('dashboard.logs')"
+                                :current="request()->routeIs('dashboard.logs')" wire:navigate>
+                                {{ __('Change log') }}
+                            </flux:sidebar.item>
+                        @endif
+                    </flux:sidebar.group>
+                @endif
             </flux:sidebar.group>
         </flux:sidebar.nav>
 
