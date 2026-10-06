@@ -9,7 +9,9 @@
     @php
         $user = auth()->user();
 
-        // Uprawnienia decydujące o tym, co widać w grupie "System".
+        // Co widać w grupach menu (pusta grupa się nie pokazuje).
+        $canSeasons = $user->can(\App\Enums\Permission::SeasonList->value);
+
         $canRoles = $user->hasRole('Admin');
         $canRequests = $user->can(\App\Enums\Permission::TeamChangeName->value);
         $canLogs = $user->can(\App\Enums\Permission::LogView->value);
@@ -29,7 +31,19 @@
                     {{ __('Dashboard') }}
                 </flux:sidebar.item>
 
-                {{-- Grupa "System": role, użytkownicy, prośby, dziennik. Pusta grupa się nie pokazuje. --}}
+                {{-- Grupa "LechTyper": sezony, a później liga, puchar, mecze. --}}
+                @if ($canSeasons)
+                    <flux:sidebar.group expandable :expanded="request()->routeIs('dashboard.seasons')"
+                        :heading="__('LechTyper')" class="grid">
+
+                        <flux:sidebar.item icon="calendar-days" :href="route('dashboard.seasons')"
+                            :current="request()->routeIs('dashboard.seasons')" wire:navigate>
+                            {{ __('Season setup') }}
+                        </flux:sidebar.item>
+                    </flux:sidebar.group>
+                @endif
+
+                {{-- Grupa "System": role, użytkownicy, prośby, dziennik. --}}
                 @if ($canRoles || $canRequests || $canLogs)
                     <flux:sidebar.group expandable
                         :expanded="request()->routeIs('dashboard.roles', 'dashboard.users', 'dashboard.team-requests', 'dashboard.logs')"

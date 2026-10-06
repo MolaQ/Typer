@@ -106,6 +106,12 @@ new class extends Component {
             'team_short_name' => __('Team short name'),
             'team_abbr' => __('Team abbreviation'),
             'roles' => __('Roles'),
+            'number' => __('Season number'),
+            'slogan' => __('Slogan'),
+            'sponsor_name' => __('Sponsor name'),
+            'sponsor_url' => __('Sponsor website'),
+            'sponsor_logo' => __('Sponsor logo'),
+            'status' => __('Status'),
             default => $key,
         };
     }
