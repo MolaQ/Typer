@@ -195,5 +195,9 @@
     "Click here to re-send the verification email.": "Kliknij tutaj, aby wysłać e-mail weryfikacyjny ponownie.",
     "A new verification link has been sent to your email address.": "Nowy link weryfikacyjny został wysłany na Twój adres e-mail.",
     "Account": "Konto",
-    "Update your account details and your team": "Zaktualizuj dane konta i drużyny"
+    "Update your account details and your team": "Zaktualizuj dane konta i drużyny",
+    "Draft": "Szkic",
+    "Active": "Aktywny",
+    "Finished": "Zakończony",
+    ":roman season": ":roman sezon"
 }
