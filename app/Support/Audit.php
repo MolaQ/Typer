@@ -45,6 +45,13 @@ class Audit
             'team_name.rejected' => __('Team change rejected'),
             'team_name.changed' => __('Team details changed'),
             'roles.updated' => __('Roles updated'),
+
+            // Sezony
+            'season.created' => __('Season created'),
+            'season.updated' => __('Season updated'),
+            'season.activated' => __('Season activated'),
+            'season.finished' => __('Season finished'),
+            'season.deleted' => __('Season deleted'),
         ];
     }
 
@@ -53,12 +60,19 @@ class Audit
         return self::events()[$event] ?? $event;
     }
 
+    /** Kolor plakietki wynika z końcówki nazwy zdarzenia. */
     public static function color(string $event): string
     {
         return match (true) {
-            str_ends_with($event, '.approved') => 'green',
-            str_ends_with($event, '.rejected') => 'red',
+            str_ends_with($event, '.approved'),
+            str_ends_with($event, '.activated'),
+            str_ends_with($event, '.created') => 'green',
+
+            str_ends_with($event, '.rejected'),
+            str_ends_with($event, '.deleted') => 'red',
+
             str_ends_with($event, '.requested') => 'amber',
+
             default => 'zinc',
         };
     }
