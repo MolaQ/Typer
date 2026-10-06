@@ -16,6 +16,7 @@ use Illuminate\Support\Facades\Storage;
  * @property string|null $slogan
  * @property string|null $sponsor_name
  * @property string|null $sponsor_logo_path
+ * @property string|null $sponsor_url
  * @property SeasonStatus $status
  */
 class Season extends Model
@@ -25,6 +26,7 @@ class Season extends Model
         'slogan',
         'sponsor_name',
         'sponsor_logo_path',
+        'sponsor_url',
         'status',
         'starts_on',
         'ends_on',
