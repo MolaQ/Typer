@@ -59,6 +59,12 @@ class Season extends Model
         return $this->hasMany(Matchday::class)->orderBy('number');
     }
 
+    /** $season->teams  ->  lista przedsezonowa posortowana po pozycji. */
+    public function teams(): HasMany
+    {
+        return $this->hasMany(SeasonTeam::class)->orderBy('position');
+    }
+
     /* ------------------------------------------------------------------
      | Atrybuty wyliczane
      * ----------------------------------------------------------------*/
@@ -66,13 +72,13 @@ class Season extends Model
     /** $season->roman_number  ->  "IV" */
     protected function romanNumber(): Attribute
     {
-        return Attribute::get(fn () => Roman::toRoman((int) $this->number));
+        return Attribute::get(fn() => Roman::toRoman((int) $this->number));
     }
 
     /** $season->title  ->  "IV sezon" (tekst z pliku tłumaczeń) */
     protected function title(): Attribute
     {
-        return Attribute::get(fn () => __(':roman season', ['roman' => $this->roman_number]));
+        return Attribute::get(fn() => __(':roman season', ['roman' => $this->roman_number]));
     }
 
     /**
@@ -81,7 +87,7 @@ class Season extends Model
      */
     protected function sponsorLogoUrl(): Attribute
     {
-        return Attribute::get(fn () => $this->sponsor_logo_path
+        return Attribute::get(fn() => $this->sponsor_logo_path
             ? Storage::disk('public')->url($this->sponsor_logo_path)
             : null);
     }

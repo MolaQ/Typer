@@ -56,6 +56,17 @@ class Audit
             // Kolejki sezonu (mecze Lecha)
             'matchday.created' => __('Matchdays created'),
             'matchday.updated' => __('Matchday updated'),
+
+            // Lista przedsezonowa
+            'season_list.built' => __('Team list built'),
+            'season_list.players_added' => __('Players added to the list'),
+            'season_list.moved' => __('Team moved to another league'),
+            'season_list.reordered' => __('Team order changed'),
+            'season_list.reset' => __('Team list cleared'),
+            'season_list.bots_added' => __('Bots added to the list'),
+
+            // Boty
+            'bot.renamed' => __('Bot renamed'),
         ];
     }
 
@@ -70,10 +81,14 @@ class Audit
         return match (true) {
             str_ends_with($event, '.approved'),
             str_ends_with($event, '.activated'),
-            str_ends_with($event, '.created') => 'green',
+            str_ends_with($event, '.created'),
+            str_ends_with($event, '.built'),
+            str_ends_with($event, '.players_added'),
+            str_ends_with($event, '.bots_added') => 'green',
 
             str_ends_with($event, '.rejected'),
-            str_ends_with($event, '.deleted') => 'red',
+            str_ends_with($event, '.deleted'),
+            str_ends_with($event, '.reset') => 'red',
 
             str_ends_with($event, '.requested') => 'amber',
 
