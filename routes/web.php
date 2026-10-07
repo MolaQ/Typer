@@ -16,6 +16,15 @@ Route::middleware(['auth', 'verified', 'permission:' . Permission::DashboardAcce
     Route::livewire('dashboard/seasons', 'pages::dashboard.seasons')
         ->middleware('permission:' . Permission::SeasonList->value)
         ->name('dashboard.seasons');
+    Route::livewire('dashboard/matchdays', 'pages::dashboard.matchdays')
+        ->middleware('permission:' . Permission::SeasonList->value)
+        ->name('dashboard.matchdays');
+    Route::livewire('dashboard/season-teams', 'pages::dashboard.season-teams')
+        ->middleware('permission:' . Permission::SeasonList->value)
+        ->name('dashboard.season-teams');
+    Route::livewire('dashboard/bots', 'pages::dashboard.bots')
+        ->middleware('permission:' . Permission::SeasonList->value)
+        ->name('dashboard.bots');
 
 
     // Zarządzanie rolami i użytkownikami: nadal tylko Admin
