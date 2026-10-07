@@ -26,7 +26,6 @@ Route::middleware(['auth', 'verified', 'permission:' . Permission::DashboardAcce
         ->middleware('permission:' . Permission::SeasonList->value)
         ->name('dashboard.bots');
 
-
     // Zarządzanie rolami i użytkownikami: nadal tylko Admin
     Route::livewire('dashboard/roles', 'pages::dashboard.roles')
         ->middleware('role:Admin')
