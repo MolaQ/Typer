@@ -12,7 +12,7 @@ Route::middleware(['auth', 'verified', 'permission:' . Permission::DashboardAcce
 
     Route::livewire('dashboard', 'pages::dashboard.stats')
         ->name('dashboard');
-    //Zarządzanie rozgrywkami 
+    //Zarządzanie rozgrywkami
     Route::livewire('dashboard/seasons', 'pages::dashboard.seasons')
         ->middleware('permission:' . Permission::SeasonList->value)
         ->name('dashboard.seasons');
@@ -25,6 +25,12 @@ Route::middleware(['auth', 'verified', 'permission:' . Permission::DashboardAcce
     Route::livewire('dashboard/bots', 'pages::dashboard.bots')
         ->middleware('permission:' . Permission::SeasonList->value)
         ->name('dashboard.bots');
+    Route::livewire('dashboard/fixtures', 'pages::dashboard.fixtures')
+        ->middleware('permission:season-list')
+        ->name('dashboard.fixtures');
+    Route::livewire('dashboard/checklist', 'pages::dashboard.checklist')
+        ->middleware('permission:season-list')
+        ->name('dashboard.checklist');
 
     // Zarządzanie rolami i użytkownikami: nadal tylko Admin
     Route::livewire('dashboard/roles', 'pages::dashboard.roles')

@@ -1,6 +1,8 @@
 <?php
 
+use App\Enums\RoleName;
 use App\Models\User;
+use App\Support\Roster;
 use Flux\Flux;
 use Illuminate\Contracts\View\View;
 use Livewire\Attributes\Computed;
@@ -12,7 +14,7 @@ use Spatie\Permission\Models\Role;
 new class extends Component {
     use WithPagination;
 
-    public const ADMIN_ROLE = 'Admin';
+    public const ADMIN_ROLE = RoleName::Admin->value;
 
     #[Url(except: '')]
     public string $search = '';
@@ -47,7 +49,7 @@ new class extends Component {
         return [
             'users' => User::count(),
             'withoutRole' => User::doesntHave('roles')->count(),
-            'admins' => User::whereHas('roles', fn ($q) => $q->where('name', self::ADMIN_ROLE))->count(),
+            'admins' => User::whereHas('roles', fn($q) => $q->where('name', self::ADMIN_ROLE))->count(),
         ];
     }
 
@@ -64,14 +66,11 @@ new class extends Component {
             ->with('roles:id,name')
             ->withCount('roles')
             ->when($this->search !== '', function ($q) {
-                $term = '%'.$this->search.'%';
-                $q->where(fn ($q) => $q->where('name', 'like', $term)->orWhere('email', 'like', $term));
+                $term = '%' . $this->search . '%';
+                $q->where(fn($q) => $q->where('name', 'like', $term)->orWhere('email', 'like', $term));
             })
-            ->when($this->roleFilter === '__none', fn ($q) => $q->doesntHave('roles'))
-            ->when(
-                $this->roleFilter !== '' && $this->roleFilter !== '__none',
-                fn ($q) => $q->whereHas('roles', fn ($r) => $r->where('name', $this->roleFilter))
-            )
+            ->when($this->roleFilter === '__none', fn($q) => $q->doesntHave('roles'))
+            ->when($this->roleFilter !== '' && $this->roleFilter !== '__none', fn($q) => $q->whereHas('roles', fn($r) => $r->where('name', $this->roleFilter)))
             ->orderBy($this->safeSortBy(), $this->safeDirection())
             ->paginate(10, pageName: 'usersPage');
     }
@@ -97,7 +96,7 @@ new class extends Component {
 
     public function sort(string $column): void
     {
-        if (! in_array($column, $this->sortableColumns(), true)) {
+        if (!in_array($column, $this->sortableColumns(), true)) {
             return;
         }
 
@@ -153,7 +152,7 @@ new class extends Component {
         $hadAdmin = $user->hasRole(self::ADMIN_ROLE);
         $keepsAdmin = in_array(self::ADMIN_ROLE, $this->selected, true);
 
-        if ($hadAdmin && ! $keepsAdmin) {
+        if ($hadAdmin && !$keepsAdmin) {
             if ($user->is(auth()->user())) {
                 $this->addError('selected', __('You cannot remove your own Admin role.'));
 
@@ -169,8 +168,20 @@ new class extends Component {
 
         $user->syncRoles($this->selected);
 
+        // Rola decyduje o udziale w zabawie: gracz (bez bana) trafia na listy sezonów,
+        // a zbanowany albo bez roli traci miejsce na rzecz bota (patrz App\Support\Roster).
+        $roster = Roster::syncUser($user);
+
         Flux::modal('user-roles')->close();
         Flux::toast(text: __('Roles updated.'), variant: 'success');
+
+        if ($roster['added'] > 0) {
+            Flux::toast(text: __('The player was added to the season list.'), variant: 'success');
+        }
+
+        if ($roster['released'] > 0) {
+            Flux::toast(text: __('The player was removed from the season list.'), variant: 'warning');
+        }
         $this->resetForm();
     }
 
@@ -227,12 +238,8 @@ new class extends Component {
     {{-- Wyszukiwarka i filtr --}}
     <div class="flex flex-wrap items-center gap-4">
         <div class="w-full sm:w-72">
-            <flux:input
-                wire:model.live.debounce.300ms="search"
-                icon="magnifying-glass"
-                :placeholder="__('Search by name or email...')"
-                clearable
-            />
+            <flux:input wire:model.live.debounce.300ms="search" icon="magnifying-glass"
+                :placeholder="__('Search by name or email...')" clearable />
         </div>
 
         <div class="w-full sm:w-56">
@@ -249,16 +256,20 @@ new class extends Component {
     {{-- Tabela użytkowników --}}
     <flux:table :paginate="$this->users">
         <flux:table.columns>
-            <flux:table.column sortable :sorted="$sortBy === 'name'" :direction="$sortDirection" wire:click="sort('name')">
+            <flux:table.column sortable :sorted="$sortBy === 'name'" :direction="$sortDirection"
+                wire:click="sort('name')">
                 {{ __('User') }}
             </flux:table.column>
-            <flux:table.column sortable :sorted="$sortBy === 'email'" :direction="$sortDirection" wire:click="sort('email')">
+            <flux:table.column sortable :sorted="$sortBy === 'email'" :direction="$sortDirection"
+                wire:click="sort('email')">
                 {{ __('Email') }}
             </flux:table.column>
-            <flux:table.column sortable :sorted="$sortBy === 'roles_count'" :direction="$sortDirection" wire:click="sort('roles_count')">
+            <flux:table.column sortable :sorted="$sortBy === 'roles_count'" :direction="$sortDirection"
+                wire:click="sort('roles_count')">
                 {{ __('Roles') }}
             </flux:table.column>
-            <flux:table.column sortable :sorted="$sortBy === 'created_at'" :direction="$sortDirection" wire:click="sort('created_at')">
+            <flux:table.column sortable :sorted="$sortBy === 'created_at'" :direction="$sortDirection"
+                wire:click="sort('created_at')">
                 {{ __('Joined') }}
             </flux:table.column>
             <flux:table.column />
@@ -280,7 +291,9 @@ new class extends Component {
                     <flux:table.cell>
                         <div class="flex flex-wrap gap-1">
                             @forelse ($user->roles as $role)
-                                <flux:badge size="sm" :color="$role->name === 'Admin' ? 'amber' : 'blue'">{{ $role->name }}</flux:badge>
+                                <flux:badge size="sm"
+                                    :color="\App\Enums\RoleName::tryFrom($role->name)?->color() ?? 'zinc'">
+                                    {{ $role->name }}</flux:badge>
                             @empty
                                 <span class="text-zinc-400">{{ __('None') }}</span>
                             @endforelse
@@ -288,14 +301,8 @@ new class extends Component {
                     </flux:table.cell>
                     <flux:table.cell class="text-zinc-500">{{ $user->created_at?->format('Y-m-d') }}</flux:table.cell>
                     <flux:table.cell align="end">
-                        <flux:button
-                            variant="ghost"
-                            size="sm"
-                            icon="pencil-square"
-                            inset="top bottom"
-                            wire:click="edit({{ $user->id }})"
-                            :aria-label="__('Edit roles')"
-                        />
+                        <flux:button variant="ghost" size="sm" icon="pencil-square" inset="top bottom"
+                            wire:click="edit({{ $user->id }})" :aria-label="__('Edit roles')" />
                     </flux:table.cell>
                 </flux:table.row>
             @empty
@@ -320,13 +327,11 @@ new class extends Component {
                 @if ($this->roles->isEmpty())
                     <flux:text>{{ __('No roles yet. Create them in Roles and permissions first.') }}</flux:text>
                 @else
-                    <flux:checkbox.group wire:model="selected" class="space-y-3 rounded-lg border border-zinc-200 p-4 dark:border-zinc-700">
+                    <flux:checkbox.group wire:model="selected"
+                        class="space-y-3 rounded-lg border border-zinc-200 p-4 dark:border-zinc-700">
                         @foreach ($this->roles as $role)
-                            <flux:checkbox
-                                wire:key="role-{{ $role->id }}"
-                                :value="$role->name"
-                                :label="$role->name"
-                            />
+                            <flux:checkbox wire:key="role-{{ $role->id }}" :value="$role->name"
+                                :label="$role->name" />
                         @endforeach
                     </flux:checkbox.group>
                 @endif

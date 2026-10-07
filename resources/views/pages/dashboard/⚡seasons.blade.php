@@ -1,7 +1,11 @@
 <?php
 
 use App\Enums\Permission;
+use App\Actions\Seasons\ApproveSeason;
+use App\Actions\Seasons\RevertApproval;
+use App\Enums\MatchdayStatus;
 use App\Enums\SeasonStatus;
+use App\Models\Matchday;
 use App\Models\Season;
 use App\Support\Audit;
 use App\Support\Roman;
@@ -41,7 +45,7 @@ new class extends Component {
     public string $slogan = '';
     public string $sponsorName = '';
     public string $sponsorUrl = '';
-    public $logo = null;                 // nowo wgrany plik (tymczasowy)
+    public $logo = null; // nowo wgrany plik (tymczasowy)
     public ?string $currentLogoPath = null; // logo zapisane w bazie
     public bool $removeLogo = false;
 
@@ -51,7 +55,7 @@ new class extends Component {
 
     // Potwierdzenie aktywacji / zakończenia sezonu (modal Flux zamiast okna przeglądarki)
     public ?int $statusId = null;
-    public string $statusAction = ''; // 'activate' albo 'finish'
+    public string $statusAction = ''; // 'approve', 'unapprove', 'activate' albo 'finish'
     public string $statusTitle = '';
     public string $statusMessage = '';
 
@@ -67,10 +71,7 @@ new class extends Component {
     #[Computed]
     public function stats(): array
     {
-        $counts = Season::query()
-            ->selectRaw('status, count(*) as total')
-            ->groupBy('status')
-            ->pluck('total', 'status');
+        $counts = Season::query()->selectRaw('status, count(*) as total')->groupBy('status')->pluck('total', 'status');
 
         return [
             'all' => (int) $counts->sum(),
@@ -94,10 +95,7 @@ new class extends Component {
             ->when($this->search !== '', function ($q) {
                 $term = '%' . $this->search . '%';
 
-                $q->where(fn($q) => $q
-                    ->where('slogan', 'like', $term)
-                    ->orWhere('sponsor_name', 'like', $term)
-                    ->orWhere('number', 'like', $term));
+                $q->where(fn($q) => $q->where('slogan', 'like', $term)->orWhere('sponsor_name', 'like', $term)->orWhere('number', 'like', $term));
             })
             ->orderBy($this->safeSortBy(), $this->safeDirection())
             ->paginate(10, pageName: 'seasonsPage');
@@ -115,7 +113,7 @@ new class extends Component {
 
         $n = (int) $n;
 
-        return ($n >= Roman::MIN && $n <= Roman::MAX) ? Roman::toRoman($n) : null;
+        return $n >= Roman::MIN && $n <= Roman::MAX ? Roman::toRoman($n) : null;
     }
 
     /** Adres obrazka do podglądu w formularzu: świeżo wgrany plik albo logo z bazy. */
@@ -186,25 +184,13 @@ new class extends Component {
     {
         return [
             // Liczba 1-3999 (zakres zapisu rzymskiego), unikalna wśród sezonów.
-            'number' => [
-                'required',
-                'integer',
-                'min:' . Roman::MIN,
-                'max:' . Roman::MAX,
-                Rule::unique('seasons', 'number')->ignore($this->seasonId),
-            ],
+            'number' => ['required', 'integer', 'min:' . Roman::MIN, 'max:' . Roman::MAX, Rule::unique('seasons', 'number')->ignore($this->seasonId)],
             'slogan' => ['nullable', 'string', 'max:120'],
             'sponsorName' => ['nullable', 'string', 'max:80'],
             // Tylko http/https: wyklucza adresy typu javascript:...
             'sponsorUrl' => ['nullable', 'url:http,https', 'max:255'],
             // Obraz (SVG odrzuca reguła "image"), kwadrat, 200-2000 px, do 2 MB.
-            'logo' => [
-                'nullable',
-                'image',
-                'mimes:png,jpg,jpeg,webp',
-                'max:2048',
-                'dimensions:ratio=1/1,min_width=200,min_height=200,max_width=2000,max_height=2000',
-            ],
+            'logo' => ['nullable', 'image', 'mimes:png,jpg,jpeg,webp', 'max:2048', 'dimensions:ratio=1/1,min_width=200,min_height=200,max_width=2000,max_height=2000'],
         ];
     }
 
@@ -301,13 +287,15 @@ new class extends Component {
         }
 
         try {
-            $season->fill([
-                'number' => (int) $this->number,
-                'slogan' => $this->slogan !== '' ? $this->slogan : null,
-                'sponsor_name' => $this->sponsorName !== '' ? $this->sponsorName : null,
-                'sponsor_url' => $this->sponsorUrl !== '' ? $this->sponsorUrl : null,
-                'sponsor_logo_path' => $logoPath,
-            ])->save();
+            $season
+                ->fill([
+                    'number' => (int) $this->number,
+                    'slogan' => $this->slogan !== '' ? $this->slogan : null,
+                    'sponsor_name' => $this->sponsorName !== '' ? $this->sponsorName : null,
+                    'sponsor_url' => $this->sponsorUrl !== '' ? $this->sponsorUrl : null,
+                    'sponsor_logo_path' => $logoPath,
+                ])
+                ->save();
         } catch (UniqueConstraintViolationException) {
             // Ktoś zajął numer między walidacją a zapisem: sprzątamy świeżo wgrany plik.
             if ($logoPath && $logoPath !== $oldLogoPath) {
@@ -328,6 +316,10 @@ new class extends Component {
 
         if ($isNew) {
             Audit::log('season.created', null, [], $after, $season->title);
+
+            // Nowy sezon dostaje od razu 9 pustych kolejek (rywala i termin uzupełnia admin).
+            $matchdays = $season->createMissingMatchdays();
+            Audit::log('matchday.created', null, [], ['matchdays' => $matchdays], $season->title);
         } elseif ($before !== $after) {
             Audit::log('season.updated', null, $before, $after, $season->title);
         }
@@ -393,30 +385,25 @@ new class extends Component {
                 return false;
             }
 
+            // Aktywacja to osobny krok po zatwierdzeniu (lista zamknięta, terminarz gotowy).
+            if ($season->status !== SeasonStatus::Approved) {
+                Flux::toast(text: __('Approve the season before activating it.'), variant: 'warning');
+
+                return false;
+            }
+
             $others = Season::active()->lockForUpdate()->where('id', '!=', $season->id)->get();
 
             foreach ($others as $other) {
                 $other->update(['status' => SeasonStatus::Finished]);
 
-                Audit::log(
-                    'season.finished',
-                    null,
-                    ['status' => SeasonStatus::Active->label()],
-                    ['status' => SeasonStatus::Finished->label()],
-                    $other->title . ' (' . __('closed by activating another season') . ')',
-                );
+                Audit::log('season.finished', null, ['status' => SeasonStatus::Active->label()], ['status' => SeasonStatus::Finished->label()], $other->title . ' (' . __('closed by activating another season') . ')');
             }
 
             $old = $season->status->label();
             $season->update(['status' => SeasonStatus::Active]);
 
-            Audit::log(
-                'season.activated',
-                null,
-                ['status' => $old],
-                ['status' => SeasonStatus::Active->label()],
-                $season->title,
-            );
+            Audit::log('season.activated', null, ['status' => $old], ['status' => SeasonStatus::Active->label()], $season->title);
 
             return true;
         });
@@ -440,16 +427,54 @@ new class extends Component {
 
         $season->update(['status' => SeasonStatus::Finished]);
 
-        Audit::log(
-            'season.finished',
-            null,
-            ['status' => SeasonStatus::Active->label()],
-            ['status' => SeasonStatus::Finished->label()],
-            $season->title,
-        );
+        Audit::log('season.finished', null, ['status' => SeasonStatus::Active->label()], ['status' => SeasonStatus::Finished->label()], $season->title);
 
         $this->clearCaches();
         Flux::toast(text: __('Season finished.'), variant: 'success');
+    }
+
+    /**
+     * Zatwierdza sezon: zamyka listę, dodaje wszystkie boty i generuje terminarz lig.
+     * Cała logika jest w App\Actions\Seasons\ApproveSeason (jedna transakcja).
+     */
+    public function approve(int $id): void
+    {
+        $this->authorizeAbility(Permission::SeasonEdit);
+
+        try {
+            $result = app(ApproveSeason::class)->handle(Season::findOrFail($id));
+        } catch (DomainException $e) {
+            Flux::toast(text: $e->getMessage(), variant: 'danger');
+
+            return;
+        }
+
+        $this->clearCaches();
+
+        Flux::toast(
+            text: __('Season approved. :leagues leagues and :fixtures fixtures were generated.', [
+                'leagues' => $result['leagues'],
+                'fixtures' => $result['fixtures'],
+            ]),
+            variant: 'success',
+        );
+    }
+
+    /** Cofa zatwierdzenie (możliwe tylko przed aktywacją): usuwa ligi i terminarz. */
+    public function unapprove(int $id): void
+    {
+        $this->authorizeAbility(Permission::SeasonEdit);
+
+        try {
+            app(RevertApproval::class)->handle(Season::findOrFail($id));
+        } catch (DomainException $e) {
+            Flux::toast(text: $e->getMessage(), variant: 'danger');
+
+            return;
+        }
+
+        $this->clearCaches();
+        Flux::toast(text: __('Approval reverted. The season is a draft again.'), variant: 'success');
     }
 
     /**
@@ -459,23 +484,40 @@ new class extends Component {
     public function confirmStatus(int $id, string $action): void
     {
         $this->authorizeAbility(Permission::SeasonEdit);
-        abort_unless(in_array($action, ['activate', 'finish'], true), 422);
+        abort_unless(in_array($action, ['approve', 'unapprove', 'activate', 'finish'], true), 422);
 
         $season = Season::findOrFail($id);
         $current = Season::active()->first();
 
         $this->statusId = $season->id;
         $this->statusAction = $action;
-        $this->statusTitle = $action === 'finish' ? __('Finish this season?') : __('Activate this season?');
+        $this->statusTitle = match ($action) {
+            'finish' => $this->playedMatchdays($season) < Matchday::PER_SEASON ? __('Finish an incomplete season?') : __('Finish this season?'),
+            'approve' => __('Approve this season?'),
+            'unapprove' => __('Revert to draft?'),
+            default => __('Activate this season?'),
+        };
 
         // Przy aktywacji ostrzegamy, że poprzedni aktywny sezon zostanie zamknięty.
         $this->statusMessage = match (true) {
+            $action === 'finish' && $this->playedMatchdays($season) < Matchday::PER_SEASON => __('Only :played of :total matchdays have been played. Finishing now closes the season incomplete: the remaining matchdays and unfinished competitions will not be played. Continue?', [
+                'played' => $this->playedMatchdays($season),
+                'total' => Matchday::PER_SEASON,
+            ]),
             $action === 'finish' => $season->title,
+            $action === 'approve' => __('Approval closes the team list, adds all bots and generates the league fixtures. You can revert it until the season is activated.'),
+            $action === 'unapprove' => __('The league fixtures will be deleted and the team list can be edited again.'),
             $current && $current->id !== $season->id => __('Activating this season will finish :title. Continue?', ['title' => $current->title]),
             default => $season->title,
         };
 
         Flux::modal('season-status')->show();
+    }
+
+    /** Ile kolejek sezonu ma status "rozegrana" (do ostrzeżenia przy przedwczesnym kończeniu). */
+    private function playedMatchdays(Season $season): int
+    {
+        return Matchday::where('season_id', $season->id)->where('status', MatchdayStatus::Played->value)->count();
     }
 
     /** Krok 2: użytkownik kliknął "Potwierdź" - wykonujemy właściwą akcję. */
@@ -485,6 +527,8 @@ new class extends Component {
 
         match ($this->statusAction) {
             'finish' => $this->finish($this->statusId),
+            'approve' => $this->approve($this->statusId),
+            'unapprove' => $this->unapprove($this->statusId),
             'activate' => $this->activate($this->statusId),
             default => abort(422),
         };
@@ -672,10 +716,12 @@ new class extends Component {
                     </flux:table.cell>
 
                     <flux:table.cell>
-                        <flux:badge size="sm" :color="$season->status->color()">{{ $season->status->label() }}</flux:badge>
+                        <flux:badge size="sm" :color="$season->status->color()">{{ $season->status->label() }}
+                        </flux:badge>
                     </flux:table.cell>
 
-                    <flux:table.cell class="text-zinc-500">{{ $season->created_at?->format('Y-m-d') }}</flux:table.cell>
+                    <flux:table.cell class="text-zinc-500">{{ $season->created_at?->format('Y-m-d') }}
+                    </flux:table.cell>
 
                     <flux:table.cell align="end">
                         <flux:dropdown position="bottom" align="end">
@@ -683,16 +729,27 @@ new class extends Component {
 
                             <flux:menu>
                                 @can(\App\Enums\Permission::SeasonEdit->value)
-                                    <flux:menu.item icon="pencil-square" wire:click="edit({{ $season->id }})">{{ __('Edit') }}
-                                    </flux:menu.item>
+                                    <flux:menu.item icon="pencil-square" wire:click="edit({{ $season->id }})">
+                                        {{ __('Edit') }}</flux:menu.item>
 
-                                    @if ($season->status === \App\Enums\SeasonStatus::Active)
-                                        <flux:menu.item icon="flag" wire:click="confirmStatus({{ $season->id }}, 'finish')">
-                                            {{ __('Finish season') }}
+                                    @if ($season->status === \App\Enums\SeasonStatus::Draft)
+                                        <flux:menu.item icon="check-badge"
+                                            wire:click="confirmStatus({{ $season->id }}, 'approve')">
+                                            {{ __('Approve season') }}
                                         </flux:menu.item>
-                                    @else
-                                        <flux:menu.item icon="bolt" wire:click="confirmStatus({{ $season->id }}, 'activate')">
+                                    @elseif ($season->status === \App\Enums\SeasonStatus::Approved)
+                                        <flux:menu.item icon="bolt"
+                                            wire:click="confirmStatus({{ $season->id }}, 'activate')">
                                             {{ __('Activate') }}
+                                        </flux:menu.item>
+                                        <flux:menu.item icon="arrow-uturn-left"
+                                            wire:click="confirmStatus({{ $season->id }}, 'unapprove')">
+                                            {{ __('Revert to draft') }}
+                                        </flux:menu.item>
+                                    @elseif ($season->status === \App\Enums\SeasonStatus::Active)
+                                        <flux:menu.item icon="flag"
+                                            wire:click="confirmStatus({{ $season->id }}, 'finish')">
+                                            {{ __('Finish season') }}
                                         </flux:menu.item>
                                     @endif
                                 @endcan
@@ -700,8 +757,8 @@ new class extends Component {
                                 @can(\App\Enums\Permission::SeasonDelete->value)
                                     @if ($season->status === \App\Enums\SeasonStatus::Draft)
                                         <flux:menu.separator />
-                                        <flux:menu.item icon="trash" variant="danger" wire:click="confirmDelete({{ $season->id }})">
-                                            {{ __('Delete') }}
+                                        <flux:menu.item icon="trash" variant="danger"
+                                            wire:click="confirmDelete({{ $season->id }})">{{ __('Delete') }}
                                         </flux:menu.item>
                                     @endif
                                 @endcan
@@ -712,7 +769,7 @@ new class extends Component {
             @empty
                 <flux:table.row>
                     <flux:table.cell colspan="5" class="py-10 text-center text-zinc-500">
-                        {{ ($search !== '' || $status !== '') ? __('No seasons match your filters.') : __('No seasons yet. Create the first one.') }}
+                        {{ $search !== '' || $status !== '' ? __('No seasons match your filters.') : __('No seasons yet. Create the first one.') }}
                     </flux:table.cell>
                 </flux:table.row>
             @endforelse
@@ -774,7 +831,8 @@ new class extends Component {
                         </div>
 
                         @if ($this->logoPreview)
-                            <flux:button type="button" size="xs" variant="ghost" icon="trash" wire:click="clearLogo">
+                            <flux:button type="button" size="xs" variant="ghost" icon="trash"
+                                wire:click="clearLogo">
                                 {{ __('Remove logo') }}
                             </flux:button>
                         @endif
@@ -825,8 +883,7 @@ new class extends Component {
             <div>
                 <flux:heading size="lg">{{ __('Delete season?') }}</flux:heading>
                 <flux:text class="mt-2">
-                    {{ __('The season :title will be permanently deleted.', ['title' => $deleteTitle]) }}
-                </flux:text>
+                    {{ __('The season :title will be permanently deleted.', ['title' => $deleteTitle]) }}</flux:text>
             </div>
 
             <div class="flex justify-end gap-2">

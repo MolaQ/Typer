@@ -3,37 +3,37 @@
 namespace Database\Seeders;
 
 use App\Enums\Permission;
-use App\Models\User;
+use App\Enums\RoleName;
 use Illuminate\Database\Seeder;
 use Spatie\Permission\Models\Permission as PermissionModel;
 use Spatie\Permission\Models\Role;
 use Spatie\Permission\PermissionRegistrar;
 
+/**
+ * Tworzy wszystkie uprawnienia z enuma Permission i role z enuma RoleName.
+ * Można uruchamiać wielokrotnie: istniejące wpisy zostają, brakujące są dopisywane.
+ *
+ *   php artisan db:seed --class=RolesAndPermissionsSeeder
+ */
 class RolesAndPermissionsSeeder extends Seeder
 {
     public function run(): void
     {
-        // Czyścimy pamięć podręczną uprawnień Spatie, żeby zmiany były widoczne od razu.
+        // Spatie trzyma uprawnienia w cache, więc czyścimy go przed zmianami.
         app(PermissionRegistrar::class)->forgetCachedPermissions();
 
-        // Każde uprawnienie z enuma trafia do bazy. Istniejące się nie dublują.
         foreach (Permission::values() as $name) {
             PermissionModel::firstOrCreate(['name' => $name, 'guard_name' => 'web']);
         }
 
-        // Rola Admin dostaje wszystkie uprawnienia.
-        $admin = Role::firstOrCreate(['name' => 'Admin', 'guard_name' => 'web']);
-        $admin->syncPermissions(Permission::values());
-
-        // Rola bez uprawnień dla zwykłych kont (nadajesz ją w panelu użytkownikom).
-        Role::firstOrCreate(['name' => 'User', 'guard_name' => 'web']);
-
-        // Opcjonalnie: konto administratora z adresu zapisanego w .env (ADMIN_EMAIL=...).
-        $email = env('ADMIN_EMAIL');
-
-        if ($email) {
-            User::where('email', $email)->first()?->assignRole($admin);
+        foreach (RoleName::values() as $name) {
+            Role::firstOrCreate(['name' => $name, 'guard_name' => 'web']);
         }
+
+        // Admin ma wszystkie uprawnienia (poza tym Gate::before i tak go przepuszcza).
+        // Pozostałe role dostają uprawnienia ręcznie w panelu "Role i uprawnienia",
+        // seeder ich nie nadpisuje. User, Premium i Banned startują bez uprawnień.
+        Role::findByName(RoleName::Admin->value, 'web')->syncPermissions(PermissionModel::all());
 
         app(PermissionRegistrar::class)->forgetCachedPermissions();
     }

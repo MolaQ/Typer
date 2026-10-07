@@ -34,8 +34,13 @@
                 {{-- Grupa "LechTyper": sezony, a później liga, puchar, mecze. --}}
                 @if ($canSeasons)
                     <flux:sidebar.group expandable
-                        :expanded="request()->routeIs('dashboard.seasons', 'dashboard.matchdays', 'dashboard.season-teams', 'dashboard.bots')"
+                        :expanded="request()->routeIs('dashboard.seasons', 'dashboard.matchdays', 'dashboard.season-teams', 'dashboard.fixtures', 'dashboard.bots', 'dashboard.checklist')"
                         :heading="__('LechTyper')" class="grid">
+
+                        <flux:sidebar.item icon="clipboard-document-check" :href="route('dashboard.checklist')"
+                            :current="request()->routeIs('dashboard.checklist')" wire:navigate>
+                            {{ __('To do') }}
+                        </flux:sidebar.item>
 
                         <flux:sidebar.item icon="calendar-days" :href="route('dashboard.seasons')"
                             :current="request()->routeIs('dashboard.seasons')" wire:navigate>
@@ -50,6 +55,11 @@
                         <flux:sidebar.item icon="list-bullet" :href="route('dashboard.season-teams')"
                             :current="request()->routeIs('dashboard.season-teams')" wire:navigate>
                             {{ __('Team list') }}
+                        </flux:sidebar.item>
+
+                        <flux:sidebar.item icon="table-cells" :href="route('dashboard.fixtures')"
+                            :current="request()->routeIs('dashboard.fixtures')" wire:navigate>
+                            {{ __('Fixtures') }}
                         </flux:sidebar.item>
 
                         <flux:sidebar.item icon="cpu-chip" :href="route('dashboard.bots')"
@@ -80,8 +90,8 @@
                         @if ($canRequests)
                             <flux:sidebar.item icon="identification" :href="route('dashboard.team-requests')"
                                 :current="request()->routeIs('dashboard.team-requests')"
-                                :badge="\App\Models\TeamNameChangeRequest::pending()->count() ?: null" badge-color="amber"
-                                wire:navigate>
+                                :badge="\App\Models\TeamNameChangeRequest::pending()->count() ?: null"
+                                badge-color="amber" wire:navigate>
                                 {{ __('Team requests') }}
                             </flux:sidebar.item>
                         @endif
@@ -161,9 +171,9 @@
     {{ $slot }}
 
     @persist('toast')
-    <flux:toast.group>
-        <flux:toast />
-    </flux:toast.group>
+        <flux:toast.group>
+            <flux:toast />
+        </flux:toast.group>
     @endpersist
 
     @fluxScripts

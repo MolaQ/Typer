@@ -1,0 +1,95 @@
+<?php
+
+namespace App\Support;
+
+use App\Enums\RoleName;
+use App\Enums\SeasonStatus;
+use App\Models\Bot;
+use App\Models\Competition;
+use App\Models\Fixture;
+use App\Models\Matchday;
+use App\Models\Season;
+use App\Models\SeasonTeam;
+use Spatie\Permission\Models\Role;
+
+/**
+ * Lista "Konieczne do zrobienia": wszystko, co musi być ustawione, żeby sezon działał poprawnie.
+ * Każdy punkt to: klucz, tytuł, czy zrobione, szczegół (np. 7/9), trasa do poprawienia
+ * i wskazówka. W kolejnych etapach (pytania, typowanie, wyniki...) dopisujemy tu nowe punkty.
+ */
+class SeasonChecklist
+{
+    /**
+     * @return array<int, array{group: string, title: string, ok: bool, detail: string, route: ?string, hint: ?string}>
+     */
+    public static function for(?Season $season): array
+    {
+        $items = [];
+
+        // --- Ustawienia ogólne ---
+        $rolesOk = Role::whereIn('name', RoleName::values())->count() === count(RoleName::values());
+        $items[] = self::item(__('General'), __('Roles Admin, User, Premium and Banned exist'), $rolesOk,
+            $rolesOk ? '' : __('Missing roles.'), 'dashboard.roles', 'php artisan db:seed --class=RolesAndPermissionsSeeder');
+
+        $bots = Bot::count();
+        $botsOk = $bots >= SeasonTeam::CUP_SIZE;
+        $items[] = self::item(__('General'), __('The pool has :count bots', ['count' => SeasonTeam::CUP_SIZE]), $botsOk,
+            $bots.' / '.SeasonTeam::CUP_SIZE, 'dashboard.bots', 'php artisan db:seed --class=BotsSeeder');
+
+        $players = Players::eligible()->count();
+        $items[] = self::item(__('General'), __('There are players with a role'), $players > 0,
+            (string) $players, 'dashboard.users', null);
+
+        // --- Sezon ---
+        if (! $season) {
+            $items[] = self::item(__('Season'), __('The season exists'), false, '', 'dashboard.seasons', null);
+
+            return $items;
+        }
+
+        $items[] = self::item(__('Season'), __('The season exists'), true, $season->title, 'dashboard.seasons', null);
+
+        $matchdays = Matchday::where('season_id', $season->id)->get();
+        $items[] = self::item(__('Season'), __('All :count matchdays are created', ['count' => Matchday::PER_SEASON]),
+            $matchdays->count() >= Matchday::PER_SEASON, $matchdays->count().' / '.Matchday::PER_SEASON, 'dashboard.matchdays', null);
+
+        $filled = $matchdays->filter->isFilled()->count();
+        $items[] = self::item(__('Season'), __('Every matchday has an opponent and a date'),
+            $filled >= Matchday::PER_SEASON, $filled.' / '.Matchday::PER_SEASON, 'dashboard.matchdays', null);
+
+        // --- Lista zespołów ---
+        $total = SeasonTeam::where('season_id', $season->id)->count();
+        $items[] = self::item(__('Team list'), __('The team list is built'), $total > 0, (string) $total, 'dashboard.season-teams', null);
+
+        $unlisted = Players::unlisted($season->id)->count();
+        $items[] = self::item(__('Team list'), __('Every player with a role has a league'), $total > 0 && $unlisted === 0,
+            $unlisted > 0 ? __(':count without a league', ['count' => $unlisted]) : '', 'dashboard.season-teams', null);
+
+        $banned = SeasonTeam::where('season_id', $season->id)->whereNotNull('user_id')
+            ->whereNotIn('user_id', Players::eligible()->select('id'))->count();
+        $items[] = self::item(__('Team list'), __('No banned or role-less users on the list'), $banned === 0,
+            $banned > 0 ? (string) $banned : '', 'dashboard.season-teams', null);
+
+        $items[] = self::item(__('Team list'), __('The list has at least :count teams (bots included)', ['count' => SeasonTeam::CUP_SIZE]),
+            $total >= SeasonTeam::CUP_SIZE, $total.' / '.SeasonTeam::CUP_SIZE, 'dashboard.season-teams', null);
+
+        // --- Zatwierdzenie i aktywacja ---
+        $approved = $season->status !== SeasonStatus::Draft;
+        $items[] = self::item(__('Launch'), __('The season is approved'), $approved, $season->status->label(), 'dashboard.seasons', null);
+
+        $leagues = Competition::where('season_id', $season->id)->count();
+        $fixtures = Fixture::whereIn('competition_id', Competition::where('season_id', $season->id)->select('id'))->count();
+        $items[] = self::item(__('Launch'), __('League fixtures are generated'), $leagues === 10 && $fixtures === 450,
+            $leagues.' '.__('leagues').', '.$fixtures.' '.__('matches'), 'dashboard.fixtures', null);
+
+        $items[] = self::item(__('Launch'), __('The season is active'),
+            in_array($season->status, [SeasonStatus::Active, SeasonStatus::Finished], true), '', 'dashboard.seasons', null);
+
+        return $items;
+    }
+
+    private static function item(string $group, string $title, bool $ok, string $detail, ?string $route, ?string $hint): array
+    {
+        return compact('group', 'title', 'ok', 'detail', 'route', 'hint');
+    }
+}

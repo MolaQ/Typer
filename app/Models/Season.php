@@ -65,6 +65,33 @@ class Season extends Model
         return $this->hasMany(SeasonTeam::class)->orderBy('position');
     }
 
+    /** $season->competitions  ->  rozgrywki sezonu (po zatwierdzeniu: 10 lig). */
+    public function competitions(): HasMany
+    {
+        return $this->hasMany(Competition::class)->orderBy('tier')->orderBy('id');
+    }
+
+    /**
+     * Tworzy brakujące puste kolejki 1-9 (istniejących nie rusza).
+     * Wywoływane przy tworzeniu sezonu; admin uzupełnia rywala i termin w "Kolejkach".
+     *
+     * @return int ile kolejek utworzono
+     */
+    public function createMissingMatchdays(): int
+    {
+        $existing = $this->matchdays()->pluck('number')->all();
+        $created = 0;
+
+        for ($n = 1; $n <= Matchday::PER_SEASON; $n++) {
+            if (! in_array($n, $existing, true)) {
+                $this->matchdays()->create(['number' => $n]);
+                $created++;
+            }
+        }
+
+        return $created;
+    }
+
     /* ------------------------------------------------------------------
      | Atrybuty wyliczane
      * ----------------------------------------------------------------*/
@@ -72,13 +99,13 @@ class Season extends Model
     /** $season->roman_number  ->  "IV" */
     protected function romanNumber(): Attribute
     {
-        return Attribute::get(fn() => Roman::toRoman((int) $this->number));
+        return Attribute::get(fn () => Roman::toRoman((int) $this->number));
     }
 
     /** $season->title  ->  "IV sezon" (tekst z pliku tłumaczeń) */
     protected function title(): Attribute
     {
-        return Attribute::get(fn() => __(':roman season', ['roman' => $this->roman_number]));
+        return Attribute::get(fn () => __(':roman season', ['roman' => $this->roman_number]));
     }
 
     /**
@@ -87,7 +114,7 @@ class Season extends Model
      */
     protected function sponsorLogoUrl(): Attribute
     {
-        return Attribute::get(fn() => $this->sponsor_logo_path
+        return Attribute::get(fn () => $this->sponsor_logo_path
             ? Storage::disk('public')->url($this->sponsor_logo_path)
             : null);
     }

@@ -49,6 +49,8 @@ class Audit
             // Sezony
             'season.created' => __('Season created'),
             'season.updated' => __('Season updated'),
+            'season.approved' => __('Season approved'),
+            'season.unapproved' => __('Season approval reverted'),
             'season.activated' => __('Season activated'),
             'season.finished' => __('Season finished'),
             'season.deleted' => __('Season deleted'),
@@ -64,6 +66,8 @@ class Audit
             'season_list.reordered' => __('Team order changed'),
             'season_list.reset' => __('Team list cleared'),
             'season_list.bots_added' => __('Bots added to the list'),
+            'season_list.player_assigned' => __('Player assigned to a league'),
+            'season_list.player_released' => __('Player removed from the list'),
 
             // Boty
             'bot.renamed' => __('Bot renamed'),
@@ -84,13 +88,16 @@ class Audit
             str_ends_with($event, '.created'),
             str_ends_with($event, '.built'),
             str_ends_with($event, '.players_added'),
-            str_ends_with($event, '.bots_added') => 'green',
+            str_ends_with($event, '.bots_added'),
+            str_ends_with($event, '.player_assigned') => 'green',
 
             str_ends_with($event, '.rejected'),
             str_ends_with($event, '.deleted'),
-            str_ends_with($event, '.reset') => 'red',
+            str_ends_with($event, '.reset'),
+            str_ends_with($event, '.player_released') => 'red',
 
-            str_ends_with($event, '.requested') => 'amber',
+            str_ends_with($event, '.requested'),
+            str_ends_with($event, '.unapproved') => 'amber',
 
             default => 'zinc',
         };
