@@ -12,6 +12,18 @@
             <flux:sidebar.item icon="home" :href="route('home')" :current="request()->routeIs('home')" wire:navigate>
                 {{ __('Home') }}
             </flux:sidebar.item>
+            @auth
+                @if (\App\Support\Players::canPlay(auth()->user()))
+                    <flux:sidebar.item icon="pencil-square" :href="route('tips')" :current="request()->routeIs('tips')"
+                        wire:navigate>
+                        {{ __('My tips') }}
+                    </flux:sidebar.item>
+                @endif
+            @endauth
+            <flux:sidebar.item icon="trophy" :href="route('results')" :current="request()->routeIs('results')"
+                wire:navigate>
+                {{ __('Results and tables') }}
+            </flux:sidebar.item>
             {{-- kolejne pozycje opracujemy później --}}
         </flux:sidebar.nav>
 

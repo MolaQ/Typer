@@ -46,6 +46,21 @@ enum CompetitionType: string
         return in_array($this, [self::League, self::Champions, self::Europa, self::Conference], true);
     }
 
+    /**
+     * Typ, którego zestaw pytań bonusowych obowiązuje w tych rozgrywkach.
+     * 10 lig i Liga podwórkowa mają jeden wspólny zestaw (zapisany jako League).
+     */
+    public function questionSet(): self
+    {
+        return $this === self::Swiss ? self::League : $this;
+    }
+
+    /** Nazwa zestawu pytań, np. "Ligi i Liga podwórkowa". */
+    public function questionSetLabel(): string
+    {
+        return $this->questionSet() === self::League ? __('Leagues and Liga podwórkowa') : $this->label();
+    }
+
     /** @return array<int, self> */
     public static function manual(): array
     {

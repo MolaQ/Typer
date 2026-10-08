@@ -100,15 +100,15 @@ class DrawQuestions
     }
 
     /**
-     * Typy rozgrywek, które sezon faktycznie ma (liga, puchar, podwórkowa i ręczne).
-     * Wszystkie 10 lig to jeden typ, bo mają wspólny zestaw pytań.
+     * Zestawy pytań potrzebne w sezonie: po jednym na typ rozgrywek, które sezon faktycznie ma.
+     * Wszystkie 10 lig i Liga podwórkowa mają jeden wspólny zestaw (League).
      *
      * @return array<int, CompetitionType>
      */
     public static function typesOfSeason(int $seasonId): array
     {
         $present = Competition::where('season_id', $seasonId)->pluck('type')->unique()
-            ->map(fn($t) => $t instanceof CompetitionType ? $t : CompetitionType::from($t))->all();
+            ->map(fn($t) => ($t instanceof CompetitionType ? $t : CompetitionType::from($t))->questionSet())->all();
 
         return array_values(array_filter(CompetitionType::cases(), fn($t) => in_array($t, $present, true)));
     }

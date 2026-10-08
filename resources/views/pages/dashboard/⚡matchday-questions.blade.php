@@ -271,7 +271,7 @@ new class extends Component {
 
     private function describe(CompetitionType $type): string
     {
-        return $type->label() . ', ' . __('Matchday :number', ['number' => $this->matchday->number]) . ' (' . $this->season->title . ')';
+        return $type->questionSetLabel() . ', ' . __('Matchday :number', ['number' => $this->matchday->number]) . ' (' . $this->season->title . ')';
     }
 
     private function ensureEditable(): bool
@@ -368,7 +368,7 @@ new class extends Component {
                 <flux:card class="space-y-4" wire:key="type-{{ $type->value }}">
                     <div class="flex flex-wrap items-center justify-between gap-2">
                         <div>
-                            <flux:heading>{{ $type->value === 'league' ? __('Leagues') : $type->label() }}</flux:heading>
+                            <flux:heading>{{ $type->questionSetLabel() }}</flux:heading>
                             <flux:text class="text-xs">{{ $this->filled($type) }} /
                                 {{ \App\Models\MatchdayQuestion::PER_SIDE * 2 }}</flux:text>
                         </div>

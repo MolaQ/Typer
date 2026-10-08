@@ -6,6 +6,7 @@ use App\Models\Matchday;
 use App\Models\MatchdayQuestion;
 use App\Models\Season;
 use App\Models\SeasonTeam;
+use App\Models\TeamScore;
 use App\Models\Tip;
 use App\Models\TipAnswer;
 use App\Support\PlayerCompetitions;
@@ -14,6 +15,7 @@ use App\Support\TipRules;
 use Flux\Flux;
 use Illuminate\Contracts\View\View;
 use Livewire\Attributes\Computed;
+use Livewire\Attributes\Layout;
 use Livewire\Attributes\Url;
 use Livewire\Component;
 
@@ -22,7 +24,7 @@ use Livewire\Component;
  * 5+5 na każdy typ rozgrywek, w którym gracz gra). Zapis możliwy do godziny pierwszego gwizdka.
  * Uwaga: nie nazywaj własności "slots" ani "rows" – Livewire rezerwuje część nazw.
  */
-new class extends Component {
+new #[Layout('layouts::public')] class extends Component {
     #[Url(as: 'matchday', except: 0)]
     public int $number = 0;
 
@@ -51,7 +53,7 @@ new class extends Component {
 
     public function updatedNumber(): void
     {
-        unset($this->matchday, $this->tip, $this->isOpen, $this->sets);
+        unset($this->matchday, $this->tip, $this->isOpen, $this->sets, $this->scores);
         $this->loadTip();
     }
 
@@ -166,6 +168,20 @@ new class extends Component {
         return $sets;
     }
 
+    /** Rozliczenie kolejki po wpisaniu wyniku: zestaw pytań (wartość typu) => TeamScore. */
+    #[Computed]
+    public function scores()
+    {
+        if (!$this->matchday || $this->matchday->status !== \App\Enums\MatchdayStatus::Played) {
+            return collect();
+        }
+
+        $teamId = SeasonTeam::where('season_id', $this->season->id)->where('user_id', auth()->id())->value('id');
+
+        return TeamScore::where('matchday_id', $this->matchday->id)->where('season_team_id', $teamId)->get()
+            ->keyBy(fn($score) => $score->question_set->value);
+    }
+
     /** Ile pytań łącznie i ile już ma odpowiedź (do paska postępu). */
     public function progress(): array
     {
@@ -271,6 +287,15 @@ new class extends Component {
                 </div>
             </div>
 
+            @if ($this->matchday->lech_goals !== null)
+                <flux:text>
+                    {{ __('Final score: :score.', ['score' => 'Lech ' . $this->matchday->lech_goals . ':' . $this->matchday->opponent_goals . ' ' . $this->matchday->opponent]) }}
+                    @if ($first = $this->scores->first())
+                        {{ __('Points for the tip: :points of 3.', ['points' => $first->tip_points]) }}
+                    @endif
+                </flux:text>
+            @endif
+
             @if ($this->tip)
                 <flux:text size="sm">
                     {{ __('Saved tip: :score, last change :time.', ['score' => $this->tip->score(), 'time' => $this->tip->saved_at->translatedFormat('j F, H:i:s')]) }}
@@ -294,7 +319,20 @@ new class extends Component {
 
     @foreach ($this->sets as $set)
     <flux:card class="space-y-4">
-        <flux:heading size="lg">{{ $set['type']->label() }}</flux:heading>
+        <div class="flex flex-wrap items-center justify-between gap-2">
+            <flux:heading size="lg">{{ $set['type']->questionSetLabel() }}</flux:heading>
+
+            @if ($score = $this->scores->get($set['type']->value))
+                <div class="flex flex-wrap gap-2">
+                    <flux:badge color="green">
+                        {{ __('Offence: :points', ['points' => $score->offense]) }}{{ $score->offense_zeroed ? ' (' . __('bonus zeroed') . ')' : '' }}
+                    </flux:badge>
+                    <flux:badge color="blue">
+                        {{ __('Defence: :points', ['points' => $score->defense_bonus]) }}{{ $score->defense_zeroed ? ' (' . __('bonus zeroed') . ')' : '' }}
+                    </flux:badge>
+                </div>
+            @endif
+        </div>
 
         <div class="grid gap-6 md:grid-cols-2">
             @foreach ($set['sides'] as $sideValue => $items)
@@ -308,6 +346,15 @@ new class extends Component {
                         <flux:text class="font-medium text-zinc-800 dark:text-zinc-100">{{ $item->position }}.
                             {{ $item->question->text }}
                         </flux:text>
+                        @if ($item->correct_answer !== null && $this->matchday->status === \App\Enums\MatchdayStatus::Played)
+                            @php
+                                $given = $answers[$item->id] ?? '';
+                                $answerClass = $given === '' ? '' : (($given === '1') === $item->correct_answer ? 'text-green-700 dark:text-green-400' : 'text-red-600 dark:text-red-400');
+                            @endphp
+                            <flux:text size="sm" :class="$answerClass">
+                                {{ __('Correct answer: :answer', ['answer' => $item->correct_answer ? __('Yes') : __('No')]) }}
+                            </flux:text>
+                        @endif
                         <div class="flex gap-5">
                             <label class="flex items-center gap-2 text-sm">
                                 <input type="radio" wire:model="answers.{{ $item->id }}" value="1"

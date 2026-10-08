@@ -31,18 +31,10 @@
                     {{ __('Dashboard') }}
                 </flux:sidebar.item>
 
-                {{-- Typowanie dla graczy (rola bez bana). --}}
-                @if (\App\Support\Players::canPlay($user))
-                    <flux:sidebar.item icon="pencil-square" :href="route('tips')" :current="request()->routeIs('tips')"
-                        wire:navigate>
-                        {{ __('My tips') }}
-                    </flux:sidebar.item>
-                @endif
-
                 {{-- Grupa "LechTyper": sezony, a później liga, puchar, mecze. --}}
                 @if ($canSeasons)
                     <flux:sidebar.group expandable
-                        :expanded="request()->routeIs('dashboard.seasons', 'dashboard.matchdays', 'dashboard.season-teams', 'dashboard.fixtures', 'dashboard.competitions', 'dashboard.bots', 'dashboard.checklist', 'dashboard.questions', 'dashboard.matchday-questions', 'dashboard.tips')"
+                        :expanded="request()->routeIs('dashboard.seasons', 'dashboard.matchdays', 'dashboard.season-teams', 'dashboard.fixtures', 'dashboard.competitions', 'dashboard.bots', 'dashboard.checklist', 'dashboard.questions', 'dashboard.matchday-questions', 'dashboard.tips', 'dashboard.results')"
                         :heading="__('LechTyper')" class="grid">
 
                         <flux:sidebar.item icon="clipboard-document-check" :href="route('dashboard.checklist')"
@@ -88,6 +80,11 @@
                         <flux:sidebar.item icon="check-badge" :href="route('dashboard.tips')"
                             :current="request()->routeIs('dashboard.tips')" wire:navigate>
                             {{ __('Tips overview') }}
+                        </flux:sidebar.item>
+
+                        <flux:sidebar.item icon="flag" :href="route('dashboard.results')"
+                            :current="request()->routeIs('dashboard.results')" wire:navigate>
+                            {{ __('Results') }}
                         </flux:sidebar.item>
 
                         <flux:sidebar.item icon="cpu-chip" :href="route('dashboard.bots')"
