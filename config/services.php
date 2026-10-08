@@ -35,4 +35,14 @@ return [
         ],
     ],
 
+    // Przelewy24 (etap 15). Dane z panelu P24: ID sprzedawcy, ID punktu (zwykle to samo), klucz CRC
+    // i klucz do raportów (API). P24_SANDBOX=true kieruje płatności do środowiska testowego.
+    'przelewy24' => [
+        'merchant_id' => (int) env('P24_MERCHANT_ID', 0),
+        'pos_id' => (int) env('P24_POS_ID', env('P24_MERCHANT_ID', 0)),
+        'crc' => env('P24_CRC'),
+        'api_key' => env('P24_API_KEY'),
+        'sandbox' => (bool) env('P24_SANDBOX', true),
+    ],
+
 ];

@@ -12,17 +12,19 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property int $user_id
  * @property int $lech_goals
  * @property int $opponent_goals
+ * @property bool $is_default domyślny typ premium wpisany przy przeliczeniu kolejki
  * @property \Illuminate\Support\Carbon $saved_at
  */
 class Tip extends Model
 {
-    protected $fillable = ['matchday_id', 'user_id', 'lech_goals', 'opponent_goals', 'saved_at'];
+    protected $fillable = ['matchday_id', 'user_id', 'lech_goals', 'opponent_goals', 'is_default', 'saved_at'];
 
     protected function casts(): array
     {
         return [
             'lech_goals' => 'integer',
             'opponent_goals' => 'integer',
+            'is_default' => 'boolean',
             'saved_at' => 'datetime:Y-m-d H:i:s.u',
         ];
     }

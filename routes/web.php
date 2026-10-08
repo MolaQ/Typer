@@ -1,6 +1,7 @@
 <?php
 
 use App\Enums\Permission;
+use App\Http\Controllers\Przelewy24Controller;
 use Illuminate\Support\Facades\Route;
 
 // Strona publiczna
@@ -14,6 +15,10 @@ Route::livewire('tips', 'pages::tips')
 Route::livewire('results', 'pages::results')->name('results');
 Route::livewire('hall-of-fame', 'pages::hall-of-fame')->name('hall-of-fame');
 Route::livewire('teams/{user}', 'pages::team-profile')->name('team.show');
+
+// Premium i wsparcie (etap 15): cennik i płatność online, powiadomienia od Przelewy24 (bez CSRF, patrz bootstrap/app.php).
+Route::livewire('support', 'pages::support')->name('support');
+Route::post('payments/przelewy24/status', [Przelewy24Controller::class, 'status'])->name('przelewy24.status');
 
 // Panel: wejście tylko z uprawnieniem dashboard-access (Admin ma je zawsze)
 Route::middleware(['auth', 'verified', 'permission:' . Permission::DashboardAccess->value])->group(function () {
@@ -64,6 +69,10 @@ Route::middleware(['auth', 'verified', 'permission:' . Permission::DashboardAcce
     Route::livewire('dashboard/users', 'pages::dashboard.users')
         ->middleware('role:Admin')
         ->name('dashboard.users');
+
+    Route::livewire('dashboard/payments', 'pages::dashboard.payments')
+        ->middleware('role:Admin')
+        ->name('dashboard.payments');
 
     Route::livewire('dashboard/team-requests', 'pages::dashboard.team-requests')
         ->middleware('permission:' . Permission::TeamChangeName->value)

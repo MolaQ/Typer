@@ -14,14 +14,16 @@ use App\Models\SeasonTeam;
 use App\Models\TeamScore;
 use App\Models\Tip;
 use App\Models\TipAnswer;
+use App\Models\User;
 use App\Support\LegendsRanking;
+use App\Support\Premium;
 use App\Support\Scoring;
 use DomainException;
 use Illuminate\Support\Facades\DB;
 
 /**
  * Przelicza kolejkę po wpisaniu wyniku meczu Lecha i poprawnych odpowiedzi (regulamin, punkty 3, 6, 7, 8):
- *  1. boty dostają losowy typ 0-3 : 0-3 (raz, potem zostaje zapisany),
+ *  1. boty dostają losowy typ 0-3 : 0-3 (raz, potem zostaje zapisany), a gracze premium bez typu swój domyślny typ,
  *  2. każdy zespół dostaje dorobek (team_scores) dla każdego zestawu pytań swoich rozgrywek,
  *  3. mecze tej kolejki we wszystkich rozgrywkach dostają wynik,
  *  4. w pucharze zwycięzca wchodzi na lepsze miejsce pary w meczu następnej rundy,
@@ -47,6 +49,9 @@ class ScoreMatchday
             $kickoff = ($matchday->kickoff_at ?? now())->format('Y-m-d H:i:s.u');
 
             $teams = SeasonTeam::where('season_id', $matchday->season_id)->get(['id', 'user_id']);
+
+            // Gracze premium bez typu dostają swój domyślny typ (regulamin, punkt 11).
+            $this->premiumDefaults($matchday, $teams->whereNotNull('user_id')->pluck('user_id')->all());
 
             // Rozgrywki sezonu i to, w których zestawach pytań gra każdy zespół.
             $competitions = Competition::where('season_id', $matchday->season_id)->get()->keyBy('id');
@@ -279,5 +284,34 @@ class ScoreMatchday
         }
 
         $next->update($next->home_seat === $seat ? ['home_entry_id' => $winnerEntryId] : ['away_entry_id' => $winnerEntryId]);
+    }
+
+    /**
+     * Domyślny typ premium (regulamin, punkt 11): gracz, który w chwili meczu ma aktywne premium i nie wytypował,
+     * dostaje swój domyślny typ (0:0, dopóki go nie ustawi), bez odpowiedzi na pytania. Czas typu = godzina meczu.
+     *
+     * @param  array<int, int>  $userIds  gracze z listy sezonu
+     */
+    private function premiumDefaults(Matchday $matchday, array $userIds): void
+    {
+        $kickoff = $matchday->kickoff_at ?? now();
+        $tipped = Tip::where('matchday_id', $matchday->id)->pluck('user_id')->all();
+
+        $users = User::whereIn('id', array_diff($userIds, $tipped))
+            ->where('premium_until', '>', $kickoff)
+            ->get(['id', 'premium_until', 'default_tip_lech', 'default_tip_opponent']);
+
+        foreach ($users as $user) {
+            [$lech, $opponent] = Premium::defaultTip($user);
+
+            Tip::create([
+                'matchday_id' => $matchday->id,
+                'user_id' => $user->id,
+                'lech_goals' => $lech,
+                'opponent_goals' => $opponent,
+                'is_default' => true,
+                'saved_at' => $kickoff,
+            ]);
+        }
     }
 }

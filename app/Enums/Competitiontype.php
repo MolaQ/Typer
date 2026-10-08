@@ -6,8 +6,8 @@ namespace App\Enums;
  * Rodzaj rozgrywek w sezonie.
  *  - Tworzone automatycznie przy zatwierdzeniu sezonu: League (10 lig), Cup, Swiss, Legends
  *    (wszystkie zespoły ludzi, eliminacja po kolejkach).
- *  - Ligi europejskie i Złota Liga: przy zatwierdzeniu powstają same, gdy jest zakończony poprzedni
- *    sezon (Champions, Europa, Conference z tabel końcowych), poza tym admin zarządza nimi ręcznie.
+ *  - Ligi europejskie i Złota Liga: przy zatwierdzeniu powstają same, gdy jest podstawa (Champions, Europa,
+ *    Conference z tabel końcowych poprzedniego sezonu, Golden z wpłat), poza tym admin zarządza nimi ręcznie.
  * Nazwy rozgrywek to polskie nazwy własne, więc nie przechodzą przez tłumaczenia.
  */
 enum CompetitionType: string
@@ -44,7 +44,7 @@ enum CompetitionType: string
     /** Liga 10 zespołów każdy z każdym (9 kolejek, schemat z App\Support\LeagueSchedule). */
     public function isRoundRobin(): bool
     {
-        return in_array($this, [self::League, self::Champions, self::Europa, self::Conference], true);
+        return in_array($this, [self::League, self::Champions, self::Europa, self::Conference, self::Golden], true);
     }
 
     /**

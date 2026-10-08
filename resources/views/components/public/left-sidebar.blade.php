@@ -28,6 +28,10 @@
                 :current="request()->routeIs('hall-of-fame', 'team.show')" wire:navigate>
                 {{ __('Hall of Fame') }}
             </flux:sidebar.item>
+            <flux:sidebar.item icon="heart" :href="route('support')" :current="request()->routeIs('support')"
+                wire:navigate>
+                {{ __('Premium and support') }}
+            </flux:sidebar.item>
             {{-- kolejne pozycje opracujemy później --}}
         </flux:sidebar.nav>
 

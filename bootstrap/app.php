@@ -14,6 +14,9 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware) {
+        // Powiadomienia od Przelewy24 przychodzą z ich serwera, bez tokenu CSRF (podpis sprawdza kontroler).
+        $middleware->validateCsrfTokens(except: ['payments/przelewy24/status']);
+
         $middleware->alias([
             'role' => \Spatie\Permission\Middleware\RoleMiddleware::class,
             'permission' => \Spatie\Permission\Middleware\PermissionMiddleware::class,

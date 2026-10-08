@@ -102,7 +102,7 @@
                 {{-- Grupa "System": role, użytkownicy, prośby, dziennik. --}}
                 @if ($canRoles || $canRequests || $canLogs)
                     <flux:sidebar.group expandable
-                        :expanded="request()->routeIs('dashboard.roles', 'dashboard.users', 'dashboard.team-requests', 'dashboard.logs')"
+                        :expanded="request()->routeIs('dashboard.roles', 'dashboard.users', 'dashboard.payments', 'dashboard.team-requests', 'dashboard.logs')"
                         :heading="__('System')" class="grid">
 
                         @if ($canRoles)
@@ -114,6 +114,11 @@
                             <flux:sidebar.item icon="users" :href="route('dashboard.users')"
                                 :current="request()->routeIs('dashboard.users')" wire:navigate>
                                 {{ __('Users') }}
+                            </flux:sidebar.item>
+
+                            <flux:sidebar.item icon="banknotes" :href="route('dashboard.payments')"
+                                :current="request()->routeIs('dashboard.payments')" wire:navigate>
+                                {{ __('Payments') }}
                             </flux:sidebar.item>
                         @endif
 

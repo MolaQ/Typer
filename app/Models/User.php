@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
@@ -25,6 +26,9 @@ use Spatie\Permission\Traits\HasRoles;
  * @property string|null $remember_token
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
+ * @property Carbon|null $premium_until
+ * @property int|null $default_tip_lech
+ * @property int|null $default_tip_opponent
  */
 #[Fillable(['name', 'email', 'password', 'team_name', 'team_short_name', 'team_abbr'])]
 #[Hidden(['password', 'two_factor_secret', 'two_factor_recovery_codes', 'remember_token'])]
@@ -43,6 +47,9 @@ class User extends Authenticatable implements MustVerifyEmail
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'premium_until' => 'datetime',
+            'default_tip_lech' => 'integer',
+            'default_tip_opponent' => 'integer',
         ];
     }
 
@@ -56,5 +63,11 @@ class User extends Authenticatable implements MustVerifyEmail
         return Str::length($initials) > 1
             ? Str::substr($initials, 0, 1).Str::substr($initials, -1)
             : $initials;
+    }
+
+    /** Wpłaty gracza (premium i wsparcie). */
+    public function payments(): HasMany
+    {
+        return $this->hasMany(Payment::class);
     }
 }

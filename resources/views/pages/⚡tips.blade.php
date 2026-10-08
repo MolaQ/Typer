@@ -306,12 +306,23 @@ new #[Layout('layouts::public')] class extends Component {
                 </flux:text>
             @endif
 
-            @if ($this->tip)
+            @if ($this->tip && $this->tip->is_default)
+                <flux:text size="sm">{{ __('Your premium default tip was used: :score.', ['score' => $this->tip->score()]) }}</flux:text>
+            @elseif ($this->tip)
                 <flux:text size="sm">
                     {{ __('Saved tip: :score, last change :time.', ['score' => $this->tip->score(), 'time' => $this->tip->saved_at->translatedFormat('j F, H:i:s')]) }}
                 </flux:text>
             @else
                 <flux:text size="sm">{{ __('You have not tipped this matchday yet.') }}</flux:text>
+                @if (\App\Support\Premium::isActive(auth()->user()))
+                    @php
+                        $defaultTip = \App\Support\Premium::defaultTip(auth()->user());
+                    @endphp
+                    <flux:text size="sm">
+                        {{ __('Premium: without a tip your default tip :score will be used.', ['score' => $defaultTip[0] . ':' . $defaultTip[1]]) }}
+                        <flux:link :href="route('support')" wire:navigate>{{ __('Change') }}</flux:link>
+                    </flux:text>
+                @endif
             @endif
         @endif
     </flux:card>
