@@ -37,6 +37,7 @@ class Roster
 
         if ($bot) {
             $bot->update(['user_id' => $userId, 'bot_id' => null]);
+            self::joinLegends($seasonId, $bot->id);
 
             return true;
         }
@@ -55,6 +56,7 @@ class Roster
             ]);
 
             self::joinSwiss($seasonId, $teamId, $end);
+            self::joinLegends($seasonId, $teamId);
 
             return true;
         }
@@ -78,6 +80,27 @@ class Roster
         }
     }
 
+    /** Dopisuje zespół gracza do Ligi Legend sezonu (jeśli już istnieje), na koniec rozstawienia. */
+    private static function joinLegends(int $seasonId, int $seasonTeamId): void
+    {
+        $legends = Competition::where('season_id', $seasonId)->where('type', CompetitionType::Legends->value)->first();
+
+        if ($legends && ! CompetitionEntry::where('competition_id', $legends->id)->where('season_team_id', $seasonTeamId)->exists()) {
+            CompetitionEntry::create([
+                'competition_id' => $legends->id,
+                'season_team_id' => $seasonTeamId,
+                'seed' => (int) CompetitionEntry::where('competition_id', $legends->id)->max('seed') + 1,
+            ]);
+        }
+    }
+
+    private static function leaveLegends(SeasonTeam $team): void
+    {
+        CompetitionEntry::where('season_team_id', $team->id)
+            ->whereIn('competition_id', Competition::where('season_id', $team->season_id)->where('type', CompetitionType::Legends->value)->select('id'))
+            ->delete();
+    }
+
     /**
      * Zwalnia miejsce gracza: wchodzi tam wolny bot z puli (pozycja i liga zostają).
      * Bez wolnego bota miejsce za pucharem (pozycja > 512) po prostu znika.
@@ -88,6 +111,9 @@ class Roster
             ->whereNotIn('id', SeasonTeam::where('season_id', $team->season_id)->whereNotNull('bot_id')->select('bot_id'))
             ->orderBy('sort_order')
             ->first();
+
+        // Bot nie gra w Lidze Legend.
+        self::leaveLegends($team);
 
         if ($bot) {
             $team->update(['user_id' => null, 'bot_id' => $bot->id]);

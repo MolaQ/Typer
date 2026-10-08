@@ -9,10 +9,10 @@ it('pairs neighbours in the first round', function () {
         ->and($result['bye'])->toBeNull();
 });
 
-it('gives the bye to the lowest ranked team that had none', function () {
+it('always gives the bye to the lowest ranked team', function () {
     $result = SwissPairing::pair(range(1, 7), [], [7 => true]);
 
-    expect($result['bye'])->toBe(6)
+    expect($result['bye'])->toBe(7)
         ->and($result['pairs'])->toHaveCount(3);
 });
 

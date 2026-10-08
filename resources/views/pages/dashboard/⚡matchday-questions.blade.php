@@ -363,7 +363,7 @@ new class extends Component {
             @endif
         </div>
 
-        <div class="grid gap-4 xl:grid-cols-2">
+        <div class="grid gap-4">
             @foreach ($this->types as $type)
                 <flux:card class="space-y-4" wire:key="type-{{ $type->value }}">
                     <div class="flex flex-wrap items-center justify-between gap-2">
@@ -385,6 +385,8 @@ new class extends Component {
                         @endif
                     </div>
 
+                    {{-- Ofensywne z lewej, defensywne z prawej (na dużym ekranie). --}}
+                    <div class="grid gap-6 md:grid-cols-2">
                     @foreach (\App\Enums\QuestionSide::cases() as $side)
                         <div class="space-y-1">
                             <flux:badge size="sm" :color="$side->color()">{{ $side->label() }}</flux:badge>
@@ -422,6 +424,7 @@ new class extends Component {
                             </ol>
                         </div>
                     @endforeach
+                    </div>
                 </flux:card>
             @endforeach
         </div>

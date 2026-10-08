@@ -77,10 +77,19 @@ new #[Layout('layouts::public')] class extends Component {
             $this->opponent = (string) $tip->opponent_goals;
         }
 
-        $this->answers = TipAnswer::where('matchday_id', $matchday->id)->where('user_id', auth()->id())
+        $saved = TipAnswer::where('matchday_id', $matchday->id)->where('user_id', auth()->id())
             ->pluck('answer', 'matchday_question_id')
             ->map(fn($a) => $a ? '1' : '0')
             ->all();
+
+        // Domyślnie „brak odpowiedzi” ('') na każde pytanie z zestawów gracza.
+        foreach ($this->sets as $set) {
+            foreach ($set['sides'] as $items) {
+                foreach ($items as $item) {
+                    $this->answers[$item->id] = $saved[$item->id] ?? '';
+                }
+            }
+        }
     }
 
     /* ==================================================================
@@ -133,7 +142,8 @@ new #[Layout('layouts::public')] class extends Component {
     }
 
     /**
-     * Zestawy pytań gracza: lista [typ, [strona => miejsca]] tylko dla typów, w których gra.
+     * Zestawy pytań gracza: lista [typ, [strona => miejsca]] tylko dla typów, w których gra
+     * (bez pucharu i Ligi Legend po odpadnięciu).
      *
      * @return array<int, array{type: \App\Enums\CompetitionType, sides: array<string, \Illuminate\Support\Collection>}>
      */
@@ -144,7 +154,7 @@ new #[Layout('layouts::public')] class extends Component {
             return [];
         }
 
-        $types = PlayerCompetitions::types(auth()->id(), $this->season->id);
+        $types = PlayerCompetitions::types(auth()->id(), $this->season->id, $this->matchday->number);
         $all = MatchdayQuestion::with('question:id,text')
             ->where('matchday_id', $this->matchday->id)
             ->orderBy('position')
@@ -211,7 +221,7 @@ new #[Layout('layouts::public')] class extends Component {
             return;
         }
 
-        unset($this->tip);
+        unset($this->tip, $this->sets);
         $this->loadTip();
 
         Flux::toast(variant: 'success', text: __('Tip saved.'));
@@ -350,6 +360,9 @@ new #[Layout('layouts::public')] class extends Component {
                         <flux:text class="font-medium text-zinc-800 dark:text-zinc-100">{{ $item->position }}.
                             {{ $item->question->text }}
                         </flux:text>
+                        @if ($item->correct_answer === null && $this->matchday->status === \App\Enums\MatchdayStatus::Played)
+                            <flux:text size="sm" class="text-amber-600 dark:text-amber-400">{{ __('Question cancelled: answers do not count.') }}</flux:text>
+                        @endif
                         @if ($item->correct_answer !== null && $this->matchday->status === \App\Enums\MatchdayStatus::Played)
                             @php
                                 $given = $answers[$item->id] ?? '';
@@ -359,16 +372,8 @@ new #[Layout('layouts::public')] class extends Component {
                                 {{ __('Correct answer: :answer', ['answer' => $item->correct_answer ? __('Yes') : __('No')]) }}
                             </flux:text>
                         @endif
-                        <div class="flex gap-5">
-                            <label class="flex items-center gap-2 text-sm">
-                                <input type="radio" wire:model="answers.{{ $item->id }}" value="1"
-                                    @disabled(!$this->isOpen)> {{ __('Yes') }}
-                            </label>
-                            <label class="flex items-center gap-2 text-sm">
-                                <input type="radio" wire:model="answers.{{ $item->id }}" value="0"
-                                    @disabled(!$this->isOpen)> {{ __('No') }}
-                            </label>
-                        </div>
+                        <x-answer-toggle :model="'answers.' . $item->id" :value="$answers[$item->id] ?? ''"
+                            :disabled="! $this->isOpen" />
                     </div>
                 @endforeach
             </div>

@@ -21,6 +21,9 @@ enum RoleName: string
     /** Zbanowany: nie bierze udziału w żadnych rozgrywkach (patrz App\Support\Players). */
     case Banned = 'Banned';
 
+    /** Nieaktywny: 5 kolejek z rzędu bez typu. Nie gra, dopóki admin nie przywróci roli User (wraca do Ligi podwórkowej). */
+    case Inactive = 'Inactive';
+
     /** Wszystkie nazwy jako tablica tekstów, np. do seedera. */
     public static function values(): array
     {
@@ -35,6 +38,7 @@ enum RoleName: string
             self::User => 'blue',
             self::Premium => 'purple',
             self::Banned => 'red',
+            self::Inactive => 'zinc',
         };
     }
 }

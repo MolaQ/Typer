@@ -166,6 +166,13 @@ new class extends Component {
             }
         }
 
+        // Przywrócenie nieaktywnego gracza: nadanie mu innej roli zdejmuje rolę Inactive,
+        // inaczej dalej by blokowała grę (Players::BLOCKING_ROLES) i nie trafiłby na listę sezonu.
+        $inactive = RoleName::Inactive->value;
+        if ($user->hasRole($inactive) && in_array($inactive, $this->selected, true) && count($this->selected) > 1) {
+            $this->selected = array_values(array_diff($this->selected, [$inactive]));
+        }
+
         $user->syncRoles($this->selected);
 
         // Rola decyduje o udziale w zabawie: gracz (bez bana) trafia na listy sezonów,

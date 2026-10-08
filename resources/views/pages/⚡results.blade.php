@@ -7,6 +7,7 @@ use App\Models\Matchday;
 use App\Models\Season;
 use App\Models\SeasonTeam;
 use App\Support\CupBracket;
+use App\Support\LegendsRanking;
 use App\Support\Standings;
 use Illuminate\Contracts\View\View;
 use Livewire\Attributes\Computed;
@@ -110,6 +111,19 @@ new #[Layout('layouts::public')] class extends Component {
     public function table()
     {
         return $this->hasTable ? Standings::for($this->competition) : collect();
+    }
+
+    #[Computed]
+    public function isLegends(): bool
+    {
+        return $this->competition?->type === CompetitionType::Legends;
+    }
+
+    /** Liga Legend: ranking po wybranej kolejce (narastająco od kolejki 1). */
+    #[Computed]
+    public function legends()
+    {
+        return $this->isLegends ? LegendsRanking::for($this->competition, $this->round) : collect();
     }
 
     #[Computed]
@@ -217,7 +231,7 @@ new #[Layout('layouts::public')] class extends Component {
             </flux:text>
         @endif
 
-        <div class="grid gap-6 {{ $this->hasTable ? 'lg:grid-cols-[1fr_20rem]' : '' }}">
+        <div class="grid gap-6 {{ $this->hasTable || $this->isLegends ? 'lg:grid-cols-[1fr_20rem]' : '' }}">
             {{-- ============ Tabela ============ --}}
             @if ($this->hasTable)
                 <flux:card class="overflow-x-auto p-0">
@@ -238,10 +252,24 @@ new #[Layout('layouts::public')] class extends Component {
                         </thead>
                         <tbody>
                             @foreach ($this->table as $index => $row)
+                                @php
+                                    $zone = \App\Support\Standings::zone($this->competition, $index + 1, $this->table->count());
+                                    $badge = \App\Support\Standings::europeanBadge($this->competition, $index + 1);
+                                    $zoneClass = match ($zone) {
+                                        'up' => 'border-l-4 border-l-green-500',
+                                        'down' => 'border-l-4 border-l-red-500',
+                                        default => 'border-l-4 border-l-transparent',
+                                    };
+                                @endphp
                                 <tr wire:key="row-{{ $row['entry_id'] }}"
-                                    class="border-b border-zinc-100 last:border-0 dark:border-zinc-700/50 {{ $row['team']->id == $this->myTeamId ? 'bg-amber-50 font-semibold dark:bg-amber-900/20' : '' }}">
+                                    class="{{ $zoneClass }} border-b border-zinc-100 last:border-b-0 dark:border-zinc-700/50 {{ $row['team']->id == $this->myTeamId ? 'bg-amber-50 font-semibold dark:bg-amber-900/20' : '' }}">
                                     <td class="px-3 py-1.5 text-right tabular-nums text-zinc-500">{{ $index + 1 }}.</td>
-                                    <td class="max-w-56 truncate px-3 py-1.5">{{ $row['team']->name }}</td>
+                                    <td class="max-w-56 truncate px-3 py-1.5">
+                                        {{ $row['team']->name }}
+                                        @if ($badge)
+                                            <span class="ms-1 rounded bg-blue-100 px-1 text-[10px] font-semibold text-blue-700 dark:bg-blue-900/40 dark:text-blue-300">{{ $badge }}</span>
+                                        @endif
+                                    </td>
                                     <td class="px-2 py-1.5 text-right tabular-nums">{{ $row['played'] }}</td>
                                     <td class="px-2 py-1.5 text-right tabular-nums">{{ $row['won'] }}</td>
                                     <td class="px-2 py-1.5 text-right tabular-nums">{{ $row['drawn'] }}</td>
@@ -254,10 +282,66 @@ new #[Layout('layouts::public')] class extends Component {
                             @endforeach
                         </tbody>
                     </table>
+                    @if (in_array($this->competition->type, [\App\Enums\CompetitionType::League, \App\Enums\CompetitionType::Swiss], true))
+                        <div class="flex flex-wrap gap-4 border-t border-zinc-200 px-3 py-2 text-xs text-zinc-500 dark:border-zinc-700">
+                            <span class="flex items-center gap-1"><span class="inline-block h-3 w-1 bg-green-500"></span>{{ __('Promotion') }}</span>
+                            @if ($this->competition->type === \App\Enums\CompetitionType::League)
+                                <span class="flex items-center gap-1"><span class="inline-block h-3 w-1 bg-red-500"></span>{{ __('Relegation') }}</span>
+                                <span>{{ __('LM, LE, LK: Liga Mistrzów, Europy and Konferencji next season') }}</span>
+                            @endif
+                        </div>
+                    @endif
+                </flux:card>
+            @endif
+
+            {{-- ============ Liga Legend: ranking z odcięciem ============ --}}
+            @if ($this->isLegends)
+                <flux:card class="overflow-x-auto p-0">
+                    <div class="px-3 py-2 text-xs text-zinc-500">
+                        @if ($round < \App\Support\LegendsRanking::ROUNDS)
+                            {{ __('After matchday :round the best :limit teams stay in the competition.', ['round' => $round, 'limit' => \App\Support\LegendsRanking::limitAfter($round)]) }}
+                        @else
+                            {{ __('Final: the better total from matchday 1 wins.') }}
+                        @endif
+                    </div>
+                    <table class="w-full text-sm">
+                        <thead class="text-xs text-zinc-500">
+                            <tr class="border-b border-zinc-200 dark:border-zinc-700">
+                                <th class="px-3 py-2 text-right">#</th>
+                                <th class="px-3 py-2 text-left">{{ __('Team') }}</th>
+                                <th class="px-2 py-2 text-right" title="{{ __('Points for the tip') }}">{{ __('Tip') }}</th>
+                                <th class="px-2 py-2 text-right" title="{{ __('Bonus') }}">{{ __('Bon.') }}</th>
+                                <th class="px-2 py-2 text-right" title="{{ __('Exact tips') }}">{{ __('Ex.') }}</th>
+                                <th class="px-3 py-2 text-left">{{ __('Status') }}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach ($this->legends as $index => $row)
+                                @php
+                                    $out = $row['eliminated_round'] !== null && $row['eliminated_round'] < $round;
+                                    $cut = $row['eliminated_round'] === $round;
+                                @endphp
+                                <tr wire:key="leg-{{ $row['entry_id'] }}"
+                                    class="border-b border-zinc-100 last:border-b-0 dark:border-zinc-700/50 {{ $out ? 'text-zinc-400' : '' }} {{ $row['team']->id == $this->myTeamId ? 'bg-amber-50 font-semibold dark:bg-amber-900/20' : '' }}">
+                                    <td class="px-3 py-1.5 text-right tabular-nums">{{ $index + 1 }}.</td>
+                                    <td class="max-w-56 truncate px-3 py-1.5">{{ $row['team']->name }}</td>
+                                    <td class="px-2 py-1.5 text-right tabular-nums">{{ $row['tip_points'] }}</td>
+                                    <td class="px-2 py-1.5 text-right tabular-nums">{{ $row['bonus'] }}</td>
+                                    <td class="px-2 py-1.5 text-right tabular-nums">{{ $row['exact'] }}</td>
+                                    <td class="px-3 py-1.5 text-xs">
+                                        @if ($out || $cut)
+                                            <span class="text-red-600 dark:text-red-400">{{ __('out after matchday :round', ['round' => $row['eliminated_round']]) }}</span>
+                                        @endif
+                                    </td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
                 </flux:card>
             @endif
 
             {{-- ============ Mecze kolejki / rundy ============ --}}
+            @if (!$this->isLegends)
             <flux:card class="space-y-2 self-start">
                 <flux:heading>
                     {{ $this->isCup ? \App\Support\CupBracket::roundName($round) : __('Matchday :number', ['number' => $round]) }}
@@ -295,6 +379,7 @@ new #[Layout('layouts::public')] class extends Component {
                     <flux:text>{{ __('No matches yet.') }}</flux:text>
                 @endif
             </flux:card>
+            @endif
         </div>
     @endif
 </div>

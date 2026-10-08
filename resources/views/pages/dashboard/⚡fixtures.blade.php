@@ -457,7 +457,7 @@ new class extends Component {
                 </flux:text>
             @else
                 <flux:text class="text-sm">
-                    {{ __('Round 1 is drawn from the pre-season list (1-2, 3-4, ...). Next rounds follow the standings after the previous round has results. With an odd number of teams the lowest ranked team without a bye plays a virtual opponent (Lech Poznań).') }}
+                    {{ __('Round 1 is drawn from the pre-season list (1-2, 3-4, ...). Next rounds follow the standings after the previous round has results. With an odd number of teams the last team in the standings plays a virtual opponent (Lech Poznań).') }}
                 </flux:text>
             @endif
 

@@ -6,20 +6,26 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**
- * Uczestnik rozgrywek: zespół z listy przedsezonowej z numerem rozstawienia.
+ * Miejsce zespołu w tabeli końcowej rozgrywek (zapis przy zakończeniu sezonu).
  *
+ * @property int $season_id
  * @property int $competition_id
  * @property int $season_team_id
- * @property int $seed
- * @property int|null $eliminated_round  puchar i Liga Legend: kolejka, po której zespół odpadł
+ * @property int|null $user_id
+ * @property int|null $bot_id
+ * @property int $place
+ * @property array|null $stats
  */
-class CompetitionEntry extends Model
+class FinalStanding extends Model
 {
-    protected $fillable = ['competition_id', 'season_team_id', 'seed', 'eliminated_round'];
+    protected $fillable = ['season_id', 'competition_id', 'season_team_id', 'user_id', 'bot_id', 'place', 'stats'];
 
     protected function casts(): array
     {
-        return ['seed' => 'integer', 'eliminated_round' => 'integer'];
+        return [
+            'place' => 'integer',
+            'stats' => 'array',
+        ];
     }
 
     public function competition(): BelongsTo

@@ -16,7 +16,7 @@ use Illuminate\Support\Facades\DB;
  *  - Runda 1: pary z listy przedsezonowej (1-2, 3-4, 5-6...).
  *  - Rundy 2-9: pary według aktualnej klasyfikacji (App\Support\Standings, po wynikach poprzedniej rundy),
  *    więc kolejność musi przyjść z zewnątrz w $rankedEntryIds (id wpisów od najlepszego).
- *  - Nieparzysta liczba zespołów: wolny los dostaje najgorszy zespół, który go jeszcze nie miał.
+ *  - Nieparzysta liczba zespołów: wolny los dostaje zawsze ostatni zespół klasyfikacji.
  *    Gra wtedy z wirtualnym rywalem (mecz bez gościa), zgodnie z regulaminem.
  * Rundę losuje się raz, po poprzedniej, w kolejności 1, 2, 3...
  */

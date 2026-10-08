@@ -1,5 +1,6 @@
 <?php
 
+use App\Actions\Seasons\BuildListFromPrevious;
 use App\Actions\Seasons\FillTeamListWithBots;
 use App\Enums\League;
 use App\Enums\Permission;
@@ -228,6 +229,34 @@ new class extends Component {
         Flux::toast(text: __('Team list built.'), variant: 'success');
     }
 
+    /** Poprzedni zakończony sezon z tabelami końcowymi (lista może powstać z jego wyników). */
+    #[Computed]
+    public function previousSeason(): ?Season
+    {
+        return $this->season ? BuildListFromPrevious::previousSeason($this->season) : null;
+    }
+
+    /** Buduje listę z wyników poprzedniego sezonu: awanse, spadki i czyszczenie lig z botów. */
+    public function buildFromPrevious(BuildListFromPrevious $action): void
+    {
+        $this->authorizeAbility(Permission::SeasonEdit);
+
+        if (!$this->ensureEditable()) {
+            return;
+        }
+
+        try {
+            $stats = $action->handle($this->season);
+        } catch (DomainException $e) {
+            Flux::toast(text: $e->getMessage(), variant: 'danger');
+
+            return;
+        }
+
+        $this->clearCaches();
+        Flux::toast(text: __('Team list built from :season: :players players, :bots bots.', ['season' => $this->previousSeason?->title, 'players' => $stats['players'], 'bots' => $stats['bots']]), variant: 'success');
+    }
+
     /**
      * Dopisuje na koniec (do ligi podwórkowej) graczy zarejestrowanych po zbudowaniu listy.
      * Admin może ich potem przenieść do wybranej ligi.
@@ -417,7 +446,7 @@ new class extends Component {
     /**
      * Przenosi gracza do wybranej ligi (regulamin, punkt 8):
      *  - do ligi 1-10: gracz zajmuje miejsce najwyżej sklasyfikowanego bota tej ligi,
-     *    a bot trafia na dawne miejsce gracza (zamiana). Jeśli nie ma tam botów,
+     *    a boty pomiędzy przesuwają się kaskadowo o jedno miejsce bota (cascadeBots). Jeśli nie ma tam botów,
      *    nic się nie dzieje (admin dostaje ostrzeżenie),
      *  - do ligi podwórkowej: tak samo, a gdy nie ma tam botów, gracz trafia na koniec
      *    listy, a jego dawne miejsce w lidze zajmuje wolny bot (liga ma nadal 10 zespołów).
@@ -458,8 +487,8 @@ new class extends Component {
                 $bot = $this->bestBot($target, lock: true);
 
                 if ($bot) {
-                    // Zamiana miejsc: bot trafia na dawne miejsce gracza. Lista nie ma luk.
-                    $this->swapPositions($team, $bot);
+                    // Gracz zajmuje miejsce bota, a boty przesuwają się kolejno o jedno miejsce bota. Lista nie ma luk.
+                    $this->cascadeBots($team, $bot);
 
                     return true;
                 }
@@ -629,6 +658,41 @@ new class extends Component {
         $query = SeasonTeam::where('season_id', $this->seasonId)->whereNull('user_id')->inLeague($league)->orderBy('position');
 
         return ($lock ? $query->lockForUpdate() : $query)->first();
+    }
+
+    /**
+     * Gracz wskakuje na miejsce bota, a boty między tym miejscem a dawnym miejscem gracza przesuwają się
+     * kaskadowo: wyparty bot zajmuje miejsce kolejnego bota w rankingu, ten następnego itd., a ostatni
+     * trafia na zwolnione miejsce gracza. Zespoły ludzi pomiędzy zostają na swoich miejscach.
+     */
+    private function cascadeBots(SeasonTeam $team, SeasonTeam $bot): void
+    {
+        $from = $team->position;
+        $to = $bot->position;
+        $up = $to < $from;
+
+        // Boty na drodze między miejscem docelowym a dawnym miejscem gracza (w kolejności przesuwania).
+        $chain = SeasonTeam::where('season_id', $this->seasonId)
+            ->whereNull('user_id')
+            ->whereKeyNot($team->id)
+            ->whereBetween('position', [min($from, $to), max($from, $to)])
+            ->orderBy('position', $up ? 'asc' : 'desc')
+            ->lockForUpdate()
+            ->get();
+
+        // Miejsca, które zajmą kolejne boty: miejsce następnego bota w łańcuchu, ostatni dostaje miejsce gracza.
+        $targets = $chain->pluck('position')->slice(1)->push($from)->values();
+
+        // Najpierw pozycje tymczasowe (ujemne), żeby nie złamać unikalności, potem docelowe.
+        $team->update(['position' => -$team->id]);
+        foreach ($chain as $item) {
+            $item->update(['position' => -$item->id - 1000000]);
+        }
+
+        $team->update(['position' => $to]);
+        foreach ($chain->values() as $i => $item) {
+            $item->update(['position' => $targets[$i]]);
+        }
     }
 
     /** Zamienia miejscami dwa zespoły (chwilowo pozycja -1, żeby nie złamać unikalności). */
@@ -808,10 +872,22 @@ new class extends Component {
                     {{ __('The list is built from players with a role in order of registration: the first 10 go to Ekstraklasa, the next 10 to I liga and so on. Missing places in the first 100 are filled by bots. Later players go to Liga podwórkowa.') }}
                 </flux:text>
 
+                @if ($this->isEditable && $this->previousSeason)
+                    <flux:text>
+                        {{ __('You can also build the list from the final standings of :season: 4 teams go up and down between leagues, bots are swapped for players, inactive players are replaced by bots.', ['season' => $this->previousSeason->title]) }}
+                    </flux:text>
+                @endif
+
                 @if ($this->isEditable)
                     @can(\App\Enums\Permission::SeasonEdit->value)
-                        <div>
-                            <flux:button variant="primary" icon="bolt" wire:click="buildList">
+                        <div class="flex flex-wrap gap-2">
+                            @if ($this->previousSeason)
+                                <flux:button variant="primary" icon="arrows-up-down" wire:click="buildFromPrevious">
+                                    <span wire:loading.remove wire:target="buildFromPrevious">{{ __('Build from the previous season') }}</span>
+                                    <span wire:loading wire:target="buildFromPrevious">{{ __('Saving...') }}</span>
+                                </flux:button>
+                            @endif
+                            <flux:button :variant="$this->previousSeason ? 'filled' : 'primary'" icon="bolt" wire:click="buildList">
                                 <span wire:loading.remove
                                     wire:target="buildList">{{ __('Build the list automatically') }}</span>
                                 <span wire:loading wire:target="buildList">{{ __('Saving...') }}</span>
