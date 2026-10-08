@@ -9,7 +9,9 @@ Route::livewire('/permission', 'pages::home.permissiontest')->name('permission')
 
 // Panel: wejście tylko z uprawnieniem dashboard-access (Admin ma je zawsze)
 Route::middleware(['auth', 'verified', 'permission:' . Permission::DashboardAccess->value])->group(function () {
-
+    Route::livewire('tips', 'pages::tips')
+        ->middleware('auth')
+        ->name('tips');
     Route::livewire('dashboard', 'pages::dashboard.stats')
         ->name('dashboard');
     //Zarządzanie rozgrywkami
@@ -34,7 +36,15 @@ Route::middleware(['auth', 'verified', 'permission:' . Permission::DashboardAcce
     Route::livewire('dashboard/checklist', 'pages::dashboard.checklist')
         ->middleware('permission:season-list')
         ->name('dashboard.checklist');
-
+    Route::livewire('dashboard/questions', 'pages::dashboard.questions')
+        ->middleware('permission:season-list')
+        ->name('dashboard.questions');
+    Route::livewire('dashboard/matchday-questions', 'pages::dashboard.matchday-questions')
+        ->middleware('permission:season-list')
+        ->name('dashboard.matchday-questions');
+    Route::livewire('dashboard/tips', 'pages::dashboard.tips-overview')
+        ->middleware('permission:season-list')
+        ->name('dashboard.tips');
     // Zarządzanie rolami i użytkownikami: nadal tylko Admin
     Route::livewire('dashboard/roles', 'pages::dashboard.roles')
         ->middleware('role:Admin')

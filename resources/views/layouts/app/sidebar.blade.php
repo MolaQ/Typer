@@ -31,10 +31,18 @@
                     {{ __('Dashboard') }}
                 </flux:sidebar.item>
 
+                {{-- Typowanie dla graczy (rola bez bana). --}}
+                @if (\App\Support\Players::canPlay($user))
+                    <flux:sidebar.item icon="pencil-square" :href="route('tips')" :current="request()->routeIs('tips')"
+                        wire:navigate>
+                        {{ __('My tips') }}
+                    </flux:sidebar.item>
+                @endif
+
                 {{-- Grupa "LechTyper": sezony, a później liga, puchar, mecze. --}}
                 @if ($canSeasons)
                     <flux:sidebar.group expandable
-                        :expanded="request()->routeIs('dashboard.seasons', 'dashboard.matchdays', 'dashboard.season-teams', 'dashboard.fixtures', 'dashboard.competitions', 'dashboard.bots', 'dashboard.checklist')"
+                        :expanded="request()->routeIs('dashboard.seasons', 'dashboard.matchdays', 'dashboard.season-teams', 'dashboard.fixtures', 'dashboard.competitions', 'dashboard.bots', 'dashboard.checklist', 'dashboard.questions', 'dashboard.matchday-questions', 'dashboard.tips')"
                         :heading="__('LechTyper')" class="grid">
 
                         <flux:sidebar.item icon="clipboard-document-check" :href="route('dashboard.checklist')"
@@ -67,6 +75,21 @@
                             {{ __('Competitions') }}
                         </flux:sidebar.item>
 
+                        <flux:sidebar.item icon="question-mark-circle" :href="route('dashboard.questions')"
+                            :current="request()->routeIs('dashboard.questions')" wire:navigate>
+                            {{ __('Question bank') }}
+                        </flux:sidebar.item>
+
+                        <flux:sidebar.item icon="clipboard-document-list" :href="route('dashboard.matchday-questions')"
+                            :current="request()->routeIs('dashboard.matchday-questions')" wire:navigate>
+                            {{ __('Matchday questions') }}
+                        </flux:sidebar.item>
+
+                        <flux:sidebar.item icon="check-badge" :href="route('dashboard.tips')"
+                            :current="request()->routeIs('dashboard.tips')" wire:navigate>
+                            {{ __('Tips overview') }}
+                        </flux:sidebar.item>
+
                         <flux:sidebar.item icon="cpu-chip" :href="route('dashboard.bots')"
                             :current="request()->routeIs('dashboard.bots')" wire:navigate>
                             {{ __('Bots') }}
@@ -95,8 +118,8 @@
                         @if ($canRequests)
                             <flux:sidebar.item icon="identification" :href="route('dashboard.team-requests')"
                                 :current="request()->routeIs('dashboard.team-requests')"
-                                :badge="\App\Models\TeamNameChangeRequest::pending()->count() ?: null"
-                                badge-color="amber" wire:navigate>
+                                :badge="\App\Models\TeamNameChangeRequest::pending()->count() ?: null" badge-color="amber"
+                                wire:navigate>
                                 {{ __('Team requests') }}
                             </flux:sidebar.item>
                         @endif
@@ -176,9 +199,9 @@
     {{ $slot }}
 
     @persist('toast')
-        <flux:toast.group>
-            <flux:toast />
-        </flux:toast.group>
+    <flux:toast.group>
+        <flux:toast />
+    </flux:toast.group>
     @endpersist
 
     @fluxScripts
