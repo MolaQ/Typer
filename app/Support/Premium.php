@@ -4,7 +4,7 @@ namespace App\Support;
 
 use App\Enums\RoleName;
 use App\Models\User;
-use Illuminate\Support\Carbon;
+use Carbon\CarbonInterface;
 
 /**
  * Premium (regulamin, punkt 11): rola z datą wygaśnięcia. Typowanie jest zawsze darmowe, premium daje
@@ -53,7 +53,7 @@ final class Premium
         return $days;
     }
 
-    public static function isActive(?User $user, ?Carbon $at = null): bool
+    public static function isActive(?User $user, ?CarbonInterface $at = null): bool
     {
         return $user?->premium_until !== null && $user->premium_until->greaterThan($at ?? now());
     }
@@ -62,7 +62,7 @@ final class Premium
      * Przedłuża premium o podaną liczbę dni (od dziś albo od końca obecnego premium) i nadaje rolę Premium.
      * Zwraca nową datę wygaśnięcia.
      */
-    public static function extend(User $user, int $days): Carbon
+    public static function extend(User $user, int $days): CarbonInterface
     {
         $from = self::isActive($user) ? $user->premium_until->copy() : now();
 
@@ -70,7 +70,7 @@ final class Premium
     }
 
     /** Ustawia datę wygaśnięcia (np. ręcznie w panelu). Data w przeszłości odbiera premium. */
-    public static function setUntil(User $user, ?Carbon $until): ?Carbon
+    public static function setUntil(User $user, ?CarbonInterface $until): ?CarbonInterface
     {
         $user->forceFill(['premium_until' => $until])->save();
 

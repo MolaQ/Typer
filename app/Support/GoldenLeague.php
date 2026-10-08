@@ -6,7 +6,7 @@ use App\Enums\League;
 use App\Models\Payment;
 use App\Models\Season;
 use App\Models\SeasonTeam;
-use Illuminate\Support\Carbon;
+use Carbon\CarbonInterface;
 use Illuminate\Support\Collection;
 
 /**
@@ -24,7 +24,7 @@ final class GoldenLeague
      *
      * @return Collection<int, array{user_id: int, total: int, last_paid_at: string}>
      */
-    public static function ranking(?Carbon $at = null): Collection
+    public static function ranking(?CarbonInterface $at = null): Collection
     {
         $at ??= now();
 
@@ -47,7 +47,7 @@ final class GoldenLeague
      *
      * @return array<int, int>
      */
-    public static function seats(Season $season, ?Carbon $at = null): array
+    public static function seats(Season $season, ?CarbonInterface $at = null): array
     {
         $teams = SeasonTeam::where('season_id', $season->id)->orderBy('position')->get(['id', 'user_id', 'bot_id', 'position']);
         $byUser = $teams->whereNotNull('user_id')->keyBy('user_id');

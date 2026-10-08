@@ -14,6 +14,7 @@ use App\Models\User;
 use App\Support\PlayerCompetitions;
 use App\Support\Players;
 use Illuminate\Database\Seeder;
+use Carbon\CarbonInterface;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 
@@ -89,8 +90,11 @@ class TestTipSeeder extends Seeder
         }
     }
 
-    /** Losowy moment z ostatnich 5 dni przed pierwszym gwizdkiem (albo przed teraz), z mikrosekundami. */
-    private static function randomTime(Carbon $kickoff): Carbon
+    /**
+     * Losowy moment z ostatnich 5 dni przed pierwszym gwizdkiem (albo przed teraz), z mikrosekundami.
+     * Daty w aplikacji są niemutowalne (CarbonImmutable), dlatego CarbonInterface.
+     */
+    private static function randomTime(CarbonInterface $kickoff): CarbonInterface
     {
         $end = now()->lt($kickoff) ? now() : $kickoff->copy()->subMinute();
         $start = $end->copy()->subDays(5);
