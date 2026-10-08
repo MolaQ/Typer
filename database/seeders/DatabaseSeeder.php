@@ -2,7 +2,6 @@
 
 namespace Database\Seeders;
 
-use App\Models\User;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 
@@ -11,10 +10,18 @@ class DatabaseSeeder extends Seeder
     use WithoutModelEvents;
 
     /**
-     * Seed the application's database.
+     * php artisan db:seed: wszystkie seedery poza TestTipSeeder (typy testowe uruchamiasz ręcznie:
+     * php artisan db:seed --class=TestTipSeeder). Każdy seeder można bezpiecznie powtórzyć, niczego nie dubluje.
      */
     public function run(): void
     {
-
+        $this->call([
+            RolesAndPermissionsSeeder::class,
+            CreateAdminUserSeeder::class,
+            BotsSeeder::class,
+            QuestionsSeeder::class,
+            TrophyIconsSeeder::class,
+            PlayersSeeder::class,
+        ]);
     }
 }

@@ -2,6 +2,7 @@
 
 namespace App\Actions\Results;
 
+use App\Actions\Competitions\DrawNextSwissRound;
 use App\Enums\MatchdayStatus;
 use App\Enums\SeasonStatus;
 use App\Models\Matchday;
@@ -94,7 +95,7 @@ class SaveMatchdayResult
     /**
      * Przeliczenie kolejki: status „rozegrana”, usunięcie odpowiedzi na pytania anulowane, punkty i mecze.
      *
-     * @return array{teams: int, fixtures: int, eliminated: int}
+     * @return array{teams: int, fixtures: int, eliminated: int, swiss: int}
      *
      * @throws DomainException
      */
@@ -117,6 +118,9 @@ class SaveMatchdayResult
             }
 
             $stats = $this->score->handle($matchday->fresh());
+
+            // Liga podwórkowa: pary kolejnej rundy losujemy od razu według nowej klasyfikacji.
+            $stats['swiss'] = app(DrawNextSwissRound::class)->afterMatchday($matchday->fresh());
 
             Audit::log(
                 'matchday.scored',

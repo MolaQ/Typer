@@ -20,6 +20,11 @@ class CreateAdminUserSeeder extends Seeder
             ]
         );
 
+        // Admin nie musi potwierdzać adresu kodem.
+        if (!$user->email_verified_at) {
+            $user->forceFill(['email_verified_at' => now()])->save();
+        }
+
         // Create admin role
         $role = Role::firstOrCreate(['name' => 'Admin']);
 

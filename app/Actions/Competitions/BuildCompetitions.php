@@ -119,6 +119,11 @@ class BuildCompetitions
 
                 $this->createEntries($competition, $seatTeams);
                 $stats['swiss_entries'] = count($seatTeams);
+
+                // Runda 1 z listy (1-2, 3-4...) losuje się od razu, kolejne po każdej przeliczonej kolejce.
+                if (count($seatTeams) >= 2) {
+                    app(DrawSwissRound::class)->handle($competition, 1);
+                }
             }
 
             // --- Liga Legend: wszystkie zespoły ludzi (bez botów), eliminacja po kolejkach ---

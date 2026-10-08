@@ -214,7 +214,14 @@ new class extends Component {
         }
 
         $this->refreshMatchday();
-        Flux::toast(variant: 'success', text: __('Matchday recalculated. Matches settled: :count.', ['count' => $stats['fixtures']]));
+        $text = __('Matchday recalculated. Matches settled: :count.', ['count' => $stats['fixtures']]);
+
+        // Liga podwórkowa losuje się sama po przeliczeniu (SaveMatchdayResult::recalculate).
+        if (($stats['swiss'] ?? 0) > 0) {
+            $text .= ' ' . __('Liga podwórkowa: the next round has been drawn (:count matches).', ['count' => $stats['swiss']]);
+        }
+
+        Flux::toast(variant: 'success', text: $text);
     }
 
     /**
