@@ -26,7 +26,7 @@ use Spatie\Permission\Models\Role;
 /**
  * Zakończenie sezonu (aktywny -> zakończony):
  *  1. zapisuje tabele końcowe wszystkich rozgrywek (final_standings): podstawa listy na nowy sezon,
- *     kwalifikacji do lig europejskich i (etap 14) Hall of Fame,
+ *     kwalifikacji do lig europejskich i Hall of Fame (punkty i trofea przyznaje AwardHallOfFame),
  *  2. gracze, którzy 5 kolejek z rzędu nie typowali, tracą rolę User i dostają rolę Inactive
  *     (regulamin, punkt 3); ich miejsca w niezakończonych sezonach przejmują boty,
  *  3. zmienia status i zapisuje wpis w dzienniku.
@@ -52,6 +52,7 @@ class FinishSeason
             }
 
             $standings = $this->saveStandings($season);
+            app(AwardHallOfFame::class)->handle($season);
             $inactive = $this->inactiveUsers($season);
 
             $season->update(['status' => SeasonStatus::Finished]);

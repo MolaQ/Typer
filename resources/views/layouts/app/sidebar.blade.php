@@ -34,7 +34,7 @@
                 {{-- Grupa "LechTyper": sezony, a później liga, puchar, mecze. --}}
                 @if ($canSeasons)
                     <flux:sidebar.group expandable
-                        :expanded="request()->routeIs('dashboard.seasons', 'dashboard.matchdays', 'dashboard.season-teams', 'dashboard.fixtures', 'dashboard.competitions', 'dashboard.bots', 'dashboard.checklist', 'dashboard.questions', 'dashboard.matchday-questions', 'dashboard.tips', 'dashboard.results')"
+                        :expanded="request()->routeIs('dashboard.seasons', 'dashboard.matchdays', 'dashboard.season-teams', 'dashboard.fixtures', 'dashboard.competitions', 'dashboard.bots', 'dashboard.checklist', 'dashboard.questions', 'dashboard.matchday-questions', 'dashboard.tips', 'dashboard.results', 'dashboard.hall-of-fame')"
                         :heading="__('LechTyper')" class="grid">
 
                         <flux:sidebar.item icon="clipboard-document-check" :href="route('dashboard.checklist')"
@@ -85,6 +85,11 @@
                         <flux:sidebar.item icon="flag" :href="route('dashboard.results')"
                             :current="request()->routeIs('dashboard.results')" wire:navigate>
                             {{ __('Results') }}
+                        </flux:sidebar.item>
+
+                        <flux:sidebar.item icon="star" :href="route('dashboard.hall-of-fame')"
+                            :current="request()->routeIs('dashboard.hall-of-fame')" wire:navigate>
+                            {{ __('Hall of Fame') }}
                         </flux:sidebar.item>
 
                         <flux:sidebar.item icon="cpu-chip" :href="route('dashboard.bots')"

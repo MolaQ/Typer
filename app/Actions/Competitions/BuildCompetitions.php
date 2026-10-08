@@ -149,26 +149,10 @@ class BuildCompetitions
      * Liga Mistrzów, Europy i Konferencji: miejsca 1, 2 i 3 lig 1-10 z poprzedniego zakończonego sezonu,
      * rozstawione według poziomu ligi (mistrz Ekstraklasy = 1). Bez poprzedniego sezonu nic nie robi
      * (w sezonie 1 admin tworzy je ręcznie). Rozgrywki, które już istnieją, są pomijane.
+     * Wywoływane też ze strony Rozgrywki (przycisk „Utwórz z historii”).
      */
-    private function buildEuropean(Season $season): int
+    public function buildEuropean(Season $season): int
     {
-        $previous = Season::where('status', SeasonStatus::Finished->value)
-            ->where('number', '<', $season->number)
-            ->orderByDesc('number')
-            ->first();
-
-        if (! $previous) {
-            return 0;
-        }
-
-        $leagues = Competition::where('season_id', $previous->id)->where('type', CompetitionType::League->value)->pluck('tier', 'id');
-        $places = FinalStanding::whereIn('competition_id', $leagues->keys())->where('place', '<=', 3)->get();
-
-        if ($places->isEmpty()) {
-            return 0;
-        }
-
-        $teams = SeasonTeam::where('season_id', $season->id)->get(['id', 'user_id', 'bot_id', 'previous_id']);
         $created = 0;
 
         foreach ([1, 2, 3] as $place) {
@@ -178,16 +162,7 @@ class BuildCompetitions
                 continue;
             }
 
-            $seatTeams = [];
-            foreach ($places->where('place', $place)->sortBy(fn ($row) => $leagues[$row->competition_id]) as $row) {
-                // To samo miejsce w nowym sezonie: przez previous_id, a gdy listę zbudowano ręcznie, po graczu lub bocie.
-                $team = $teams->firstWhere('previous_id', $row->season_team_id)
-                    ?? ($row->user_id ? $teams->firstWhere('user_id', $row->user_id) : $teams->firstWhere('bot_id', $row->bot_id));
-
-                if ($team && ! in_array($team->id, $seatTeams, true)) {
-                    $seatTeams[count($seatTeams) + 1] = $team->id;
-                }
-            }
+            $seatTeams = $this->europeanSeats($season, $type);
 
             if ($seatTeams === []) {
                 continue;
@@ -200,21 +175,97 @@ class BuildCompetitions
                 'name' => $type->label(),
             ]);
 
-            $entries = $this->createEntries($competition, $seatTeams);
-
-            // Terminarz tylko przy komplecie 10 zespołów; inaczej admin uzupełnia skład na stronie Rozgrywki.
-            if (count($entries) === League::SIZE) {
-                $rows = [];
-                foreach (LeagueSchedule::fixtures() as $match) {
-                    $rows[] = $this->fixtureRow($competition, $match['round'], $match['home'], $match['away'], $entries);
-                }
-                $this->insertFixtures($rows);
-            }
-
+            $this->fillRoundRobin($competition, $seatTeams);
             $created++;
         }
 
         return $created;
+    }
+
+    /**
+     * Uzupełnia puste rozgrywki europejskie z tabel końcowych poprzedniego sezonu (np. utworzone ręcznie
+     * przed zakończeniem poprzedniego sezonu). Zwraca liczbę dodanych zespołów.
+     */
+    public function fillEuropean(Competition $competition): int
+    {
+        if (! in_array($competition->type, [CompetitionType::Champions, CompetitionType::Europa, CompetitionType::Conference], true)
+            || $competition->entries()->exists()) {
+            return 0;
+        }
+
+        return DB::transaction(fn (): int => $this->fillRoundRobin($competition, $this->europeanSeats($competition->season, $competition->type)));
+    }
+
+    /**
+     * Skład ligi europejskiej (seed => id zespołu z listy sezonu): to samo miejsce (1, 2 albo 3) we wszystkich
+     * ligach 1-10 poprzedniego zakończonego sezonu, według poziomu ligi. Pusta tablica, gdy nie ma historii.
+     *
+     * @return array<int, int>
+     */
+    public function europeanSeats(Season $season, CompetitionType $type): array
+    {
+        $place = match ($type) {
+            CompetitionType::Champions => 1,
+            CompetitionType::Europa => 2,
+            CompetitionType::Conference => 3,
+            default => null,
+        };
+
+        $previous = $this->previousSeason($season);
+
+        if ($place === null || ! $previous) {
+            return [];
+        }
+
+        $leagues = Competition::where('season_id', $previous->id)->where('type', CompetitionType::League->value)->pluck('tier', 'id');
+        $rows = FinalStanding::whereIn('competition_id', $leagues->keys())->where('place', $place)->get();
+        $teams = SeasonTeam::where('season_id', $season->id)->get(['id', 'user_id', 'bot_id', 'previous_id']);
+
+        $seatTeams = [];
+        foreach ($rows->sortBy(fn ($row) => $leagues[$row->competition_id]) as $row) {
+            // To samo miejsce w nowym sezonie: przez previous_id, a gdy listę zbudowano ręcznie, po graczu lub bocie.
+            $team = $teams->firstWhere('previous_id', $row->season_team_id)
+                ?? ($row->user_id ? $teams->firstWhere('user_id', $row->user_id) : $teams->firstWhere('bot_id', $row->bot_id));
+
+            if ($team && ! in_array($team->id, $seatTeams, true)) {
+                $seatTeams[count($seatTeams) + 1] = $team->id;
+            }
+        }
+
+        return $seatTeams;
+    }
+
+    /** Ostatni zakończony sezon przed danym (podstawa składów z historii). */
+    public function previousSeason(Season $season): ?Season
+    {
+        return Season::where('status', SeasonStatus::Finished->value)
+            ->where('number', '<', $season->number)
+            ->orderByDesc('number')
+            ->first();
+    }
+
+    /**
+     * Dodaje uczestników; terminarz tylko przy komplecie 10 zespołów (inaczej admin uzupełnia skład na stronie Rozgrywki).
+     *
+     * @param  array<int, int>  $seatTeams
+     */
+    private function fillRoundRobin(Competition $competition, array $seatTeams): int
+    {
+        if ($seatTeams === []) {
+            return 0;
+        }
+
+        $entries = $this->createEntries($competition, $seatTeams);
+
+        if (count($entries) === League::SIZE) {
+            $rows = [];
+            foreach (LeagueSchedule::fixtures() as $match) {
+                $rows[] = $this->fixtureRow($competition, $match['round'], $match['home'], $match['away'], $entries);
+            }
+            $this->insertFixtures($rows);
+        }
+
+        return count($entries);
     }
 
     private function exists(Season $season, CompetitionType $type, ?int $tier = null): bool

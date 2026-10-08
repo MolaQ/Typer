@@ -180,4 +180,13 @@ new #[Layout('layouts::public')] class extends Component {
             <flux:subheading>{{ __('This is the public home page.') }}</flux:subheading>
         </div>
     @endif
+
+    {{-- Hall of Fame: skrócony ranking, otwarty na stronie z zalogowanym graczem --}}
+    <section class="space-y-3">
+        <div class="flex items-end justify-between gap-3">
+            <flux:heading size="lg">{{ __('Hall of Fame') }}</flux:heading>
+            <flux:link :href="route('hall-of-fame')" wire:navigate class="text-sm">{{ __('Full ranking') }}</flux:link>
+        </div>
+        <livewire:pages::home.hall-of-fame-ranking :per-page="10" :compact="true" />
+    </section>
 </div>
