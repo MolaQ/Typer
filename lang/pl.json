@@ -628,5 +628,14 @@
     "No answer": "Brak odpowiedzi",
     "“No answer” cancels the question and deletes all answers to it.": "„Brak odpowiedzi” anuluje pytanie i usuwa wszystkie odpowiedzi na nie.",
     "Question cancelled: answers do not count.": "Pytanie anulowane: odpowiedzi się nie liczą.",
-    "No answers to the bonus questions.": "Brak odpowiedzi na pytania bonusowe."
+    "No answers to the bonus questions.": "Brak odpowiedzi na pytania bonusowe.",
+    "Last matchday": "Ostatnia kolejka",
+    "Next matchday": "Najbliższa kolejka",
+    "d": "d",
+    "Tipping closes in": "Typowanie zamyka się za",
+    "Log in to tip": "Zaloguj się, aby typować",
+    "Your tip: :score": "Twój typ: :score",
+    "Change tip": "Zmień typ",
+    "Tip now": "Typuj",
+    "Coming soon": "Wkrótce start"
 }
