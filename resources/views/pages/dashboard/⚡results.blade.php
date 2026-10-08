@@ -193,6 +193,7 @@ new class extends Component {
             <flux:heading size="xl" level="1">{{ __('Results') }}</flux:heading>
             <flux:subheading>
                 {{ __('Enter the Lech score after 90 minutes and the correct answers. Saving settles all matches of the matchday.') }}
+                {{ __('“No answer” cancels the question and deletes all answers to it.') }}
             </flux:subheading>
         </div>
 
@@ -288,16 +289,8 @@ new class extends Component {
                                     wire:key="c-{{ $item->id }}">
                                     <flux:text class="font-medium text-zinc-800 dark:text-zinc-100">{{ $item->position }}.
                                         {{ $item->question->text }}</flux:text>
-                                    <div class="flex gap-5">
-                                        <label class="flex items-center gap-2 text-sm">
-                                            <input type="radio" wire:model="correct.{{ $item->id }}" value="1"
-                                                @disabled(!$canSave)> {{ __('Yes') }}
-                                        </label>
-                                        <label class="flex items-center gap-2 text-sm">
-                                            <input type="radio" wire:model="correct.{{ $item->id }}" value="0"
-                                                @disabled(!$canSave)> {{ __('No') }}
-                                        </label>
-                                    </div>
+                                    <x-answer-toggle :model="'correct.' . $item->id" :value="$correct[$item->id] ?? ''"
+                                        :disabled="! $canSave" />
                                 </div>
                             @endforeach
                         </div>

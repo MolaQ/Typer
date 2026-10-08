@@ -625,5 +625,8 @@
     "There is no finished previous season with final standings.": "Brak zakończonego poprzedniego sezonu z tabelami końcowymi.",
     "You can also build the list from the final standings of :season: 4 teams go up and down between leagues, bots are swapped for players, inactive players are replaced by bots.": "Możesz też zbudować listę z tabel końcowych sezonu :season: po 4 zespoły awansują i spadają, boty ustępują miejsca graczom, a miejsca nieaktywnych graczy przejmują boty.",
     "out after matchday :round": "odpadł po kolejce :round",
-    "No answer": "Brak odpowiedzi"
+    "No answer": "Brak odpowiedzi",
+    "“No answer” cancels the question and deletes all answers to it.": "„Brak odpowiedzi” anuluje pytanie i usuwa wszystkie odpowiedzi na nie.",
+    "Question cancelled: answers do not count.": "Pytanie anulowane: odpowiedzi się nie liczą.",
+    "No answers to the bonus questions.": "Brak odpowiedzi na pytania bonusowe."
 }

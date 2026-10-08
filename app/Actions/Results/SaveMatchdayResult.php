@@ -6,6 +6,7 @@ use App\Enums\MatchdayStatus;
 use App\Enums\SeasonStatus;
 use App\Models\Matchday;
 use App\Models\MatchdayQuestion;
+use App\Models\TipAnswer;
 use App\Support\Audit;
 use App\Support\TipRules;
 use DomainException;
@@ -18,14 +19,16 @@ use Illuminate\Support\Facades\DB;
  * Zasady:
  *  - tylko w aktywnym sezonie, po godzinie meczu, dla kolejki nieprzełożonej,
  *  - kolejki po kolei: poprzednia musi mieć wynik (puchar potrzebuje zwycięzców poprzedniej rundy),
- *  - poprawka jest możliwa, dopóki następna kolejka nie ma wyniku; przelicza kolejkę od nowa.
+ *  - poprawka jest możliwa, dopóki następna kolejka nie ma wyniku; przelicza kolejkę od nowa,
+ *  - „brak odpowiedzi” przy pytaniu anuluje je: odpowiedzi wszystkich graczy na to pytanie są usuwane,
+ *    jakby nigdy nie padły.
  */
 class SaveMatchdayResult
 {
     public function __construct(private ScoreMatchday $score) {}
 
     /**
-     * @param  array<int|string, mixed>  $correct  matchday_question_id => '1' | '0'
+     * @param  array<int|string, mixed>  $correct  matchday_question_id => '1' | '0' | '' (pytanie anulowane)
      * @return array{teams: int, fixtures: int, eliminated: int}
      *
      * @throws DomainException
@@ -45,13 +48,7 @@ class SaveMatchdayResult
         $answers = [];
 
         foreach ($slots as $slot) {
-            $answer = TipRules::answer($correct[$slot->id] ?? null);
-
-            if ($answer === null) {
-                throw new DomainException(__('Mark the correct answer for every question of this matchday.'));
-            }
-
-            $answers[$slot->id] = $answer;
+            $answers[$slot->id] = TipRules::answer($correct[$slot->id] ?? null);
         }
 
         return DB::transaction(function () use ($matchday, $lech, $opponent, $slots, $answers): array {
@@ -72,13 +69,19 @@ class SaveMatchdayResult
                 }
             }
 
+            // Pytania anulowane: usuwamy odpowiedzi graczy, nie liczą się do niczego.
+            $cancelled = array_keys(array_filter($answers, fn($answer) => $answer === null));
+            if ($cancelled !== []) {
+                TipAnswer::whereIn('matchday_question_id', $cancelled)->delete();
+            }
+
             $stats = $this->score->handle($matchday->fresh());
 
             Audit::log(
                 'matchday.scored',
                 null,
                 $old,
-                ['result' => $lech . ':' . $opponent, 'matches' => $stats['fixtures']],
+                ['result' => $lech . ':' . $opponent, 'matches' => $stats['fixtures'], 'cancelled_questions' => count($cancelled)],
                 __('Matchday :number', ['number' => $matchday->number]) . ' (' . $matchday->season->title . ')',
             );
 

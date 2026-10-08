@@ -360,6 +360,9 @@ new #[Layout('layouts::public')] class extends Component {
                         <flux:text class="font-medium text-zinc-800 dark:text-zinc-100">{{ $item->position }}.
                             {{ $item->question->text }}
                         </flux:text>
+                        @if ($item->correct_answer === null && $this->matchday->status === \App\Enums\MatchdayStatus::Played)
+                            <flux:text size="sm" class="text-amber-600 dark:text-amber-400">{{ __('Question cancelled: answers do not count.') }}</flux:text>
+                        @endif
                         @if ($item->correct_answer !== null && $this->matchday->status === \App\Enums\MatchdayStatus::Played)
                             @php
                                 $given = $answers[$item->id] ?? '';
@@ -369,16 +372,8 @@ new #[Layout('layouts::public')] class extends Component {
                                 {{ __('Correct answer: :answer', ['answer' => $item->correct_answer ? __('Yes') : __('No')]) }}
                             </flux:text>
                         @endif
-                        {{-- Przycisk trójstanowy: Tak / Brak odpowiedzi / Nie (domyślnie brak odpowiedzi). --}}
-                        <div class="inline-flex overflow-hidden rounded-md border border-zinc-300 text-sm dark:border-zinc-600">
-                            @foreach ([['1', __('Yes'), 'peer-checked:bg-green-600'], ['', __('No answer'), 'peer-checked:bg-zinc-500'], ['0', __('No'), 'peer-checked:bg-red-600']] as [$value, $label, $active])
-                                <label class="cursor-pointer border-l border-zinc-300 first:border-l-0 dark:border-zinc-600">
-                                    <input type="radio" class="peer sr-only" name="answer-{{ $item->id }}"
-                                        wire:model="answers.{{ $item->id }}" value="{{ $value }}" @disabled(!$this->isOpen)>
-                                    <span class="{{ $active }} block px-3 py-1.5 text-zinc-700 transition peer-checked:text-white peer-disabled:cursor-not-allowed peer-disabled:opacity-60 dark:text-zinc-200">{{ $label }}</span>
-                                </label>
-                            @endforeach
-                        </div>
+                        <x-answer-toggle :model="'answers.' . $item->id" :value="$answers[$item->id] ?? ''"
+                            :disabled="! $this->isOpen" />
                     </div>
                 @endforeach
             </div>
