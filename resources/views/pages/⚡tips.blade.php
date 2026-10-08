@@ -312,7 +312,9 @@ new #[Layout('layouts::public')] class extends Component {
             <flux:text>{{ __('The bonus questions for this matchday are not ready yet.') }}</flux:text>
         </flux:card>
     @else
-    @php($progress = $this->progress())
+    @php
+        $progress = $this->progress();
+    @endphp
     <flux:text size="sm">
         {{ __('Answered :done of :total questions. Unanswered questions score nothing.', ['done' => $progress[0], 'total' => $progress[1]]) }}
     </flux:text>
@@ -336,7 +338,9 @@ new #[Layout('layouts::public')] class extends Component {
 
         <div class="grid gap-6 md:grid-cols-2">
             @foreach ($set['sides'] as $sideValue => $items)
-            @php($side = \App\Enums\QuestionSide::from($sideValue))
+            @php
+                $side = \App\Enums\QuestionSide::from($sideValue);
+            @endphp
             <div class="space-y-3">
                 <flux:badge :color="$side->color()">{{ $side->label() }}</flux:badge>
 
