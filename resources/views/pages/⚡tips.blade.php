@@ -384,7 +384,7 @@ new #[Layout('layouts::public')] class extends Component {
             @if ($this->isOpen)
                 <flux:badge color="green" icon="lock-open">{{ __('Open') }}</flux:badge>
             @elseif ($played)
-                <flux:badge color="blue" icon="check-circle">{{ __('Final') }}</flux:badge>
+                <flux:badge color="blue" icon="check-circle">{{ __('Settled') }}</flux:badge>
             @else
                 <flux:badge color="zinc" icon="lock-closed">{{ __('Closed') }}</flux:badge>
             @endif
@@ -413,7 +413,7 @@ new #[Layout('layouts::public')] class extends Component {
 
                 @if ($played)
                     <div class="flex flex-wrap items-center justify-center gap-2 text-sm">
-                        <span class="rounded-full bg-lech-700 px-3 py-1 font-semibold text-white">
+                        <span class="rounded-full bg-lech-50 px-3 py-1 font-semibold text-lech-800 ring-1 ring-lech-200 dark:bg-lech-500/10 dark:text-lech-200 dark:ring-lech-500/30">
                             {{ __('Final score: :score.', ['score' => 'Lech ' . $this->matchday->lech_goals . ':' . $this->matchday->opponent_goals . ' ' . $this->matchday->opponent]) }}
                         </span>
                         @if ($first = $this->scores->first())

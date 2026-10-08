@@ -163,7 +163,7 @@
             $phaseBadge = match ($phase) {
                 \App\Support\Rivals::OPEN => ['green', __('Tipping open')],
                 \App\Support\Rivals::CLOSED => ['amber', __('Tipping closed')],
-                default => ['blue', __('Final')],
+                default => ['blue', __('Settled')],
             };
             $phaseInfo = match ($phase) {
                 \App\Support\Rivals::OPEN => __('Everyone sees who has tipped. Premium also sees the outcome and the risk in the bonus questions.'),

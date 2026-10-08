@@ -1076,5 +1076,21 @@
     "You have not met this team yet.": "Nie graliście jeszcze ze sobą.",
     "Your rivals": "Twoi rywale",
     "e.g. Will Lech score in the first 15 minutes?": "np. Czy Lech strzeli gola w pierwszych 15 minutach?",
-    "goes through": "awans"
+    "goes through": "awans",
+    "Points for the tip in the matchday": "Punkty za typ w kolejce",
+    "no tip or not played": "bez typu albo przed wynikiem",
+    "Average before kick-off (players: :time)": "Średnio przed pierwszym gwizdkiem (gracze: :time)",
+    "Matchday :number: tip + offensive and defensive bonus": "Kolejka :number: typ + bonus ofensywny i defensywny",
+    "Tip + offensive and defensive bonus": "Typ + bonus ofensywny i defensywny",
+    ":percent% of the players": ":percent% graczy",
+    "Iron fist": "Żelazna pięść",
+    "Your offensive bonus beat the rival's tip and both bonuses": "Twój bonus ofensywny większy niż typ rywala i oba jego bonusy",
+    "Bricklayer": "Murarz",
+    "Wins where your defensive bonus beat the rival's attack": "Wygrane, w których Twój bonus defensywny przewyższył atak rywala",
+    "Wizard": "Czarodziej",
+    "Wins despite 0 points for the tip": "Wygrane mimo 0 punktów za typ",
+    "Unlucky": "Pechowiec",
+    "Losses despite a Koziołek": "Porażki mimo Koziołka",
+    "Rivals (players and bots) you have a better head-to-head record against, from the highest in the Hall of Fame ranking.": "Rywale (gracze i boty), z którymi masz lepszy bilans bezpośredni, od najwyżej w rankingu Hall of Fame.",
+    "Settled": "Rozliczona"
 }

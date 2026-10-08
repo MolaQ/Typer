@@ -72,7 +72,7 @@ new class extends Component {
             $phaseBadge = match ($phase) {
                 \App\Support\Rivals::OPEN => ['green', __('Tipping open')],
                 \App\Support\Rivals::CLOSED => ['amber', __('Tipping closed')],
-                default => ['blue', __('Final')],
+                default => ['blue', __('Settled')],
             };
             $formClasses = ['W' => 'bg-green-600', 'D' => 'bg-zinc-400', 'L' => 'bg-red-600'];
         @endphp
@@ -161,7 +161,7 @@ new class extends Component {
                             @endif
 
                             @if ($rival['score'])
-                                <div class="flex items-center justify-between gap-2 rounded-lg bg-lech-700 px-3 py-1.5 text-white">
+                                <div class="flex items-center justify-between gap-2 rounded-lg bg-lech-50 px-3 py-1.5 text-lech-800 ring-1 ring-lech-200 dark:bg-lech-500/10 dark:text-lech-200 dark:ring-lech-500/30">
                                     <span class="text-xs">{{ __('Match') }}</span>
                                     <span class="font-bold tabular-nums">{{ $rival['score'] }}</span>
                                 </div>

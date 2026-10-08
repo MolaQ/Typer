@@ -44,35 +44,81 @@
         </div>
     </flux:card>
 @elseif ($tab === 'competitions')
-    <flux:card class="space-y-3">
-        <flux:heading>{{ __('Progress in competitions') }}</flux:heading>
-        @php
-            $trophyIcons = \App\Support\HallOfFame::iconUrls();
-        @endphp
-        @forelse ($this->myCompetitions as $row)
-            <div class="flex flex-wrap items-center gap-3 border-b border-zinc-100 py-2 text-sm last:border-0 dark:border-zinc-700" wire:key="comp-{{ $loop->index }}">
-                <span class="flex min-w-0 flex-1 items-center gap-2 font-medium">
-                    {{-- Trofeum do zdobycia w tych rozgrywkach --}}
+    @php
+        $trophyIcons = \App\Support\HallOfFame::iconUrls();
+        // Kolor kafelka meczu według punktów za typ w tej kolejce: 3 niebieski, 2 zielony, 1 żółty, 0 czerwony.
+        $tipClasses = [
+            3 => 'border-blue-300 bg-blue-50 dark:border-blue-500/40 dark:bg-blue-500/10',
+            2 => 'border-green-300 bg-green-50 dark:border-green-500/40 dark:bg-green-500/10',
+            1 => 'border-yellow-300 bg-yellow-50 dark:border-yellow-500/40 dark:bg-yellow-500/10',
+            0 => 'border-red-300 bg-red-50 dark:border-red-500/40 dark:bg-red-500/10',
+        ];
+        $outcomeClasses = ['W' => 'bg-green-600', 'D' => 'bg-zinc-400', 'L' => 'bg-red-600'];
+    @endphp
+
+    <div class="flex flex-wrap items-center gap-3 text-xs text-zinc-500">
+        <span>{{ __('Points for the tip in the matchday') }}:</span>
+        @foreach ([3 => 'bg-blue-400', 2 => 'bg-green-400', 1 => 'bg-yellow-400', 0 => 'bg-red-400'] as $points => $dot)
+            <span class="flex items-center gap-1"><span class="{{ $dot }} size-2.5 rounded-full"></span>{{ $points }}</span>
+        @endforeach
+        <span class="flex items-center gap-1"><span class="size-2.5 rounded-full bg-zinc-300"></span>{{ __('no tip or not played') }}</span>
+    </div>
+
+    @forelse ($this->myCompetitions as $row)
+        <section class="overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-700 dark:bg-zinc-900" wire:key="comp-{{ $loop->index }}">
+            <div class="flex flex-wrap items-center gap-3 border-b border-zinc-100 bg-linear-to-r from-lech-50 to-transparent px-4 py-3 dark:border-zinc-800 dark:from-lech-500/10">
+                <span class="flex size-10 shrink-0 items-center justify-center rounded-xl bg-white shadow-xs dark:bg-zinc-800">
                     @if (isset($trophyIcons[$row['trophy']]))
-                        <img src="{{ $trophyIcons[$row['trophy']] }}" alt="" class="size-6 object-contain" title="{{ __('Trophy to win') }}">
+                        <img src="{{ $trophyIcons[$row['trophy']] }}" alt="" class="size-7 object-contain" title="{{ __('Trophy to win') }}">
                     @else
-                        <flux:icon.trophy variant="micro" class="text-amber-500" />
+                        <flux:icon.trophy class="text-amber-500" />
                     @endif
-                    {{ $row['name'] }}
                 </span>
-                <span>{{ $row['status'] }}</span>
+                <div class="min-w-0 flex-1">
+                    <div class="truncate font-semibold">{{ $row['name'] }}</div>
+                    <div class="text-xs text-zinc-500">{{ $row['status'] }}</div>
+                </div>
                 @if ($row['points'] !== null)
-                    <span class="text-xs text-zinc-500">
-                        {{ __(':won W, :drawn D, :lost L', ['won' => $row['won'], 'drawn' => $row['drawn'], 'lost' => $row['lost']]) }}
-                    </span>
-                    <span class="w-14 text-right font-semibold tabular-nums">{{ __(':points pts', ['points' => $row['points']]) }}</span>
+                    <div class="text-right">
+                        <div class="text-xl font-bold tabular-nums text-lech-700 dark:text-lech-300">{{ __(':points pts', ['points' => $row['points']]) }}</div>
+                        <div class="text-xs text-zinc-500">{{ __(':won W, :drawn D, :lost L', ['won' => $row['won'], 'drawn' => $row['drawn'], 'lost' => $row['lost']]) }}</div>
+                    </div>
                 @endif
             </div>
-        @empty
+
+            @if (count($row['matches']) > 0)
+                <div class="grid grid-cols-2 gap-2 p-4 sm:grid-cols-3 lg:grid-cols-4">
+                    @foreach ($row['matches'] as $match)
+                        <div class="{{ $match['tip_points'] !== null ? $tipClasses[$match['tip_points']] : 'border-zinc-200 dark:border-zinc-700' }} space-y-1 rounded-xl border p-2.5 text-sm"
+                            wire:key="cm-{{ $loop->parent->index }}-{{ $match['round'] }}">
+                            <div class="flex items-center justify-between gap-2 text-xs text-zinc-500">
+                                <span>{{ $row['type'] === \App\Enums\CompetitionType::Cup ? \App\Support\CupBracket::roundName($match['round']) : __('Matchday :number', ['number' => $match['round']]) }}</span>
+                                @if ($match['tip_points'] !== null)
+                                    <span class="font-semibold">{{ __(':points pts', ['points' => $match['tip_points']]) }}</span>
+                                @endif
+                            </div>
+                            <div class="truncate font-medium">{{ $match['rival'] }}</div>
+                            <div class="flex items-center gap-2">
+                                @if ($match['outcome'])
+                                    <span class="{{ $outcomeClasses[$match['outcome']] }} flex size-5 items-center justify-center rounded text-[10px] font-bold text-white">{{ __($match['outcome']) }}</span>
+                                @endif
+                                <span class="font-semibold tabular-nums">{{ $match['score'] ?? '–' }}</span>
+                            </div>
+                        </div>
+                    @endforeach
+                </div>
+            @else
+                <div class="px-4 py-3">
+                    <flux:text size="sm">{{ __('No matches yet.') }}</flux:text>
+                </div>
+            @endif
+        </section>
+    @empty
+        <flux:card>
             <flux:text>{{ __('No competitions yet.') }}</flux:text>
-        @endforelse
-        <flux:link :href="route('results')" wire:navigate class="text-sm">{{ __('Results and tables') }}</flux:link>
-    </flux:card>
+        </flux:card>
+    @endforelse
+    <flux:link :href="route('results')" wire:navigate class="text-sm">{{ __('Results and tables') }}</flux:link>
 @elseif ($tab === 'stats')
     @php
         $data = $this->myStats;
@@ -87,7 +133,27 @@
         };
         $extras = $this->myExtras;
         $trophyIcons = \App\Support\HallOfFame::iconUrls();
-        // [etykieta, wartość, podpis, wartość do porównania, klucz średniej]
+        $optimismColor = $stats['optimism'] === null ? 'zinc' : (abs($stats['optimism']) <= 0.25 ? 'green' : (abs($stats['optimism']) <= 0.75 ? 'yellow' : 'red'));
+        // Czas typowania przed pierwszym gwizdkiem: dni i godziny, godziny i minuty albo same minuty.
+        $leadFmt = function (?float $hours): string {
+            if ($hours === null) {
+                return '—';
+            }
+            $minutes = (int) round($hours * 60);
+
+            return match (true) {
+                $minutes >= 1440 => intdiv($minutes, 1440) . ' d ' . intdiv($minutes % 1440, 60) . ' h',
+                $minutes >= 60 => intdiv($minutes, 60) . ' h ' . ($minutes % 60) . ' min',
+                default => $minutes . ' min',
+            };
+        };
+        // Skalpy: liczba rywali z lepszym bilansem (gracze i boty), procent wśród innych graczy.
+        $scalpList = \App\Support\PlayerStats::scalps(auth()->user());
+        $scalpCount = count($scalpList);
+        $humanRivals = \App\Support\PlayerStats::humanRivals(auth()->user());
+        $scalpPercent = $humanRivals > 0 ? (int) round(collect($scalpList)->where('bot', false)->count() / $humanRivals * 100) : 0;
+        $scalpColor = $scalpCount === 0 ? 'zinc' : ($scalpPercent >= 30 ? 'green' : ($scalpPercent >= 10 ? 'yellow' : 'red'));
+        // [etykieta, wartość, podpis, wartość do porównania, klucz średniej, stały kolor, odwrócone porównanie]
         $tiles = [
             [__('Tips'), $stats['tips'] . ' / ' . $stats['scored'], __('No tip: :count', ['count' => $stats['missing']]), $stats['tips_ratio'], 'tips_ratio'],
             [__('Perfect tips (Koziołki)'), $stats['exact'], __('Exact scores'), $stats['exact'], 'exact'],
@@ -103,10 +169,16 @@
             [__('Winning streak'), $stats['wins'], __('Best: :count', ['count' => $stats['wins_best']]), $stats['wins_best'], 'wins_best'],
             [__('Offensive questions'), $stats['q_offense'] !== null ? $stats['q_offense'] . '%' : '—', __('Correct answers'), $stats['q_offense'], 'q_offense'],
             [__('Defensive questions'), $stats['q_defense'] !== null ? $stats['q_defense'] . '%' : '—', __('Correct answers'), $stats['q_defense'], 'q_defense'],
-            // Kafelki bez porównania ze średnią (tu „więcej” nie znaczy „lepiej”), dlatego bez koloru.
-            [$optimismLabel, $stats['optimism'] === null ? '—' : ($stats['optimism'] > 0 ? '+' : '') . $fmt($stats['optimism'], 2), __('Lech goals: your tips compared with the real matches'), null, 'n-optimism'],
-            [__('Tipping ahead'), $stats['lead_hours'] === null ? '—' : $fmt($stats['lead_hours'], 1) . ' h', __('Average time before kick-off (players: :hours h)', ['hours' => $fmt($avg['lead_hours'] ?? null, 1)]), null, 'n-lead'],
-            [__('Best matchday'), $stats['best_matchday'] ? __(':points pts', ['points' => $stats['best_matchday']['points']]) : '—', $stats['best_matchday'] ? __('Matchday :number, tip and bonuses', ['number' => $stats['best_matchday']['number']]) : __('Tip and bonuses'), null, 'n-best'],
+            // Optymista: im bliżej prawdziwych wyników (0), tym lepiej, dlatego kolor z odchylenia, nie ze średniej.
+            [$optimismLabel, $stats['optimism'] === null ? '—' : ($stats['optimism'] > 0 ? '+' : '') . $fmt($stats['optimism'], 2), __('Lech goals: your tips compared with the real matches'), null, 'optimism', $optimismColor],
+            [__('Tipping ahead'), $leadFmt($stats['lead_hours']), __('Average before kick-off (players: :time)', ['time' => $leadFmt($avg['lead_hours'] ?? null)]), $stats['lead_hours'], 'lead_hours'],
+            [__('Best matchday'), $stats['best_matchday'] ? __(':points pts', ['points' => $stats['best_matchday']['points']]) : '—', $stats['best_matchday'] ? __('Matchday :number: tip + offensive and defensive bonus', ['number' => $stats['best_matchday']['number']]) : __('Tip + offensive and defensive bonus'), $stats['best_points'], 'best_points'],
+            [__('My scalps'), $scalpCount, __(':percent% of the players', ['percent' => $scalpPercent]), null, 'scalps', $scalpColor],
+            [__('Iron fist'), $stats['iron'], __('Your offensive bonus beat the rival\'s tip and both bonuses'), $stats['iron'], 'iron'],
+            [__('Bricklayer'), $stats['mason'], __('Wins where your defensive bonus beat the rival\'s attack'), $stats['mason'], 'mason'],
+            [__('Wizard'), $stats['wizard'], __('Wins despite 0 points for the tip'), $stats['wizard'], 'wizard'],
+            // Pechowiec: mniej znaczy lepiej, więc porównanie odwrócone.
+            [__('Unlucky'), $stats['unlucky'], __('Losses despite a Koziołek'), -$stats['unlucky'], 'unlucky', null, true],
         ];
         $tileClasses = [
             'green' => 'border-green-300 bg-green-50 dark:border-green-500/40 dark:bg-green-500/10',
@@ -119,9 +191,11 @@
     <flux:text size="sm">{{ __('Colours compare you with the average of all players: green above, yellow within 15%, red below.') }}</flux:text>
 
     <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-        @foreach ($tiles as [$label, $value, $hint, $compare, $avgKey])
+        @foreach ($tiles as $tile)
             @php
-                $color = $stats['scored'] > 0 ? \App\Support\PlayerStats::color($compare === null ? null : (float) $compare, $avg[$avgKey] ?? null) : 'zinc';
+                [$label, $value, $hint, $compare, $avgKey] = $tile;
+                $average = isset($avg[$avgKey]) ? (($tile[6] ?? false) ? -$avg[$avgKey] : $avg[$avgKey]) : null;
+                $color = $tile[5] ?? ($stats['scored'] > 0 ? \App\Support\PlayerStats::color($compare === null ? null : (float) $compare, $average) : 'zinc');
             @endphp
             <div class="{{ $tileClasses[$color] }} space-y-1 rounded-xl border p-4" wire:key="tile-{{ $avgKey }}">
                 <flux:text size="sm">{{ $label }}</flux:text>
@@ -299,7 +373,7 @@
                     <flux:icon.fire class="text-orange-500" />
                     {{ __('My scalps') }}
                 </flux:heading>
-                <flux:text size="sm">{{ __('Players you have a better head-to-head record against, from the highest in the Hall of Fame ranking.') }}</flux:text>
+                <flux:text size="sm">{{ __('Rivals (players and bots) you have a better head-to-head record against, from the highest in the Hall of Fame ranking.') }}</flux:text>
             </div>
             <x-premium-badge />
         </div>
@@ -323,15 +397,18 @@
         @else
             <div class="grid gap-3 sm:grid-cols-2">
                 @foreach ($this->myScalps as $scalp)
-                    <a href="{{ route('team.show', $scalp['user']) }}" wire:navigate wire:key="scalp-{{ $scalp['user']->id }}"
+                    @php
+                        $scalpHref = $scalp['user'] ? route('team.show', $scalp['user']) : null;
+                    @endphp
+                    <a @if ($scalpHref) href="{{ $scalpHref }}" wire:navigate @endif wire:key="scalp-{{ $loop->index }}"
                         class="group flex items-center gap-3 rounded-2xl border border-zinc-200 bg-white p-3 shadow-xs transition hover:-translate-y-0.5 hover:border-orange-300 hover:shadow-md dark:border-zinc-700 dark:bg-zinc-900">
                         <span class="flex size-10 shrink-0 items-center justify-center rounded-full bg-linear-to-br from-orange-400 to-red-600 text-sm font-bold text-white">
                             {{ $loop->iteration }}
                         </span>
                         <span class="min-w-0 flex-1">
-                            <span class="block truncate font-semibold">{{ $scalp['user']->team_name ?: $scalp['user']->name }}</span>
+                            <span class="block truncate font-semibold">{{ $scalp['name'] }}</span>
                             <span class="block truncate text-xs text-zinc-500">
-                                {{ $scalp['user']->name }} &middot; {{ __('Hall of Fame: :points pts', ['points' => \App\Support\HallOfFame::format($scalp['hof'])]) }}
+                                {{ $scalp['bot'] ? __('Bot') : $scalp['owner'] }} &middot; {{ __('Hall of Fame: :points pts', ['points' => \App\Support\HallOfFame::format($scalp['hof'])]) }}
                             </span>
                         </span>
                         <span class="shrink-0 text-right text-xs font-semibold tabular-nums">
