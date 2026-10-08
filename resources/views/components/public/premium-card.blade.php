@@ -5,6 +5,8 @@
     $benefits = [
         ['eye', __('Rival preview: their outcome while tipping is open, the exact tip after it closes')],
         ['clock', __('A default tip when you forget to tip')],
+        ['chart-bar', __('Your exact place among the players')],
+        ['magnifying-glass', __('Team search on the home page')],
         ['pencil-square', __('Team name change without approval')],
         ['star', __('Every payment counts towards Złota Liga')],
     ];

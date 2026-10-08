@@ -92,7 +92,7 @@ new #[Layout('layouts::public')] class extends Component {
             return null;
         }
 
-        return Competition::where('season_id', $this->season->id)->get()->first(fn(Competition $c) => $this->keyOf($c) === $this->key);
+        return Competition::with('sponsor')->where('season_id', $this->season->id)->get()->first(fn(Competition $c) => $this->keyOf($c) === $this->key);
     }
 
     #[Computed]
@@ -219,6 +219,10 @@ new #[Layout('layouts::public')] class extends Component {
                 </flux:select>
             </div>
         </div>
+
+        @if ($this->competition)
+            <x-competition-header :competition="$this->competition" />
+        @endif
 
         @if ($this->matchday && filled($this->matchday->opponent))
             <flux:text>

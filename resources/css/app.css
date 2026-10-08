@@ -23,16 +23,29 @@
     --color-zinc-900: #171717;
     --color-zinc-950: #0a0a0a;
 
-    --color-accent: var(--color-neutral-800);
-    --color-accent-content: var(--color-neutral-800);
+    /* Barwy LechTYPER: niebieski Kolejorza, biały, szary i czarny. */
+    --color-lech-50: #eef4ff;
+    --color-lech-100: #dbe7ff;
+    --color-lech-200: #b9cfff;
+    --color-lech-300: #86adff;
+    --color-lech-400: #4d82f5;
+    --color-lech-500: #2563eb;
+    --color-lech-600: #1d4ed8;
+    --color-lech-700: #1740b0;
+    --color-lech-800: #12348d;
+    --color-lech-900: #0b1f4d;
+    --color-lech-950: #061331;
+
+    --color-accent: var(--color-lech-700);
+    --color-accent-content: var(--color-lech-700);
     --color-accent-foreground: var(--color-white);
 }
 
 @layer theme {
     .dark {
-        --color-accent: var(--color-white);
-        --color-accent-content: var(--color-white);
-        --color-accent-foreground: var(--color-neutral-800);
+        --color-accent: var(--color-lech-400);
+        --color-accent-content: var(--color-lech-300);
+        --color-accent-foreground: var(--color-white);
     }
 }
 

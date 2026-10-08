@@ -75,6 +75,7 @@ final class PlayerStats
             $row = [
                 'name' => $competition->name ?: $competition->type->label(),
                 'type' => $competition->type,
+                'trophy' => $competition->trophyKey(),
                 'status' => '',
                 'played' => 0, 'won' => 0, 'drawn' => 0, 'lost' => 0,
                 'points' => null,

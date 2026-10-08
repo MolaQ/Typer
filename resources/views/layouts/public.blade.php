@@ -5,7 +5,7 @@
     @include('partials.head')
 </head>
 
-<body class="bg-white antialiased dark:bg-zinc-800">
+<body class="bg-zinc-50 antialiased dark:bg-zinc-950">
     @php
         // 4rem = header, 3rem = stopka. Gość nie ma headera na szerokich ekranach.
         $asideClasses = auth()->check()

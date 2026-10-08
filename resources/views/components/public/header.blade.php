@@ -1,9 +1,9 @@
 @auth
     {{-- Zalogowany: header na każdej szerokości --}}
-    <flux:header class="sticky top-0 z-10 h-16 border-b border-zinc-200 bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900">
+    <flux:header class="sticky top-0 z-10 h-16 border-b-2 border-lech-700 bg-white/90 backdrop-blur dark:border-lech-500 dark:bg-zinc-900/90">
         <flux:sidebar.toggle class="lg:hidden" icon="bars-2" inset="left" />
 
-        <flux:brand href="{{ route('home') }}" name="{{ config('app.name') }}" class="ms-2 lg:hidden" />
+        <x-lechtyper-logo class="ms-2 lg:hidden" />
 
         <flux:spacer />
         @can(\App\Enums\Permission::DashboardAccess->value)
@@ -36,10 +36,10 @@
 @else
     {{-- Gość: wąski pasek tylko poniżej xl, z przyciskami otwierającymi panele --}}
     <div
-        class="sticky top-0 z-10 flex h-16 items-center gap-2 border-b border-zinc-200 bg-zinc-50 px-4 dark:border-zinc-700 dark:bg-zinc-900 xl:hidden">
+        class="sticky top-0 z-10 flex h-16 items-center gap-2 border-b-2 border-lech-700 bg-white/90 px-4 backdrop-blur dark:border-lech-500 dark:bg-zinc-900/90 xl:hidden">
         <flux:sidebar.toggle class="lg:hidden" icon="bars-2" />
 
-        <flux:brand href="{{ route('home') }}" name="{{ config('app.name') }}" class="lg:hidden" />
+        <x-lechtyper-logo class="lg:hidden" />
 
         <flux:spacer />
 

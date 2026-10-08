@@ -1,10 +1,11 @@
 {{-- WAŻNE: atrybuty <flux:sidebar> porównaj z resources/views/layouts/app/sidebar.blade.php
     w panelu. Tam, gdzie działa na telefonie, skopiuj dokładnie ten sam zestaw
     (np. collapsible="mobile" albo starsze stashable). --}}
+    {{-- Klasa dark: elementy menu w wersji jasnej na granatowym tle (barwy Lecha). --}}
     <flux:sidebar sticky collapsible="mobile"
-        class="border-e border-zinc-200 bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900">
+        class="dark border-e border-lech-950 bg-linear-to-b from-lech-900 via-lech-950 to-black text-white">
         <flux:sidebar.header>
-            <flux:brand href="{{ route('home') }}" name="{{ config('app.name') }}" />
+            <x-lechtyper-logo class="text-white" />
             <flux:sidebar.collapse class="lg:hidden" />
         </flux:sidebar.header>
 
@@ -16,7 +17,7 @@
                 @if (\App\Support\Players::canPlay(auth()->user()))
                     <flux:sidebar.item icon="pencil-square" :href="route('tips')" :current="request()->routeIs('tips')"
                         wire:navigate>
-                        {{ __('My tips') }}
+                        LechTYPER
                     </flux:sidebar.item>
                 @endif
             @endauth
@@ -32,7 +33,14 @@
                 wire:navigate>
                 {{ __('Premium and support') }}
             </flux:sidebar.item>
-            {{-- kolejne pozycje opracujemy później --}}
+            <flux:sidebar.item icon="book-open" :href="route('rules')" :current="request()->routeIs('rules')"
+                wire:navigate>
+                {{ __('Rules of the game') }}
+            </flux:sidebar.item>
+            <flux:sidebar.item icon="question-mark-circle" :href="route('faq')" :current="request()->routeIs('faq')"
+                wire:navigate>
+                {{ __('FAQ') }}
+            </flux:sidebar.item>
         </flux:sidebar.nav>
 
         <flux:spacer />

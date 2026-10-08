@@ -46,9 +46,20 @@
 @elseif ($tab === 'competitions')
     <flux:card class="space-y-3">
         <flux:heading>{{ __('Progress in competitions') }}</flux:heading>
+        @php
+            $trophyIcons = \App\Support\HallOfFame::iconUrls();
+        @endphp
         @forelse ($this->myCompetitions as $row)
             <div class="flex flex-wrap items-center gap-3 border-b border-zinc-100 py-2 text-sm last:border-0 dark:border-zinc-700" wire:key="comp-{{ $loop->index }}">
-                <span class="min-w-0 flex-1 font-medium">{{ $row['name'] }}</span>
+                <span class="flex min-w-0 flex-1 items-center gap-2 font-medium">
+                    {{-- Trofeum do zdobycia w tych rozgrywkach --}}
+                    @if (isset($trophyIcons[$row['trophy']]))
+                        <img src="{{ $trophyIcons[$row['trophy']] }}" alt="" class="size-6 object-contain" title="{{ __('Trophy to win') }}">
+                    @else
+                        <flux:icon.trophy variant="micro" class="text-amber-500" />
+                    @endif
+                    {{ $row['name'] }}
+                </span>
                 <span>{{ $row['status'] }}</span>
                 @if ($row['points'] !== null)
                     <span class="text-xs text-zinc-500">
@@ -107,7 +118,10 @@
     </div>
 
     <flux:card class="space-y-2">
-        <flux:heading>{{ __('Place among the players') }}</flux:heading>
+        <div class="flex items-center gap-2">
+            <flux:heading>{{ __('Place among the players') }}</flux:heading>
+            <x-premium-badge />
+        </div>
         @if (!$data['rank'])
             <flux:text>{{ __('Available after the first settled matchday.') }}</flux:text>
         @elseif ($isPremium)

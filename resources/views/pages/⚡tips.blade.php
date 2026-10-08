@@ -52,7 +52,7 @@ new #[Layout('layouts::public')] class extends Component {
 
     public function render(): View
     {
-        return $this->view()->title(__('My tips'));
+        return $this->view()->title('LechTYPER');
     }
 
     public function updatedNumber(): void
@@ -274,7 +274,7 @@ new #[Layout('layouts::public')] class extends Component {
 
 <div class="mx-auto flex w-full max-w-4xl flex-col gap-6">
     <div class="space-y-1">
-        <flux:heading size="xl" level="1">{{ __('My tips') }}</flux:heading>
+        <flux:heading size="xl" level="1">LechTYPER</flux:heading>
         <flux:text>
             {{ __('Tip the score of the Lech match and answer the bonus questions. You can change your tip until kickoff.') }}
         </flux:text>
@@ -385,7 +385,8 @@ new #[Layout('layouts::public')] class extends Component {
                     @php
                         $defaultTip = \App\Support\Premium::defaultTip(auth()->user());
                     @endphp
-                    <flux:text size="sm">
+                    <flux:text size="sm" class="flex flex-wrap items-center gap-1">
+                        <x-premium-badge />
                         {{ __('Premium: without a tip your default tip :score will be used.', ['score' => $defaultTip[0] . ':' . $defaultTip[1]]) }}
                         <flux:link :href="route('support')" wire:navigate>{{ __('Change') }}</flux:link>
                     </flux:text>
@@ -402,7 +403,10 @@ new #[Layout('layouts::public')] class extends Component {
         @endphp
         <flux:card class="space-y-3">
             <div class="flex flex-wrap items-center justify-between gap-2">
-                <flux:heading>{{ __('Your rivals in this matchday') }}</flux:heading>
+                <div class="flex items-center gap-2">
+                    <flux:heading>{{ __('Your rivals in this matchday') }}</flux:heading>
+                    <x-premium-badge />
+                </div>
                 @if (!$isPremium && $phase !== \App\Support\Rivals::PLAYED)
                     <flux:link :href="route('support')" wire:navigate class="text-sm">{{ __('Premium shows more') }}</flux:link>
                 @endif

@@ -18,6 +18,8 @@ Route::livewire('teams/{user}', 'pages::team-profile')->name('team.show');
 
 // Premium i wsparcie (etap 15): cennik i płatność online, powiadomienia od Przelewy24 (bez CSRF, patrz bootstrap/app.php).
 Route::livewire('support', 'pages::support')->name('support');
+Route::livewire('rules', 'pages::rules')->name('rules');
+Route::livewire('faq', 'pages::faq')->name('faq');
 Route::post('payments/przelewy24/status', [Przelewy24Controller::class, 'status'])->name('przelewy24.status');
 
 // Panel: wejście tylko z uprawnieniem dashboard-access (Admin ma je zawsze)
@@ -58,6 +60,9 @@ Route::middleware(['auth', 'verified', 'permission:' . Permission::DashboardAcce
     Route::livewire('dashboard/results', 'pages::dashboard.results')
         ->middleware('permission:season-list')
         ->name('dashboard.results');
+    Route::livewire('dashboard/sponsors', 'pages::dashboard.sponsors')
+        ->middleware('permission:season-list')
+        ->name('dashboard.sponsors');
     Route::livewire('dashboard/hall-of-fame', 'pages::dashboard.hall-of-fame')
         ->middleware('permission:season-list')
         ->name('dashboard.hall-of-fame');

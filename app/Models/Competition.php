@@ -16,10 +16,11 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property CompetitionType $type
  * @property int|null $tier
  * @property string $name
+ * @property int|null $sponsor_id
  */
 class Competition extends Model
 {
-    protected $fillable = ['season_id', 'type', 'tier', 'name'];
+    protected $fillable = ['season_id', 'type', 'tier', 'name', 'sponsor_id'];
 
     protected function casts(): array
     {
@@ -32,6 +33,21 @@ class Competition extends Model
     public function season(): BelongsTo
     {
         return $this->belongsTo(Season::class);
+    }
+
+    public function sponsor(): BelongsTo
+    {
+        return $this->belongsTo(Sponsor::class);
+    }
+
+    /** Trofeum do zdobycia (klucz z HallOfFame::trophies()), np. league_3, cup, legends. */
+    public function trophyKey(): string
+    {
+        return match ($this->type) {
+            CompetitionType::League => 'league_' . $this->tier,
+            CompetitionType::Swiss => 'league_' . League::Podworkowa->value,
+            default => $this->type->value,
+        };
     }
 
     /** Uczestnicy posortowani po rozstawieniu. */
