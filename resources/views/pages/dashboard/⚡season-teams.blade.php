@@ -446,7 +446,7 @@ new class extends Component {
     /**
      * Przenosi gracza do wybranej ligi (regulamin, punkt 8):
      *  - do ligi 1-10: gracz zajmuje miejsce najwyżej sklasyfikowanego bota tej ligi,
-     *    a bot trafia na dawne miejsce gracza (zamiana). Jeśli nie ma tam botów,
+     *    a boty pomiędzy przesuwają się kaskadowo o jedno miejsce bota (cascadeBots). Jeśli nie ma tam botów,
      *    nic się nie dzieje (admin dostaje ostrzeżenie),
      *  - do ligi podwórkowej: tak samo, a gdy nie ma tam botów, gracz trafia na koniec
      *    listy, a jego dawne miejsce w lidze zajmuje wolny bot (liga ma nadal 10 zespołów).
@@ -487,8 +487,8 @@ new class extends Component {
                 $bot = $this->bestBot($target, lock: true);
 
                 if ($bot) {
-                    // Zamiana miejsc: bot trafia na dawne miejsce gracza. Lista nie ma luk.
-                    $this->swapPositions($team, $bot);
+                    // Gracz zajmuje miejsce bota, a boty przesuwają się kolejno o jedno miejsce bota. Lista nie ma luk.
+                    $this->cascadeBots($team, $bot);
 
                     return true;
                 }
@@ -658,6 +658,41 @@ new class extends Component {
         $query = SeasonTeam::where('season_id', $this->seasonId)->whereNull('user_id')->inLeague($league)->orderBy('position');
 
         return ($lock ? $query->lockForUpdate() : $query)->first();
+    }
+
+    /**
+     * Gracz wskakuje na miejsce bota, a boty między tym miejscem a dawnym miejscem gracza przesuwają się
+     * kaskadowo: wyparty bot zajmuje miejsce kolejnego bota w rankingu, ten następnego itd., a ostatni
+     * trafia na zwolnione miejsce gracza. Zespoły ludzi pomiędzy zostają na swoich miejscach.
+     */
+    private function cascadeBots(SeasonTeam $team, SeasonTeam $bot): void
+    {
+        $from = $team->position;
+        $to = $bot->position;
+        $up = $to < $from;
+
+        // Boty na drodze między miejscem docelowym a dawnym miejscem gracza (w kolejności przesuwania).
+        $chain = SeasonTeam::where('season_id', $this->seasonId)
+            ->whereNull('user_id')
+            ->whereKeyNot($team->id)
+            ->whereBetween('position', [min($from, $to), max($from, $to)])
+            ->orderBy('position', $up ? 'asc' : 'desc')
+            ->lockForUpdate()
+            ->get();
+
+        // Miejsca, które zajmą kolejne boty: miejsce następnego bota w łańcuchu, ostatni dostaje miejsce gracza.
+        $targets = $chain->pluck('position')->slice(1)->push($from)->values();
+
+        // Najpierw pozycje tymczasowe (ujemne), żeby nie złamać unikalności, potem docelowe.
+        $team->update(['position' => -$team->id]);
+        foreach ($chain as $item) {
+            $item->update(['position' => -$item->id - 1000000]);
+        }
+
+        $team->update(['position' => $to]);
+        foreach ($chain->values() as $i => $item) {
+            $item->update(['position' => $targets[$i]]);
+        }
     }
 
     /** Zamienia miejscami dwa zespoły (chwilowo pozycja -1, żeby nie złamać unikalności). */
