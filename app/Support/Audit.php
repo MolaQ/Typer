@@ -69,6 +69,12 @@ class Audit
             'season_list.player_assigned' => __('Player assigned to a league'),
             'season_list.player_released' => __('Player removed from the list'),
 
+            // Rozgrywki
+            'competition.created' => __('Competition created'),
+            'competition.updated' => __('Competition updated'),
+            'competition.drawn' => __('Round drawn'),
+            'competition.deleted' => __('Competition deleted'),
+
             // Boty
             'bot.renamed' => __('Bot renamed'),
         ];

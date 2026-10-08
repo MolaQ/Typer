@@ -4,7 +4,10 @@ namespace App\Support;
 
 use App\Enums\League;
 use App\Enums\SeasonStatus;
+use App\Enums\CompetitionType;
 use App\Models\Bot;
+use App\Models\Competition;
+use App\Models\CompetitionEntry;
 use App\Models\Season;
 use App\Models\SeasonTeam;
 use App\Models\User;
@@ -42,19 +45,37 @@ class Roster
             $end = max(League::TOP_TEAMS, (int) SeasonTeam::where('season_id', $seasonId)->max('position')) + 1;
             $now = now();
 
-            SeasonTeam::insert([[
+            $teamId = SeasonTeam::insertGetId([
                 'season_id' => $seasonId,
                 'position' => $end,
                 'user_id' => $userId,
                 'bot_id' => null,
                 'created_at' => $now,
                 'updated_at' => $now,
-            ]]);
+            ]);
+
+            self::joinSwiss($seasonId, $teamId, $end);
 
             return true;
         }
 
         return false;
+    }
+
+    /**
+     * Dopisuje nowy zespół (na końcu listy) do Ligi podwórkowej, jeśli sezon ma już jej rozgrywki.
+     * Gracz, który zajął miejsce bota, ma wpis od początku, więc tu trafiają tylko dopisani na koniec.
+     */
+    private static function joinSwiss(int $seasonId, int $seasonTeamId, int $position): void
+    {
+        $swiss = Competition::where('season_id', $seasonId)->where('type', CompetitionType::Swiss->value)->first();
+
+        if ($swiss) {
+            CompetitionEntry::firstOrCreate(
+                ['competition_id' => $swiss->id, 'season_team_id' => $seasonTeamId],
+                ['seed' => $position - League::TOP_TEAMS],
+            );
+        }
     }
 
     /**

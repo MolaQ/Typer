@@ -5,7 +5,9 @@ namespace App\Support;
 use App\Enums\RoleName;
 use App\Enums\SeasonStatus;
 use App\Models\Bot;
+use App\Enums\CompetitionType;
 use App\Models\Competition;
+use App\Models\CompetitionEntry;
 use App\Models\Fixture;
 use App\Models\Matchday;
 use App\Models\Season;
@@ -77,10 +79,21 @@ class SeasonChecklist
         $approved = $season->status !== SeasonStatus::Draft;
         $items[] = self::item(__('Launch'), __('The season is approved'), $approved, $season->status->label(), 'dashboard.seasons', null);
 
-        $leagues = Competition::where('season_id', $season->id)->count();
-        $fixtures = Fixture::whereIn('competition_id', Competition::where('season_id', $season->id)->select('id'))->count();
-        $items[] = self::item(__('Launch'), __('League fixtures are generated'), $leagues === 10 && $fixtures === 450,
-            $leagues.' '.__('leagues').', '.$fixtures.' '.__('matches'), 'dashboard.fixtures', null);
+        $competitions = Competition::where('season_id', $season->id)->get();
+        $leagueIds = $competitions->where('type', CompetitionType::League)->pluck('id');
+        $leagueFixtures = Fixture::whereIn('competition_id', $leagueIds)->count();
+        $items[] = self::item(__('Launch'), __('League fixtures are generated'), $leagueIds->count() === 10 && $leagueFixtures === 450,
+            $leagueIds->count().' '.__('leagues').', '.$leagueFixtures.' '.__('matches'), 'dashboard.fixtures', null);
+
+        $cup = $competitions->firstWhere('type', CompetitionType::Cup);
+        $cupFixtures = $cup ? Fixture::where('competition_id', $cup->id)->count() : 0;
+        $items[] = self::item(__('Launch'), __('The Puchar Polski bracket is generated'), $cupFixtures === 511,
+            $cupFixtures.' / 511', 'dashboard.fixtures', null);
+
+        $swiss = $competitions->firstWhere('type', CompetitionType::Swiss);
+        $swissEntries = $swiss ? CompetitionEntry::where('competition_id', $swiss->id)->count() : 0;
+        $items[] = self::item(__('Launch'), __('Liga podwórkowa has its teams'), $swissEntries > 0,
+            (string) $swissEntries, 'dashboard.fixtures', null);
 
         $items[] = self::item(__('Launch'), __('The season is active'),
             in_array($season->status, [SeasonStatus::Active, SeasonStatus::Finished], true), '', 'dashboard.seasons', null);

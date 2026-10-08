@@ -28,6 +28,9 @@ Route::middleware(['auth', 'verified', 'permission:' . Permission::DashboardAcce
     Route::livewire('dashboard/fixtures', 'pages::dashboard.fixtures')
         ->middleware('permission:season-list')
         ->name('dashboard.fixtures');
+    Route::livewire('dashboard/competitions', 'pages::dashboard.competitions')
+        ->middleware('permission:season-list')
+        ->name('dashboard.competitions');
     Route::livewire('dashboard/checklist', 'pages::dashboard.checklist')
         ->middleware('permission:season-list')
         ->name('dashboard.checklist');

@@ -34,7 +34,7 @@
                 {{-- Grupa "LechTyper": sezony, a później liga, puchar, mecze. --}}
                 @if ($canSeasons)
                     <flux:sidebar.group expandable
-                        :expanded="request()->routeIs('dashboard.seasons', 'dashboard.matchdays', 'dashboard.season-teams', 'dashboard.fixtures', 'dashboard.bots', 'dashboard.checklist')"
+                        :expanded="request()->routeIs('dashboard.seasons', 'dashboard.matchdays', 'dashboard.season-teams', 'dashboard.fixtures', 'dashboard.competitions', 'dashboard.bots', 'dashboard.checklist')"
                         :heading="__('LechTyper')" class="grid">
 
                         <flux:sidebar.item icon="clipboard-document-check" :href="route('dashboard.checklist')"
@@ -60,6 +60,11 @@
                         <flux:sidebar.item icon="table-cells" :href="route('dashboard.fixtures')"
                             :current="request()->routeIs('dashboard.fixtures')" wire:navigate>
                             {{ __('Fixtures') }}
+                        </flux:sidebar.item>
+
+                        <flux:sidebar.item icon="trophy" :href="route('dashboard.competitions')"
+                            :current="request()->routeIs('dashboard.competitions')" wire:navigate>
+                            {{ __('Competitions') }}
                         </flux:sidebar.item>
 
                         <flux:sidebar.item icon="cpu-chip" :href="route('dashboard.bots')"
