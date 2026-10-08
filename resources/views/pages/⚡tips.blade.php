@@ -202,6 +202,20 @@ new #[Layout('layouts::public')] class extends Component {
         return \App\Support\PlayerStats::season(auth()->user(), $this->season);
     }
 
+    /** Ciekawostki: ulubione typy, najlepszy sezon, a dla premium typy w rozgrywkach i najtrudniejsze pytania. */
+    #[Computed]
+    public function myExtras(): array
+    {
+        $premium = \App\Support\Premium::isActive(auth()->user());
+
+        return [
+            'favourites' => \App\Support\PlayerStats::favourites(auth()->user()),
+            'best_season' => \App\Support\PlayerStats::bestSeason(auth()->user()),
+            'competitions' => $premium && $this->season ? \App\Support\PlayerStats::competitionFavourites($this->season) : [],
+            'hardest' => $premium ? \App\Support\QuestionDifficulty::hardest(5) : collect(),
+        ];
+    }
+
     #[Computed]
     public function myHistory(): array
     {
@@ -460,6 +474,37 @@ new #[Layout('layouts::public')] class extends Component {
                                     &middot; {{ __('Match: :score', ['score' => $rival['score']]) }}
                                 @endif
                             </div>
+                        @endif
+
+                        {{-- Bilans bezpośredni i historia spotkań (od ostatniego) --}}
+                        @if ($rival['h2h'])
+                            @php
+                                $h2h = $rival['h2h'];
+                            @endphp
+                            <details class="group w-full text-xs">
+                                <summary class="flex cursor-pointer list-none items-center gap-2 text-zinc-500 hover:text-lech-700 dark:hover:text-lech-300 [&::-webkit-details-marker]:hidden">
+                                    <flux:icon.chevron-right variant="micro" class="transition group-open:rotate-90" />
+                                    @if (count($h2h['meetings']) === 0)
+                                        {{ __('First meeting') }}
+                                    @else
+                                        {{ __('Head to head: :won W, :drawn D, :lost L', ['won' => $h2h['won'], 'drawn' => $h2h['drawn'], 'lost' => $h2h['lost']]) }}
+                                    @endif
+                                </summary>
+                                @if (count($h2h['meetings']) > 0)
+                                    <div class="mt-2 space-y-1 ps-5">
+                                        @foreach ($h2h['meetings'] as $meeting)
+                                            @php
+                                                $meetingClass = ['W' => 'bg-green-600', 'D' => 'bg-zinc-400', 'L' => 'bg-red-600'][$meeting['outcome']];
+                                            @endphp
+                                            <div class="flex items-center gap-2">
+                                                <span class="{{ $meetingClass }} flex size-5 items-center justify-center rounded text-[10px] font-bold text-white">{{ __($meeting['outcome']) }}</span>
+                                                <span class="w-10 font-semibold tabular-nums">{{ $meeting['score'] }}</span>
+                                                <span class="text-zinc-500">{{ $meeting['season'] }} &middot; {{ $meeting['competition'] }} &middot; {{ __('Matchday :number', ['number' => $meeting['round']]) }}</span>
+                                            </div>
+                                        @endforeach
+                                    </div>
+                                @endif
+                            </details>
                         @endif
                     </div>
                 @endforeach

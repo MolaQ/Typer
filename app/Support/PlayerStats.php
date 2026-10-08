@@ -14,7 +14,9 @@ use App\Models\Season;
 use App\Models\SeasonTeam;
 use App\Models\TeamScore;
 use App\Models\Tip;
+use App\Models\TipAnswer;
 use App\Models\User;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 
 /**
@@ -121,7 +123,7 @@ final class PlayerStats
         $average = [];
         if ($all !== []) {
             foreach (array_keys(self::empty()) as $key) {
-                if (is_numeric($mine[$key] ?? null) || ($mine[$key] ?? null) === null) {
+                if ($key !== 'best_matchday' && (is_numeric($mine[$key] ?? null) || ($mine[$key] ?? null) === null)) {
                     $values = array_filter(array_column($all, $key), fn($v) => $v !== null && is_numeric($v));
                     $average[$key] = $values === [] ? 0.0 : array_sum($values) / count($values);
                 }
@@ -139,6 +141,103 @@ final class PlayerStats
         }
 
         return ['mine' => $mine, 'average' => $average, 'rank' => $rank];
+    }
+
+    /**
+     * Ulubione typy (wszystkie sezony): najczęstszy wynik gracza i wszystkich graczy serwisu.
+     *
+     * @return array{mine: ?array{score: string, count: int, total: int}, all: ?array{score: string, count: int, total: int}}
+     */
+    public static function favourites(User $user): array
+    {
+        return [
+            'mine' => self::topScore(Tip::where('user_id', $user->id)),
+            'all' => self::topScore(Tip::query()),
+        ];
+    }
+
+    /**
+     * Najczęstszy typ w każdych rozgrywkach sezonu (statystyki premium): typy graczy z zespołami w tych rozgrywkach.
+     *
+     * @return array<int, array{name: string, trophy: string, score: string, count: int, total: int}>
+     */
+    public static function competitionFavourites(Season $season): array
+    {
+        $rows = Tip::query()
+            ->join('matchdays', 'matchdays.id', '=', 'tips.matchday_id')
+            ->join('season_teams', fn($j) => $j->on('season_teams.user_id', '=', 'tips.user_id')->on('season_teams.season_id', '=', 'matchdays.season_id'))
+            ->join('competition_entries', 'competition_entries.season_team_id', '=', 'season_teams.id')
+            ->where('matchdays.season_id', $season->id)
+            ->groupBy('competition_entries.competition_id', 'tips.lech_goals', 'tips.opponent_goals')
+            ->selectRaw('competition_entries.competition_id as competition_id, tips.lech_goals as lech, tips.opponent_goals as opponent, count(*) as tips_count')
+            ->get()
+            ->groupBy('competition_id');
+
+        $order = array_map(fn($t) => $t->value, CompetitionType::cases());
+        $competitions = Competition::where('season_id', $season->id)->get()
+            ->sortBy(fn($c) => [array_search($c->type->value, $order, true), $c->tier ?? 0]);
+
+        $out = [];
+        foreach ($competitions as $competition) {
+            $scores = $rows->get($competition->id);
+            if (!$scores) {
+                continue;
+            }
+            $top = $scores->sortByDesc('tips_count')->first();
+            $out[] = [
+                'name' => $competition->name ?: $competition->type->label(),
+                'trophy' => $competition->trophyKey(),
+                'score' => $top->lech . ':' . $top->opponent,
+                'count' => (int) $top->tips_count,
+                'total' => (int) $scores->sum('tips_count'),
+            ];
+        }
+
+        return $out;
+    }
+
+    /**
+     * Najlepszy sezon gracza: najwięcej punktów za typy (wszystkie sezony, także trwający).
+     *
+     * @return array{season: Season, points: int}|null
+     */
+    public static function bestSeason(User $user): ?array
+    {
+        $teams = SeasonTeam::where('user_id', $user->id)->pluck('season_id', 'id');
+
+        if ($teams->isEmpty()) {
+            return null;
+        }
+
+        $perSeason = TeamScore::whereIn('season_team_id', $teams->keys())
+            ->get(['season_team_id', 'matchday_id', 'tip_points'])
+            ->unique('matchday_id')
+            ->groupBy(fn($r) => $teams[$r->season_team_id])
+            ->map(fn($rows) => (int) $rows->sum('tip_points'));
+
+        if ($perSeason->isEmpty()) {
+            return null;
+        }
+
+        $seasonId = $perSeason->sortDesc()->keys()->first();
+
+        return ['season' => Season::find($seasonId), 'points' => $perSeason[$seasonId]];
+    }
+
+    /** Najczęstszy wynik w zbiorze typów. @return array{score: string, count: int, total: int}|null */
+    private static function topScore($query): ?array
+    {
+        $rows = $query->groupBy('lech_goals', 'opponent_goals')
+            ->selectRaw('lech_goals, opponent_goals, count(*) as tips_count')
+            ->get();
+
+        if ($rows->isEmpty()) {
+            return null;
+        }
+
+        $top = $rows->sortByDesc('tips_count')->first();
+
+        return ['score' => $top->lech_goals . ':' . $top->opponent_goals, 'count' => (int) $top->tips_count, 'total' => (int) $rows->sum('tips_count')];
     }
 
     /**
@@ -173,16 +272,19 @@ final class PlayerStats
             return self::$seasonCache[$season->id];
         }
 
-        $teamIds = SeasonTeam::where('season_id', $season->id)->whereNotNull('user_id')->pluck('id');
+        $userOfTeam = SeasonTeam::where('season_id', $season->id)->whereNotNull('user_id')->pluck('user_id', 'id');
+        $teamIds = $userOfTeam->keys();
 
         $rows = TeamScore::query()
             ->join('matchdays', 'matchdays.id', '=', 'team_scores.matchday_id')
             ->whereIn('team_scores.season_team_id', $teamIds)
-            ->select('team_scores.*', 'matchdays.number')
+            ->select('team_scores.*', 'matchdays.number', 'matchdays.lech_goals as real_lech')
             ->get()
             ->groupBy('season_team_id');
 
         $matches = self::seasonMatches($season, $teamIds);
+        $questions = self::questionAccuracy($season);
+        $leads = self::leadTimes($season);
         $out = [];
 
         foreach ($teamIds as $teamId) {
@@ -210,10 +312,78 @@ final class PlayerStats
                 'zeroed' => $withTip->where('offense_zeroed', true)->count() + $withTip->where('defense_zeroed', true)->count(),
                 'outcome_streak' => $streak,
                 'outcome_streak_best' => $streakBest,
+                'q_offense' => $questions[$userOfTeam[$teamId]]['offensive'] ?? null,
+                'q_defense' => $questions[$userOfTeam[$teamId]]['defensive'] ?? null,
+                // Optymizm: o ile goli Lecha średnio typujemy więcej (+) albo mniej (−) niż padło naprawdę.
+                'optimism' => $tips > 0 ? round($tipped->avg(fn($r) => $r->tip_lech - $r->real_lech), 2) : null,
+                'lead_hours' => $leads[$userOfTeam[$teamId]] ?? null,
+                'best_matchday' => self::bestMatchday($all),
             ] + $m;
         }
 
         return self::$seasonCache[$season->id] = $out;
+    }
+
+    /**
+     * Trafność odpowiedzi na pytania w sezonie (rozliczone kolejki): id gracza => strona => procent poprawnych.
+     *
+     * @return array<int, array<string, int>>
+     */
+    private static function questionAccuracy(Season $season): array
+    {
+        $rows = TipAnswer::query()
+            ->join('matchday_questions', 'matchday_questions.id', '=', 'tip_answers.matchday_question_id')
+            ->join('matchdays', 'matchdays.id', '=', 'matchday_questions.matchday_id')
+            ->where('matchdays.season_id', $season->id)
+            ->where('matchdays.status', MatchdayStatus::Played->value)
+            ->whereNotNull('matchday_questions.correct_answer')
+            ->groupBy('tip_answers.user_id', 'matchday_questions.side')
+            ->selectRaw('tip_answers.user_id as user_id, matchday_questions.side as side, count(*) as answers, sum(case when tip_answers.answer = matchday_questions.correct_answer then 1 else 0 end) as correct')
+            ->get();
+
+        $out = [];
+        foreach ($rows as $row) {
+            $out[(int) $row->user_id][$row->side] = (int) round($row->correct / max(1, $row->answers) * 100);
+        }
+
+        return $out;
+    }
+
+    /**
+     * Średni czas zapisu typu przed pierwszym gwizdkiem w godzinach: id gracza => godziny (bez typów domyślnych).
+     *
+     * @return array<int, float>
+     */
+    private static function leadTimes(Season $season): array
+    {
+        $tips = Tip::query()
+            ->join('matchdays', 'matchdays.id', '=', 'tips.matchday_id')
+            ->where('matchdays.season_id', $season->id)
+            ->where('tips.is_default', false)
+            ->whereNotNull('matchdays.kickoff_at')
+            ->get(['tips.user_id', 'tips.saved_at', 'matchdays.kickoff_at']);
+
+        return $tips->groupBy('user_id')
+            ->map(fn($rows) => round($rows->avg(fn($t) => max(0, Carbon::parse($t->kickoff_at)->getTimestamp() - Carbon::parse($t->saved_at)->getTimestamp()) / 3600), 1))
+            ->all();
+    }
+
+    /**
+     * Najlepsza kolejka sezonu: najwięcej punktów za typ razem z bonusami (najlepszy zestaw pytań w tej kolejce).
+     *
+     * @return array{number: int, points: int}|null
+     */
+    private static function bestMatchday(Collection $rows): ?array
+    {
+        $best = null;
+        foreach ($rows->where('has_tip', true)->groupBy('matchday_id') as $sets) {
+            $points = (int) $sets->max(fn($r) => $r->tip_points + $r->offense_bonus + $r->defense_bonus);
+            if ($best === null || $points > $best['points']) {
+                $best = ['number' => (int) $sets->first()->number, 'points' => $points];
+            }
+        }
+
+        return $best;
     }
 
     /** Puste statystyki (gracz bez rozliczonych kolejek). */
@@ -223,6 +393,7 @@ final class PlayerStats
             'scored' => 0, 'tips' => 0, 'tips_ratio' => null, 'missing' => 0, 'exact' => 0, 'diff' => 0, 'outcome' => 0,
             'accuracy' => null, 'tip_points' => 0, 'avg_tip' => null, 'avg_offense' => null, 'avg_defense' => null,
             'zeroed' => 0, 'outcome_streak' => 0, 'outcome_streak_best' => 0,
+            'q_offense' => null, 'q_defense' => null, 'optimism' => null, 'lead_hours' => null, 'best_matchday' => null,
         ] + self::matchSummary([]);
     }
 

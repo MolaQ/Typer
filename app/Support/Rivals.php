@@ -101,6 +101,7 @@ final class Rivals
                 'virtual' => $rival === null,
                 'tipped' => null, 'outcome' => null, 'tip' => null, 'offense' => null, 'defense' => null,
                 'bonus' => null, 'score' => $fixture->isPlayed() ? $fixture->score() : null,
+                'h2h' => $rival ? self::headToHead($viewer, $rival) : null,
             ];
 
             if ($rival && !$rival->is_bot) {
@@ -133,6 +134,54 @@ final class Rivals
             }
 
             $out[] = $row;
+        }
+
+        return $out;
+    }
+
+    /**
+     * Bilans bezpośredni z rywalem (człowiek albo bot) ze wszystkich sezonów i rozgrywek
+     * oraz historia spotkań od ostatniego do pierwszego.
+     *
+     * @return array{won: int, drawn: int, lost: int, meetings: array<int, array{season: string, competition: string, round: int, score: string, outcome: string}>}
+     */
+    public static function headToHead(User $viewer, SeasonTeam $rival): array
+    {
+        $rivalTeams = $rival->user_id
+            ? SeasonTeam::where('user_id', $rival->user_id)->pluck('id')
+            : SeasonTeam::where('bot_id', $rival->bot_id)->pluck('id');
+
+        $mine = CompetitionEntry::whereIn('season_team_id', SeasonTeam::where('user_id', $viewer->id)->select('id'))->pluck('id');
+        $theirs = CompetitionEntry::whereIn('season_team_id', $rivalTeams)->pluck('id');
+
+        $fixtures = Fixture::with('competition.season:id,number')
+            ->whereNotNull('home_goals')
+            ->where(fn($q) => $q
+                ->where(fn($w) => $w->whereIn('home_entry_id', $mine)->whereIn('away_entry_id', $theirs))
+                ->orWhere(fn($w) => $w->whereIn('home_entry_id', $theirs)->whereIn('away_entry_id', $mine)))
+            ->get()
+            ->sortByDesc(fn($f) => [$f->competition->season->number, $f->round, $f->id]);
+
+        $out = ['won' => 0, 'drawn' => 0, 'lost' => 0, 'meetings' => []];
+        foreach ($fixtures as $fixture) {
+            $home = $mine->contains($fixture->home_entry_id);
+            $entryId = $home ? $fixture->home_entry_id : $fixture->away_entry_id;
+            $for = (int) ($home ? $fixture->home_goals : $fixture->away_goals);
+            $against = (int) ($home ? $fixture->away_goals : $fixture->home_goals);
+
+            // Remis rozstrzygnięty czasem typu (puchar) liczymy jako wygraną albo porażkę.
+            $outcome = $for === $against && $fixture->winner_entry_id
+                ? ((int) $fixture->winner_entry_id === $entryId ? 'W' : 'L')
+                : ($for > $against ? 'W' : ($for === $against ? 'D' : 'L'));
+
+            $out[['W' => 'won', 'D' => 'drawn', 'L' => 'lost'][$outcome]]++;
+            $out['meetings'][] = [
+                'season' => $fixture->competition->season->roman_number,
+                'competition' => $fixture->competition->name ?: $fixture->competition->type->label(),
+                'round' => (int) $fixture->round,
+                'score' => $for . ':' . $against . ($fixture->decided_by_time ? ' ' . __('(pen.)') : ''),
+                'outcome' => $outcome,
+            ];
         }
 
         return $out;
