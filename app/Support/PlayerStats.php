@@ -107,39 +107,190 @@ final class PlayerStats
     }
 
     /**
-     * Statystyki sezonu.
+     * Statystyki sezonu gracza, a obok średnie wszystkich graczy (do kolorów kafelków).
      *
-     * @return array<string, mixed>
+     * @return array{mine: array<string, mixed>, average: array<string, float>, rank: ?array{place: int, count: int}}
      */
     public static function season(User $user, Season $season): array
     {
-        $rows = self::tipRows($user, $season);
-        $tipped = $rows->where('has_tip', true);
-        $tips = $tipped->count();
-        $all = self::team($user, $season)
-            ? TeamScore::where('season_team_id', self::team($user, $season)->id)->where('has_tip', true)->get()
-            : collect();
+        $all = self::seasonAll($season);
+        $team = self::team($user, $season);
+        $mine = $team ? ($all[$team->id] ?? self::empty()) : self::empty();
 
-        [$currentHits, $bestHits] = self::streak($rows->sortBy('number')->map(fn($r) => (bool) $r->outcome_hit)->values()->all());
-        $matches = self::matches(self::team($user, $season) ? collect([self::team($user, $season)->id]) : collect());
+        $average = [];
+        if ($all !== []) {
+            foreach (array_keys(self::empty()) as $key) {
+                if (is_numeric($mine[$key] ?? null) || ($mine[$key] ?? null) === null) {
+                    $values = array_filter(array_column($all, $key), fn($v) => $v !== null && is_numeric($v));
+                    $average[$key] = $values === [] ? 0.0 : array_sum($values) / count($values);
+                }
+            }
+        }
+
+        // Miejsce wśród graczy według punktów za typy (pokazuje premium).
+        $rank = null;
+        if ($team && isset($all[$team->id]) && $all[$team->id]['scored'] > 0) {
+            $points = $all[$team->id]['tip_points'];
+            $rank = [
+                'place' => count(array_filter($all, fn($row) => $row['tip_points'] > $points)) + 1,
+                'count' => count($all),
+            ];
+        }
+
+        return ['mine' => $mine, 'average' => $average, 'rank' => $rank];
+    }
+
+    /**
+     * Kolor kafelka względem średniej graczy: zielony powyżej, czerwony poniżej, żółty w granicach ±15%.
+     */
+    public static function color(?float $value, ?float $average): string
+    {
+        if ($value === null || $average === null) {
+            return 'zinc';
+        }
+
+        $margin = abs($average) * 0.15;
+
+        return match (true) {
+            $value > $average + $margin => 'green',
+            $value < $average - $margin => 'red',
+            default => 'yellow',
+        };
+    }
+
+    /** @var array<int, array<int, array<string, mixed>>> */
+    private static array $seasonCache = [];
+
+    /**
+     * Statystyki wszystkich zespołów ludzi w sezonie: id zespołu => statystyki.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    private static function seasonAll(Season $season): array
+    {
+        if (isset(self::$seasonCache[$season->id])) {
+            return self::$seasonCache[$season->id];
+        }
+
+        $teamIds = SeasonTeam::where('season_id', $season->id)->whereNotNull('user_id')->pluck('id');
+
+        $rows = TeamScore::query()
+            ->join('matchdays', 'matchdays.id', '=', 'team_scores.matchday_id')
+            ->whereIn('team_scores.season_team_id', $teamIds)
+            ->select('team_scores.*', 'matchdays.number')
+            ->get()
+            ->groupBy('season_team_id');
+
+        $matches = self::seasonMatches($season, $teamIds);
+        $out = [];
+
+        foreach ($teamIds as $teamId) {
+            $all = $rows->get($teamId, collect());
+            $perMatchday = $all->unique('matchday_id')->sortBy('number')->values();
+            $tipped = $perMatchday->where('has_tip', true);
+            $tips = $tipped->count();
+            $withTip = $all->where('has_tip', true);
+            [$streak, $streakBest] = self::streak($perMatchday->map(fn($r) => (bool) $r->outcome_hit)->all());
+            $m = $matches[$teamId] ?? self::matchSummary([]);
+
+            $out[$teamId] = [
+                'scored' => $perMatchday->count(),
+                'tips' => $tips,
+                'tips_ratio' => $perMatchday->count() > 0 ? $tips / $perMatchday->count() : null,
+                'missing' => $perMatchday->count() - $tips,
+                'exact' => $tipped->where('exact_hit', true)->count(),
+                'diff' => $tipped->where('diff_hit', true)->count(),
+                'outcome' => $tipped->where('outcome_hit', true)->count(),
+                'accuracy' => $tips > 0 ? round($tipped->where('outcome_hit', true)->count() / $tips * 100) : null,
+                'tip_points' => (int) $tipped->sum('tip_points'),
+                'avg_tip' => $tips > 0 ? round($tipped->avg('tip_points'), 2) : null,
+                'avg_offense' => $withTip->isNotEmpty() ? round($withTip->avg('offense_bonus'), 2) : null,
+                'avg_defense' => $withTip->isNotEmpty() ? round($withTip->avg('defense_bonus'), 2) : null,
+                'zeroed' => $withTip->where('offense_zeroed', true)->count() + $withTip->where('defense_zeroed', true)->count(),
+                'outcome_streak' => $streak,
+                'outcome_streak_best' => $streakBest,
+            ] + $m;
+        }
+
+        return self::$seasonCache[$season->id] = $out;
+    }
+
+    /** Puste statystyki (gracz bez rozliczonych kolejek). */
+    private static function empty(): array
+    {
+        return [
+            'scored' => 0, 'tips' => 0, 'tips_ratio' => null, 'missing' => 0, 'exact' => 0, 'diff' => 0, 'outcome' => 0,
+            'accuracy' => null, 'tip_points' => 0, 'avg_tip' => null, 'avg_offense' => null, 'avg_defense' => null,
+            'zeroed' => 0, 'outcome_streak' => 0, 'outcome_streak_best' => 0,
+        ] + self::matchSummary([]);
+    }
+
+    /**
+     * Mecze sezonu pogrupowane na zespoły: id zespołu => podsumowanie meczów.
+     *
+     * @param  Collection<int, int>  $teamIds
+     * @return array<int, array<string, mixed>>
+     */
+    private static function seasonMatches(Season $season, Collection $teamIds): array
+    {
+        $teamOfEntry = CompetitionEntry::whereIn('season_team_id', $teamIds)
+            ->whereIn('competition_id', Competition::where('season_id', $season->id)->select('id'))
+            ->pluck('season_team_id', 'id');
+
+        $fixtures = Fixture::whereIn('competition_id', Competition::where('season_id', $season->id)->select('id'))
+            ->whereNotNull('home_goals')
+            ->orderBy('round')->orderBy('id')
+            ->get();
+
+        $perTeam = [];
+        foreach ($fixtures as $fixture) {
+            foreach ([[$fixture->home_entry_id, true], [$fixture->away_entry_id, false]] as [$entryId, $home]) {
+                if ($entryId && isset($teamOfEntry[$entryId])) {
+                    $perTeam[$teamOfEntry[$entryId]][] = self::result($fixture, $entryId, $home);
+                }
+            }
+        }
+
+        return array_map(fn($results) => self::matchSummary($results), $perTeam);
+    }
+
+    /** Wynik meczu z perspektywy wpisu: [W|D|L, gole zdobyte, stracone]. */
+    private static function result(Fixture $fixture, int $entryId, bool $home): array
+    {
+        $mine = (int) ($home ? $fixture->home_goals : $fixture->away_goals);
+        $theirs = (int) ($home ? $fixture->away_goals : $fixture->home_goals);
+
+        // Remis rozstrzygnięty czasem typu (puchar) liczymy jako wygraną albo porażkę.
+        if ($mine === $theirs && $fixture->winner_entry_id) {
+            $outcome = (int) $fixture->winner_entry_id === $entryId ? 'W' : 'L';
+        } else {
+            $outcome = $mine > $theirs ? 'W' : ($mine === $theirs ? 'D' : 'L');
+        }
+
+        return [$outcome, $mine, $theirs];
+    }
+
+    /** @param array<int, array{0: string, 1: int, 2: int}> $results */
+    private static function matchSummary(array $results): array
+    {
+        $outcomes = array_column($results, 0);
+        [$unbeaten, $unbeatenBest] = self::streak(array_map(fn($r) => $r !== 'L', $outcomes));
+        [$wins, $winsBest] = self::streak(array_map(fn($r) => $r === 'W', $outcomes));
+        $played = count($results);
+        $won = count(array_filter($outcomes, fn($r) => $r === 'W'));
 
         return [
-            'scored' => $rows->count(),
-            'tips' => $tips,
-            'missing' => $rows->count() - $tips,
-            'exact' => $tipped->where('exact_hit', true)->count(),
-            'diff' => $tipped->where('diff_hit', true)->count(),
-            'outcome' => $tipped->where('outcome_hit', true)->count(),
-            'accuracy' => $tips > 0 ? round($tipped->where('outcome_hit', true)->count() / $tips * 100) : null,
-            'tip_points' => (int) $tipped->sum('tip_points'),
-            'avg_tip' => $tips > 0 ? round($tipped->avg('tip_points'), 2) : null,
-            'avg_offense' => $all->isNotEmpty() ? round($all->avg('offense_bonus'), 2) : null,
-            'avg_defense' => $all->isNotEmpty() ? round($all->avg('defense_bonus'), 2) : null,
-            'zeroed' => $all->where('offense_zeroed', true)->count() + $all->where('defense_zeroed', true)->count(),
-            'outcome_streak' => $currentHits,
-            'outcome_streak_best' => $bestHits,
-            'matches' => $matches,
-            'rank' => self::rank($user, $season),
+            'played' => $played,
+            'won' => $won,
+            'drawn' => count(array_filter($outcomes, fn($r) => $r === 'D')),
+            'lost' => count(array_filter($outcomes, fn($r) => $r === 'L')),
+            'win_ratio' => $played > 0 ? $won / $played : null,
+            'for' => array_sum(array_column($results, 1)),
+            'against' => array_sum(array_column($results, 2)),
+            'record_goals' => $results === [] ? 0 : max(array_column($results, 1)),
+            'unbeaten' => $unbeaten, 'unbeaten_best' => $unbeatenBest,
+            'wins' => $wins, 'wins_best' => $winsBest,
+            'form' => array_slice($outcomes, -5),
         ];
     }
 
@@ -212,8 +363,7 @@ final class PlayerStats
     }
 
     /**
-     * Mecze zespołów (W/R/P, bramki, rekord bramek, passa bez porażki). Remis rozstrzygnięty czasem typu
-     * w pucharze liczymy jako wygraną albo porażkę.
+     * Mecze zespołów ze wszystkich sezonów (rekordy osobiste).
      *
      * @param  Collection<int, int>  $teamIds
      * @return array<string, mixed>
@@ -230,39 +380,13 @@ final class PlayerStats
             ->select('fixtures.*')
             ->get();
 
-        $won = $drawn = $lost = $for = $against = $record = 0;
         $results = [];
-
         foreach ($fixtures as $fixture) {
             $home = $entries->contains($fixture->home_entry_id);
-            $mine = (int) ($home ? $fixture->home_goals : $fixture->away_goals);
-            $theirs = (int) ($home ? $fixture->away_goals : $fixture->home_goals);
-            $for += $mine;
-            $against += $theirs;
-            $record = max($record, $mine);
-
-            if ($mine === $theirs && $fixture->winner_entry_id) {
-                $result = $entries->contains($fixture->winner_entry_id) ? 'W' : 'L';
-            } else {
-                $result = $mine > $theirs ? 'W' : ($mine === $theirs ? 'D' : 'L');
-            }
-
-            $results[] = $result;
-            $result === 'W' ? $won++ : ($result === 'D' ? $drawn++ : $lost++);
+            $results[] = self::result($fixture, $home ? $fixture->home_entry_id : $fixture->away_entry_id, $home);
         }
 
-        [$unbeaten, $unbeatenBest] = self::streak(array_map(fn($r) => $r !== 'L', $results));
-        [$wins, $winsBest] = self::streak(array_map(fn($r) => $r === 'W', $results));
-
-        return [
-            'played' => count($results),
-            'won' => $won, 'drawn' => $drawn, 'lost' => $lost,
-            'for' => $for, 'against' => $against,
-            'record_goals' => $record,
-            'unbeaten' => $unbeaten, 'unbeaten_best' => $unbeatenBest,
-            'wins' => $wins, 'wins_best' => $winsBest,
-            'form' => array_slice($results, -5),
-        ];
+        return self::matchSummary($results);
     }
 
     /** Obecna i najdłuższa seria wartości true. @param array<int, bool> $values @return array{0: int, 1: int} */
@@ -275,41 +399,5 @@ final class PlayerStats
         }
 
         return [$current, $best];
-    }
-
-    /**
-     * Miejsce wśród graczy sezonu według punktów za typy (i mediana). Null, gdy nie ma rozliczonych kolejek.
-     *
-     * @return array{place: int, count: int, median: float, above: bool}|null
-     */
-    private static function rank(User $user, Season $season): ?array
-    {
-        $team = self::team($user, $season);
-
-        $totals = TeamScore::query()
-            ->join('season_teams', 'season_teams.id', '=', 'team_scores.season_team_id')
-            ->where('season_teams.season_id', $season->id)
-            ->whereNotNull('season_teams.user_id')
-            ->selectRaw('team_scores.season_team_id, team_scores.matchday_id, max(team_scores.tip_points) as points')
-            ->groupBy('team_scores.season_team_id', 'team_scores.matchday_id')
-            ->get()
-            ->groupBy('season_team_id')
-            ->map(fn($rows) => (int) $rows->sum('points'));
-
-        if (!$team || $totals->isEmpty() || !$totals->has($team->id)) {
-            return null;
-        }
-
-        $mine = $totals[$team->id];
-        $sorted = $totals->sort()->values();
-        $count = $sorted->count();
-        $median = $count % 2 ? (float) $sorted[intdiv($count, 2)] : ($sorted[$count / 2 - 1] + $sorted[$count / 2]) / 2;
-
-        return [
-            'place' => $totals->filter(fn($points) => $points > $mine)->count() + 1,
-            'count' => $count,
-            'median' => $median,
-            'above' => $mine >= $median,
-        ];
     }
 }

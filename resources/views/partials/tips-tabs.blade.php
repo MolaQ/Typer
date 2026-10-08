@@ -64,64 +64,72 @@
     </flux:card>
 @elseif ($tab === 'stats')
     @php
-        $stats = $this->myStats;
-        $m = $stats['matches'];
+        $data = $this->myStats;
+        $stats = $data['mine'];
+        $avg = $data['average'];
+        $fmt = fn($v, $d = 1) => $v === null ? '—' : rtrim(rtrim(number_format((float) $v, $d, ',', ' '), '0'), ',');
+        // [etykieta, wartość, podpis, wartość do porównania, klucz średniej]
         $tiles = [
-            [__('Tips'), $stats['tips'] . ' / ' . $stats['scored'], __('No tip: :count', ['count' => $stats['missing']])],
-            [__('Perfect tips (Koziołki)'), $stats['exact'], __('Exact scores')],
-            [__('Accuracy'), $stats['accuracy'] !== null ? $stats['accuracy'] . '%' : '—', __('Correct outcomes: :count', ['count' => $stats['outcome']])],
-            [__('Goal differences'), $stats['diff'], __('Correct goal differences')],
-            [__('Average for the tip'), $stats['avg_tip'] ?? '—', __('Points: :points', ['points' => $stats['tip_points']])],
-            [__('Average offensive bonus'), $stats['avg_offense'] ?? '—', __('Per question set')],
-            [__('Average defensive bonus'), $stats['avg_defense'] ?? '—', __('Zeroed sets: :count', ['count' => $stats['zeroed']])],
-            [__('Outcome streak'), $stats['outcome_streak'], __('Best: :count', ['count' => $stats['outcome_streak_best']])],
-            [__('Matches'), $m['won'] . '–' . $m['drawn'] . '–' . $m['lost'], __('Won, drawn, lost')],
-            [__('Goals'), $m['for'] . ':' . $m['against'], __('Most in a match: :count', ['count' => $m['record_goals']])],
-            [__('Unbeaten run'), $m['unbeaten'], __('Best: :count', ['count' => $m['unbeaten_best']])],
-            [__('Winning streak'), $m['wins'], __('Best: :count', ['count' => $m['wins_best']])],
+            [__('Tips'), $stats['tips'] . ' / ' . $stats['scored'], __('No tip: :count', ['count' => $stats['missing']]), $stats['tips_ratio'], 'tips_ratio'],
+            [__('Perfect tips (Koziołki)'), $stats['exact'], __('Exact scores'), $stats['exact'], 'exact'],
+            [__('Accuracy'), $stats['accuracy'] !== null ? $stats['accuracy'] . '%' : '—', __('Correct outcomes: :count', ['count' => $stats['outcome']]), $stats['accuracy'], 'accuracy'],
+            [__('Goal differences'), $stats['diff'], __('Correct goal differences'), $stats['diff'], 'diff'],
+            [__('Average for the tip'), $fmt($stats['avg_tip'], 2), __('Points: :points', ['points' => $stats['tip_points']]), $stats['avg_tip'], 'avg_tip'],
+            [__('Average offensive bonus'), $fmt($stats['avg_offense'], 2), __('Per question set'), $stats['avg_offense'], 'avg_offense'],
+            [__('Average defensive bonus'), $fmt($stats['avg_defense'], 2), __('Zeroed sets: :count', ['count' => $stats['zeroed']]), $stats['avg_defense'], 'avg_defense'],
+            [__('Outcome streak'), $stats['outcome_streak'], __('Best: :count', ['count' => $stats['outcome_streak_best']]), $stats['outcome_streak_best'], 'outcome_streak_best'],
+            [__('Matches'), $stats['won'] . '–' . $stats['drawn'] . '–' . $stats['lost'], __('Won, drawn, lost'), $stats['win_ratio'], 'win_ratio'],
+            [__('Goals'), $stats['for'] . ':' . $stats['against'], __('Most in a match: :count', ['count' => $stats['record_goals']]), $stats['for'], 'for'],
+            [__('Unbeaten run'), $stats['unbeaten'], __('Best: :count', ['count' => $stats['unbeaten_best']]), $stats['unbeaten_best'], 'unbeaten_best'],
+            [__('Winning streak'), $stats['wins'], __('Best: :count', ['count' => $stats['wins_best']]), $stats['wins_best'], 'wins_best'],
+        ];
+        $tileClasses = [
+            'green' => 'border-green-300 bg-green-50 dark:border-green-500/40 dark:bg-green-500/10',
+            'yellow' => 'border-yellow-300 bg-yellow-50 dark:border-yellow-500/40 dark:bg-yellow-500/10',
+            'red' => 'border-red-300 bg-red-50 dark:border-red-500/40 dark:bg-red-500/10',
+            'zinc' => 'border-zinc-200 dark:border-zinc-700',
         ];
     @endphp
 
+    <flux:text size="sm">{{ __('Colours compare you with the average of all players: green above, yellow within 15%, red below.') }}</flux:text>
+
     <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-        @foreach ($tiles as [$label, $value, $hint])
-            <flux:card class="space-y-1 p-4">
+        @foreach ($tiles as [$label, $value, $hint, $compare, $avgKey])
+            @php
+                $color = $stats['scored'] > 0 ? \App\Support\PlayerStats::color($compare === null ? null : (float) $compare, $avg[$avgKey] ?? null) : 'zinc';
+            @endphp
+            <div class="{{ $tileClasses[$color] }} space-y-1 rounded-xl border p-4" wire:key="tile-{{ $avgKey }}">
                 <flux:text size="sm">{{ $label }}</flux:text>
                 <p class="text-2xl font-bold tabular-nums">{{ $value }}</p>
                 <flux:text size="sm" class="text-zinc-500">{{ $hint }}</flux:text>
-            </flux:card>
+            </div>
         @endforeach
     </div>
 
     <flux:card class="space-y-2">
         <flux:heading>{{ __('Place among the players') }}</flux:heading>
-        @if (!$stats['rank'])
+        @if (!$data['rank'])
             <flux:text>{{ __('Available after the first settled matchday.') }}</flux:text>
+        @elseif ($isPremium)
+            <p class="text-2xl font-bold">
+                {{ __(':place. of :count', ['place' => $data['rank']['place'], 'count' => $data['rank']['count']]) }}
+            </p>
+            <flux:text size="sm">{{ __('By points for tips in this season.') }}</flux:text>
         @else
-            <flux:text>
-                {{ $stats['rank']['above'] ? __('You are above the median of points for tips.') : __('You are below the median of points for tips.') }}
-                {{ __('Median: :points pts.', ['points' => \App\Support\HallOfFame::format($stats['rank']['median'])]) }}
+            <flux:text size="sm">
+                {{ __('Your exact place among the players is a premium feature.') }}
+                <flux:link :href="route('support')" wire:navigate>{{ __('Premium') }}</flux:link>
             </flux:text>
-            @if ($isPremium)
-                <p class="text-2xl font-bold">
-                    {{ __(':place. of :count', ['place' => $stats['rank']['place'], 'count' => $stats['rank']['count']]) }}
-                </p>
-            @else
-                <flux:text size="sm">
-                    {{ __('Your exact place among the players is a premium feature.') }}
-                    <flux:link :href="route('support')" wire:navigate>{{ __('Premium') }}</flux:link>
-                </flux:text>
-            @endif
         @endif
 
-        @if (count($m['form']) > 0)
+        @if (count($stats['form']) > 0)
             <div class="flex items-center gap-1 pt-2">
                 <flux:text size="sm" class="me-2">{{ __('Form') }}:</flux:text>
-                @foreach ($m['form'] as $result)
+                @foreach ($stats['form'] as $result)
                     @php
                         $formClass = ['W' => 'bg-green-600', 'D' => 'bg-zinc-400', 'L' => 'bg-red-600'][$result];
-                        $formLabel = ['W' => __('W'), 'D' => __('D'), 'L' => __('L')][$result];
                     @endphp
-                    <span class="{{ $formClass }} flex size-6 items-center justify-center rounded text-xs font-bold text-white">{{ $formLabel }}</span>
+                    <span class="{{ $formClass }} flex size-6 items-center justify-center rounded text-xs font-bold text-white">{{ __($result) }}</span>
                 @endforeach
             </div>
         @endif

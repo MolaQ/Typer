@@ -816,7 +816,6 @@
     "Longest unbeaten run": "Najdłuższa seria bez porażki",
     "Longest winning streak": "Najdłuższa seria zwycięstw",
     "Matches": "Mecze",
-    "Median: :points pts.": "Mediana: :points pkt.",
     "Most goals in a match": "Najwięcej goli w meczu",
     "Most in a match: :count": "Najwięcej w meczu: :count",
     "My matchdays": "Moje kolejki",
@@ -838,10 +837,10 @@
     "Unbeaten run": "Seria bez porażki",
     "Winning streak": "Seria zwycięstw",
     "Won, drawn, lost": "Zwycięstwa, remisy, porażki",
-    "You are above the median of points for tips.": "Jesteś powyżej mediany punktów za typy.",
-    "You are below the median of points for tips.": "Jesteś poniżej mediany punktów za typy.",
     "Your exact place among the players is a premium feature.": "Dokładne miejsce wśród graczy pokazuje premium.",
     "Zeroed sets: :count": "Wyzerowane zestawy: :count",
     "default": "domyślny",
-    "Waiting for your tip": "Do wytypowania"
+    "Waiting for your tip": "Do wytypowania",
+    "Colours compare you with the average of all players: green above, yellow within 15%, red below.": "Kolory porównują Cię ze średnią wszystkich graczy: zielony powyżej, żółty w granicach 15%, czerwony poniżej.",
+    "By points for tips in this season.": "Według punktów za typy w tym sezonie."
 }
