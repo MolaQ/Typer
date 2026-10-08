@@ -14,7 +14,7 @@ use Illuminate\Support\Collection;
  * Tabela rozgrywek ligowych (ligi, podwórkowa, ligi europejskie, Złota Liga) z rozegranych meczów.
  * Kryteria (regulamin, punkt 4): punkty, bilans goli, bramki strzelone, wygrane, remisy,
  * dokładne typy, trafione różnice, trafione rozstrzygnięcia, bonusy, punkty Hall of Fame
- * (etap 14, na razie 0), a na końcu pozycja na liście przedsezonowej.
+ * (stan na początku sezonu, HallOfFame::pointsBefore), a na końcu pozycja na liście przedsezonowej.
  * Dokładne typy i bonusy liczymy z kolejek, w których zespół rozegrał mecz w tych rozgrywkach.
  */
 final class Standings
@@ -26,6 +26,7 @@ final class Standings
     {
         $entries = $competition->entries()->with(['seasonTeam.user:id,name,team_name', 'seasonTeam.bot:id,name'])->get();
 
+        $season = $competition->season;
         $rows = [];
         foreach ($entries as $entry) {
             $rows[$entry->id] = [
@@ -33,7 +34,8 @@ final class Standings
                 'team' => $entry->seasonTeam,
                 'played' => 0, 'won' => 0, 'drawn' => 0, 'lost' => 0,
                 'for' => 0, 'against' => 0, 'diff' => 0, 'points' => 0,
-                'exact' => 0, 'diff_hits' => 0, 'outcome_hits' => 0, 'bonus' => 0, 'hof' => 0,
+                'exact' => 0, 'diff_hits' => 0, 'outcome_hits' => 0, 'bonus' => 0,
+                'hof' => $season ? HallOfFame::teamPointsBefore($season, $entry->seasonTeam?->user_id, $entry->seasonTeam?->bot_id) : 0,
             ];
         }
 

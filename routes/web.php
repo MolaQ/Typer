@@ -12,6 +12,8 @@ Route::livewire('tips', 'pages::tips')
     ->middleware(['auth', 'verified'])
     ->name('tips');
 Route::livewire('results', 'pages::results')->name('results');
+Route::livewire('hall-of-fame', 'pages::hall-of-fame')->name('hall-of-fame');
+Route::livewire('teams/{user}', 'pages::team-profile')->name('team.show');
 
 // Panel: wejście tylko z uprawnieniem dashboard-access (Admin ma je zawsze)
 Route::middleware(['auth', 'verified', 'permission:' . Permission::DashboardAccess->value])->group(function () {
@@ -51,6 +53,9 @@ Route::middleware(['auth', 'verified', 'permission:' . Permission::DashboardAcce
     Route::livewire('dashboard/results', 'pages::dashboard.results')
         ->middleware('permission:season-list')
         ->name('dashboard.results');
+    Route::livewire('dashboard/hall-of-fame', 'pages::dashboard.hall-of-fame')
+        ->middleware('permission:season-list')
+        ->name('dashboard.hall-of-fame');
     // Zarządzanie rolami i użytkownikami: nadal tylko Admin
     Route::livewire('dashboard/roles', 'pages::dashboard.roles')
         ->middleware('role:Admin')

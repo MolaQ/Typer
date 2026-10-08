@@ -13,7 +13,7 @@ use Illuminate\Support\Collection;
  * Liga Legend (regulamin, punkt 10): wszystkie zespoły ludzi, ranking narastająco od kolejki 1.
  * Po kolejkach 1-8 zostaje najwyżej 256, 128, 64, 32, 16, 8, 4 i 2 zespoły; kolejka 9 to finał.
  * Kryteria: punkty za typ, bonusy z zestawu Ligi Legend, dokładne typy, trafione różnice,
- * trafione rozstrzygnięcia, punkty Hall of Fame (etap 14, na razie 0), czas typu w ostatniej kolejce.
+ * trafione rozstrzygnięcia, punkty Hall of Fame (stan na początku sezonu), czas typu w ostatniej kolejce.
  */
 final class LegendsRanking
 {
@@ -48,7 +48,9 @@ final class LegendsRanking
             ->get()
             ->groupBy('season_team_id');
 
-        $rows = $entries->map(function ($entry) use ($scores, $last) {
+        $season = $competition->season;
+
+        $rows = $entries->map(function ($entry) use ($scores, $last, $season) {
             $own = $scores->get($entry->season_team_id, collect());
             $lastScore = $own->firstWhere('matchday_id', $last);
 
@@ -61,7 +63,7 @@ final class LegendsRanking
                 'exact' => $own->where('exact_hit', true)->count(),
                 'diff_hits' => $own->where('diff_hit', true)->count(),
                 'outcome_hits' => $own->where('outcome_hit', true)->count(),
-                'hof' => 0,
+                'hof' => $season ? HallOfFame::teamPointsBefore($season, $entry->seasonTeam?->user_id, $entry->seasonTeam?->bot_id) : 0,
                 'tipped_at' => $lastScore?->tipped_at?->format('Y-m-d H:i:s.u'),
             ];
         });

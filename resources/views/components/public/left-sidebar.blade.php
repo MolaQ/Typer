@@ -24,6 +24,10 @@
                 wire:navigate>
                 {{ __('Results and tables') }}
             </flux:sidebar.item>
+            <flux:sidebar.item icon="star" :href="route('hall-of-fame')"
+                :current="request()->routeIs('hall-of-fame', 'team.show')" wire:navigate>
+                {{ __('Hall of Fame') }}
+            </flux:sidebar.item>
             {{-- kolejne pozycje opracujemy później --}}
         </flux:sidebar.nav>
 
