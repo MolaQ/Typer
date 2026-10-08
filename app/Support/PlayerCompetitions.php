@@ -16,7 +16,8 @@ class PlayerCompetitions
     public static function types(int $userId, int $seasonId): array
     {
         $present = Competition::where('season_id', $seasonId)
-            ->whereHas('entries.seasonTeam', fn($q) => $q->where('user_id', $userId))
+            // Zespół, który odpadł z Ligi Legend, nie odpowiada już na jej pytania.
+            ->whereHas('entries', fn($q) => $q->whereNull('eliminated_round')->whereHas('seasonTeam', fn($t) => $t->where('user_id', $userId)))
             ->pluck('type')
             ->map(fn($t) => ($t instanceof CompetitionType ? $t : CompetitionType::from($t))->questionSet())
             ->all();

@@ -1,5 +1,6 @@
 <?php
 
+use App\Actions\Seasons\BuildListFromPrevious;
 use App\Actions\Seasons\FillTeamListWithBots;
 use App\Enums\League;
 use App\Enums\Permission;
@@ -226,6 +227,34 @@ new class extends Component {
 
         $this->clearCaches();
         Flux::toast(text: __('Team list built.'), variant: 'success');
+    }
+
+    /** Poprzedni zakończony sezon z tabelami końcowymi (lista może powstać z jego wyników). */
+    #[Computed]
+    public function previousSeason(): ?Season
+    {
+        return $this->season ? BuildListFromPrevious::previousSeason($this->season) : null;
+    }
+
+    /** Buduje listę z wyników poprzedniego sezonu: awanse, spadki i czyszczenie lig z botów. */
+    public function buildFromPrevious(BuildListFromPrevious $action): void
+    {
+        $this->authorizeAbility(Permission::SeasonEdit);
+
+        if (!$this->ensureEditable()) {
+            return;
+        }
+
+        try {
+            $stats = $action->handle($this->season);
+        } catch (DomainException $e) {
+            Flux::toast(text: $e->getMessage(), variant: 'danger');
+
+            return;
+        }
+
+        $this->clearCaches();
+        Flux::toast(text: __('Team list built from :season: :players players, :bots bots.', ['season' => $this->previousSeason?->title, 'players' => $stats['players'], 'bots' => $stats['bots']]), variant: 'success');
     }
 
     /**
@@ -808,10 +837,22 @@ new class extends Component {
                     {{ __('The list is built from players with a role in order of registration: the first 10 go to Ekstraklasa, the next 10 to I liga and so on. Missing places in the first 100 are filled by bots. Later players go to Liga podwórkowa.') }}
                 </flux:text>
 
+                @if ($this->isEditable && $this->previousSeason)
+                    <flux:text>
+                        {{ __('You can also build the list from the final standings of :season: 4 teams go up and down between leagues, bots are swapped for players, inactive players are replaced by bots.', ['season' => $this->previousSeason->title]) }}
+                    </flux:text>
+                @endif
+
                 @if ($this->isEditable)
                     @can(\App\Enums\Permission::SeasonEdit->value)
-                        <div>
-                            <flux:button variant="primary" icon="bolt" wire:click="buildList">
+                        <div class="flex flex-wrap gap-2">
+                            @if ($this->previousSeason)
+                                <flux:button variant="primary" icon="arrows-up-down" wire:click="buildFromPrevious">
+                                    <span wire:loading.remove wire:target="buildFromPrevious">{{ __('Build from the previous season') }}</span>
+                                    <span wire:loading wire:target="buildFromPrevious">{{ __('Saving...') }}</span>
+                                </flux:button>
+                            @endif
+                            <flux:button :variant="$this->previousSeason ? 'filled' : 'primary'" icon="bolt" wire:click="buildList">
                                 <span wire:loading.remove
                                     wire:target="buildList">{{ __('Build the list automatically') }}</span>
                                 <span wire:loading wire:target="buildList">{{ __('Saving...') }}</span>

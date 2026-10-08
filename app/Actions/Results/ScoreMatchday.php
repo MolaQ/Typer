@@ -14,6 +14,7 @@ use App\Models\SeasonTeam;
 use App\Models\TeamScore;
 use App\Models\Tip;
 use App\Models\TipAnswer;
+use App\Support\LegendsRanking;
 use App\Support\Scoring;
 use DomainException;
 use Illuminate\Support\Facades\DB;
@@ -23,14 +24,15 @@ use Illuminate\Support\Facades\DB;
  *  1. boty dostają losowy typ 0-3 : 0-3 (raz, potem zostaje zapisany),
  *  2. każdy zespół dostaje dorobek (team_scores) dla każdego zestawu pytań swoich rozgrywek,
  *  3. mecze tej kolejki we wszystkich rozgrywkach dostają wynik,
- *  4. w pucharze zwycięzca wchodzi na lepsze miejsce pary w meczu następnej rundy.
+ *  4. w pucharze zwycięzca wchodzi na lepsze miejsce pary w meczu następnej rundy,
+ *  5. w Lidze Legend odpadają zespoły poza limitem po tej kolejce (LegendsRanking).
  * Można wywołać wielokrotnie: przeliczenie nadpisuje poprzednie wyniki tej kolejki.
  * Runda rozgrywek = numer kolejki.
  */
 class ScoreMatchday
 {
     /**
-     * @return array{teams: int, fixtures: int}
+     * @return array{teams: int, fixtures: int, eliminated: int}
      *
      * @throws DomainException
      */
@@ -47,12 +49,24 @@ class ScoreMatchday
 
             // Rozgrywki sezonu i to, w których zestawach pytań gra każdy zespół.
             $competitions = Competition::where('season_id', $matchday->season_id)->get()->keyBy('id');
+            // Liga Legend: przeliczenie kolejki cofa odpadnięcia z tej kolejki (odcięcie liczymy na końcu od nowa).
+            $legends = $competitions->first(fn($c) => $c->type === CompetitionType::Legends);
+            if ($legends) {
+                CompetitionEntry::where('competition_id', $legends->id)
+                    ->where('eliminated_round', '>=', $matchday->number)
+                    ->update(['eliminated_round' => null]);
+            }
+
             $entries = CompetitionEntry::whereIn('competition_id', $competitions->keys())
-                ->get(['id', 'competition_id', 'season_team_id', 'seed'])
+                ->get(['id', 'competition_id', 'season_team_id', 'seed', 'eliminated_round'])
                 ->keyBy('id');
 
             $setsOfTeam = [];
             foreach ($entries as $entry) {
+                if ($entry->eliminated_round !== null && $entry->eliminated_round < $matchday->number) {
+                    continue; // odpadł z Ligi Legend we wcześniejszej kolejce
+                }
+
                 $set = $competitions[$entry->competition_id]->type->questionSet()->value;
                 $setsOfTeam[$entry->season_team_id][$set] = true;
             }
@@ -176,7 +190,9 @@ class ScoreMatchday
                 $scored++;
             }
 
-            return ['teams' => count($scores), 'fixtures' => $scored];
+            $eliminated = $legends ? LegendsRanking::eliminate($legends, $matchday->number) : 0;
+
+            return ['teams' => count($scores), 'fixtures' => $scored, 'eliminated' => $eliminated];
         });
     }
 

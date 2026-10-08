@@ -26,7 +26,7 @@ class SaveMatchdayResult
 
     /**
      * @param  array<int|string, mixed>  $correct  matchday_question_id => '1' | '0'
-     * @return array{teams: int, fixtures: int}
+     * @return array{teams: int, fixtures: int, eliminated: int}
      *
      * @throws DomainException
      */

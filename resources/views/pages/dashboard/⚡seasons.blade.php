@@ -1,6 +1,7 @@
 <?php
 
 use App\Enums\Permission;
+use App\Actions\Seasons\FinishSeason;
 use App\Actions\Seasons\ApproveSeason;
 use App\Actions\Seasons\RevertApproval;
 use App\Enums\MatchdayStatus;
@@ -392,12 +393,11 @@ new class extends Component {
                 return false;
             }
 
-            $others = Season::active()->lockForUpdate()->where('id', '!=', $season->id)->get();
+            $others = Season::active()->where('id', '!=', $season->id)->get();
 
+            // Poprzedni aktywny sezon kończy się normalnie: tabele końcowe i nieaktywni gracze.
             foreach ($others as $other) {
-                $other->update(['status' => SeasonStatus::Finished]);
-
-                Audit::log('season.finished', null, ['status' => SeasonStatus::Active->label()], ['status' => SeasonStatus::Finished->label()], $other->title . ' (' . __('closed by activating another season') . ')');
+                app(FinishSeason::class)->handle($other, __('closed by activating another season'));
             }
 
             $old = $season->status->label();
@@ -425,12 +425,19 @@ new class extends Component {
             return;
         }
 
-        $season->update(['status' => SeasonStatus::Finished]);
+        try {
+            $stats = app(FinishSeason::class)->handle($season);
+        } catch (DomainException $e) {
+            Flux::toast(text: $e->getMessage(), variant: 'danger');
 
-        Audit::log('season.finished', null, ['status' => SeasonStatus::Active->label()], ['status' => SeasonStatus::Finished->label()], $season->title);
+            return;
+        }
 
         $this->clearCaches();
-        Flux::toast(text: __('Season finished.'), variant: 'success');
+        Flux::toast(
+            text: __('Season finished.') . ' ' . __('Inactive players: :count.', ['count' => $stats['inactive']]),
+            variant: 'success',
+        );
     }
 
     /**

@@ -15,13 +15,14 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property int $position
  * @property int|null $user_id
  * @property int|null $bot_id
+ * @property int|null $previous_id  miejsce z poprzedniego sezonu, z którego powstał ten wpis
  */
 class SeasonTeam extends Model
 {
     /** Rozmiar Pucharu Polski: tylu zespołów z początku listy bierze w nim udział. */
     public const CUP_SIZE = 512;
 
-    protected $fillable = ['season_id', 'position', 'user_id', 'bot_id'];
+    protected $fillable = ['season_id', 'position', 'user_id', 'bot_id', 'previous_id'];
 
     protected function casts(): array
     {

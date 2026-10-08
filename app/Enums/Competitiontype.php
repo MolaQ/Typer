@@ -4,9 +4,10 @@ namespace App\Enums;
 
 /**
  * Rodzaj rozgrywek w sezonie.
- *  - Tworzone automatycznie przy zatwierdzeniu sezonu: League (10 lig), Cup, Swiss.
- *  - Tworzone ręcznie przez admina (skład zależy od wyników z poprzedniego sezonu,
- *    wpłat i punktów Hall of Fame): Champions, Europa, Conference, Legends, Golden.
+ *  - Tworzone automatycznie przy zatwierdzeniu sezonu: League (10 lig), Cup, Swiss, Legends
+ *    (wszystkie zespoły ludzi, eliminacja po kolejkach).
+ *  - Ligi europejskie i Złota Liga: przy zatwierdzeniu powstają same, gdy jest zakończony poprzedni
+ *    sezon (Champions, Europa, Conference z tabel końcowych), poza tym admin zarządza nimi ręcznie.
  * Nazwy rozgrywek to polskie nazwy własne, więc nie przechodzą przez tłumaczenia.
  */
 enum CompetitionType: string
@@ -61,15 +62,26 @@ enum CompetitionType: string
         return $this->questionSet() === self::League ? __('Leagues and Liga podwórkowa') : $this->label();
     }
 
+    /** Ligi europejskie: miejsce 1, 2 i 3 lig 1-10 z poprzedniego sezonu (regulamin, punkt 10). */
+    public static function europeanFor(int $place): ?self
+    {
+        return match ($place) {
+            1 => self::Champions,
+            2 => self::Europa,
+            3 => self::Conference,
+            default => null,
+        };
+    }
+
     /** @return array<int, self> */
     public static function manual(): array
     {
-        return [self::Champions, self::Europa, self::Conference, self::Legends, self::Golden];
+        return [self::Champions, self::Europa, self::Conference, self::Golden];
     }
 
     /** Typy tworzone i usuwane razem z zatwierdzeniem sezonu. */
     public static function automatic(): array
     {
-        return [self::League, self::Cup, self::Swiss];
+        return [self::League, self::Cup, self::Swiss, self::Legends];
     }
 }

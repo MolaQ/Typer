@@ -2,6 +2,8 @@
 
 namespace App\Support;
 
+use App\Enums\CompetitionType;
+use App\Enums\League;
 use App\Models\Competition;
 use App\Models\Fixture;
 use App\Models\Matchday;
@@ -86,6 +88,44 @@ final class Standings
         unset($row);
 
         return self::sort($rows);
+    }
+
+    /**
+     * Strefa miejsca w tabeli do pokolorowania: 'up' (awans), 'down' (spadek) albo null.
+     * Ligi 2-10 i podwórkowa: 4 najlepsze awansują; ligi 1-10: 4 najgorsze spadają (regulamin, punkt 9).
+     */
+    public static function zone(Competition $competition, int $place, int $count): ?string
+    {
+        $tier = $competition->type === CompetitionType::Swiss ? League::Podworkowa->value : $competition->tier;
+
+        if (!in_array($competition->type, [CompetitionType::League, CompetitionType::Swiss], true) || $tier === null) {
+            return null;
+        }
+
+        if ($tier > 1 && $place <= Promotion::MOVES) {
+            return 'up';
+        }
+
+        if ($tier < League::Podworkowa->value && $place > $count - Promotion::MOVES) {
+            return 'down';
+        }
+
+        return null;
+    }
+
+    /** Ligi 1-10: miejsca 1-3 dają start w Lidze Mistrzów, Europy i Konferencji następnego sezonu. */
+    public static function europeanBadge(Competition $competition, int $place): ?string
+    {
+        if ($competition->type !== CompetitionType::League) {
+            return null;
+        }
+
+        return match ($place) {
+            1 => 'LM',
+            2 => 'LE',
+            3 => 'LK',
+            default => null,
+        };
     }
 
     /**
