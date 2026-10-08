@@ -28,6 +28,10 @@ new #[Layout('layouts::public')] class extends Component {
     #[Url(as: 'matchday', except: 0)]
     public int $number = 0;
 
+    /** Zakładka: tip (typowanie), matchdays (kolejki), competitions (rozgrywki), stats (statystyki), history (historia). */
+    #[Url(as: 'tab', except: 'tip')]
+    public string $tab = 'tip';
+
     /** Wpisany wynik (teksty, bo pole formularza może być puste). */
     public string $lech = '';
     public string $opponent = '';
@@ -178,6 +182,39 @@ new #[Layout('layouts::public')] class extends Component {
         return $sets;
     }
 
+    /* Zakładki ze statystykami (App\Support\PlayerStats). */
+
+    #[Computed]
+    public function myMatchdays(): array
+    {
+        return \App\Support\PlayerStats::matchdays(auth()->user(), $this->season);
+    }
+
+    #[Computed]
+    public function myCompetitions(): array
+    {
+        return \App\Support\PlayerStats::competitions(auth()->user(), $this->season);
+    }
+
+    #[Computed]
+    public function myStats(): array
+    {
+        return \App\Support\PlayerStats::season(auth()->user(), $this->season);
+    }
+
+    #[Computed]
+    public function myHistory(): array
+    {
+        return \App\Support\PlayerStats::history(auth()->user());
+    }
+
+    public function openMatchday(int $number): void
+    {
+        $this->tab = 'tip';
+        $this->number = $number;
+        $this->updatedNumber();
+    }
+
     /** Rywale w tej kolejce z widocznością zależną od etapu i premium (App\Support\Rivals). */
     #[Computed]
     public function rivals(): array
@@ -259,6 +296,29 @@ new #[Layout('layouts::public')] class extends Component {
             <flux:text>{{ __('No matchdays yet.') }}</flux:text>
         </flux:card>
     @else
+    @php
+        $tabs = [
+            'tip' => __('Tipping'),
+            'matchdays' => __('My matchdays'),
+            'competitions' => __('Competitions'),
+            'stats' => __('Statistics'),
+            'history' => __('History and records'),
+        ];
+        $missingCount = collect($this->myMatchdays)->where('open', true)->where('missing', true)->count();
+    @endphp
+    <nav class="-mb-2 flex gap-1 overflow-x-auto border-b border-zinc-200 dark:border-zinc-700">
+        @foreach ($tabs as $key => $label)
+            <button type="button" wire:click="$set('tab', '{{ $key }}')"
+                class="{{ $tab === $key ? 'border-blue-700 text-blue-800 dark:border-blue-400 dark:text-blue-300' : 'border-transparent text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200' }} -mb-px whitespace-nowrap border-b-2 px-3 py-2 text-sm font-medium transition">
+                {{ $label }}
+                @if ($key === 'matchdays' && $missingCount > 0)
+                    <span class="ms-1 rounded-full bg-amber-500 px-1.5 text-xs font-bold text-white">{{ $missingCount }}</span>
+                @endif
+            </button>
+        @endforeach
+    </nav>
+
+    @if ($tab === 'tip')
     <div class="w-full sm:w-80">
         <flux:select wire:model.live="number" :label="__('Matchday')">
             @foreach ($this->matchdays as $option)
@@ -473,6 +533,9 @@ new #[Layout('layouts::public')] class extends Component {
     @else
         <flux:text>{{ __('Tipping for this matchday is closed.') }}</flux:text>
     @endif
+    @endif
+    @else
+        @include('partials.tips-tabs')
     @endif
     @endif
 </div>
