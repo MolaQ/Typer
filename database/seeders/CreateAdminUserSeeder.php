@@ -16,7 +16,10 @@ class CreateAdminUserSeeder extends Seeder
             ['email' => 'marcin.molak@gmail.com'],
             [
                 'name' => 'Admin User',
-                'password' => bcrypt('password')
+                'password' => bcrypt('password'),
+                'team_name' => "Kolejorz Kaczory",
+                'team_short_name' => "Kolejorz",
+                'team_abbr' => "KOLKAC",
             ]
         );
 
