@@ -995,5 +995,11 @@
     "A team can play in only one European competition, so teams already added elsewhere are not proposed.": "Zespół może grać tylko w jednej lidze europejskiej, więc dodanych już gdzie indziej nie proponujemy.",
     "Previous season": "Poprzedni sezon",
     "Teams added: :count.": "Dodano zespołów: :count.",
-    ":team already plays in :competition.": ":team gra już w rozgrywkach :competition."
+    ":team already plays in :competition.": ":team gra już w rozgrywkach :competition.",
+    "Enter the score: it saves itself, then recalculate the matchday.": "Wpisz wynik: zapisze się sam, potem przelicz kolejkę.",
+    "Correct tips": "Trafność typów",
+    "Outcome :outcome%, exact :exact%": "Rozstrzygnięcie :outcome%, dokładny :exact%",
+    "Tips: :count": "Typy: :count",
+    "Result": "Wynik",
+    "No tips": "Brak typów"
 }

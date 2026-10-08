@@ -164,7 +164,7 @@ new class extends Component {
      | AKCJE
      * ================================================================*/
 
-    /** Wynik zapisuje się od razu po wyjściu z pola (oba pola muszą być wypełnione). */
+    /** Wynik zapisuje się sam chwilę po wpisaniu liczby (oba pola muszą być wypełnione). */
     public function updatedLech(): void
     {
         $this->saveScore();
@@ -335,18 +335,18 @@ new class extends Component {
             </div>
 
             @if ($this->blocker)
-                <flux:text class="text-amber-600 dark:text-amber-400">{{ $this->blocker }}</flux:text>
+                <flux:callout variant="warning" icon="lock-closed" :heading="$this->blocker" />
             @endif
 
             {{-- Wynik zawsze z perspektywy Lecha (Lech : rywal), po 90 minutach. --}}
             <div class="flex flex-wrap items-end gap-3">
                 <div class="w-28">
-                    <flux:input type="number" min="0" max="{{ \App\Support\TipRules::MAX_GOALS }}" wire:model.blur="lech"
+                    <flux:input type="number" min="0" max="{{ \App\Support\TipRules::MAX_GOALS }}" wire:model.live.debounce.600ms="lech"
                         :label="'Lech Poznań'" :disabled="! $canSave" />
                 </div>
                 <span class="pb-2 text-lg font-semibold">:</span>
                 <div class="w-28">
-                    <flux:input type="number" min="0" max="{{ \App\Support\TipRules::MAX_GOALS }}" wire:model.blur="opponent"
+                    <flux:input type="number" min="0" max="{{ \App\Support\TipRules::MAX_GOALS }}" wire:model.live.debounce.600ms="opponent"
                         :label="$this->matchday->opponent ?? __('Opponent')" :disabled="! $canSave" />
                 </div>
             </div>
@@ -385,13 +385,16 @@ new class extends Component {
             </flux:card>
         @endforeach
 
-        @if ($canSave && $this->matchday->lech_goals !== null)
+        @if ($canSave)
             @php
                 $played = $this->matchday->status === \App\Enums\MatchdayStatus::Played;
                 $unanswered = $this->unanswered();
+                $hasScore = $this->matchday->lech_goals !== null;
             @endphp
 
-            @if (!$played)
+            @if (!$hasScore)
+                <flux:text class="text-sm">{{ __('Enter the score: it saves itself, then recalculate the matchday.') }}</flux:text>
+            @elseif (!$played)
                 <flux:callout variant="warning" icon="exclamation-triangle">
                     <flux:callout.heading>{{ __('The result is saved, but the matchday is not recalculated yet.') }}</flux:callout.heading>
                     <flux:callout.text>
@@ -406,7 +409,8 @@ new class extends Component {
             @endif
 
             <div>
-                <flux:button :variant="$played ? 'filled' : 'primary'" icon="calculator" wire:click="recalculate" wire:loading.attr="disabled">
+                <flux:button :variant="$played ? 'filled' : 'primary'" icon="calculator" wire:click="recalculate" wire:loading.attr="disabled"
+                    :disabled="! $hasScore">
                     <span wire:loading.remove wire:target="recalculate">{{ $played ? __('Recalculate again') : __('Recalculate results') }}</span>
                     <span wire:loading wire:target="recalculate">{{ __('Recalculating...') }}</span>
                 </flux:button>

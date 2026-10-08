@@ -69,6 +69,37 @@ new class extends Component {
         return $this->season?->matchdays()->get() ?? collect();
     }
 
+    /**
+     * Trafność typów w rozegranych kolejkach: id kolejki => [typy, trafione rozstrzygnięcia %, dokładne %].
+     *
+     * @return array<int, array{tips: int, outcome: ?int, exact: ?int}>
+     */
+    #[Computed]
+    public function accuracy(): array
+    {
+        $played = $this->matchdays->where('status', MatchdayStatus::Played)->keyBy('id');
+
+        if ($played->isEmpty()) {
+            return [];
+        }
+
+        $out = [];
+        foreach (\App\Models\Tip::whereIn('matchday_id', $played->keys())->get(['matchday_id', 'lech_goals', 'opponent_goals'])->groupBy('matchday_id') as $id => $tips) {
+            $m = $played[$id];
+            $real = $m->lech_goals <=> $m->opponent_goals;
+            $outcome = $tips->filter(fn($t) => ($t->lech_goals <=> $t->opponent_goals) === $real)->count();
+            $exact = $tips->filter(fn($t) => $t->lech_goals === $m->lech_goals && $t->opponent_goals === $m->opponent_goals)->count();
+
+            $out[$id] = [
+                'tips' => $tips->count(),
+                'outcome' => (int) round($outcome / $tips->count() * 100),
+                'exact' => (int) round($exact / $tips->count() * 100),
+            ];
+        }
+
+        return $out;
+    }
+
     /** Liczba uzupełnionych kolejek i najbliższy mecz. */
     #[Computed]
     public function stats(): array
@@ -412,6 +443,8 @@ new class extends Component {
                     <flux:table.column>{{ __('Competition') }}</flux:table.column>
                     <flux:table.column>{{ __('Kickoff') }}</flux:table.column>
                     <flux:table.column>{{ __('Status') }}</flux:table.column>
+                    <flux:table.column>{{ __('Result') }}</flux:table.column>
+                    <flux:table.column>{{ __('Correct tips') }}</flux:table.column>
                     <flux:table.column />
                 </flux:table.columns>
 
@@ -455,6 +488,38 @@ new class extends Component {
                             <flux:table.cell>
                                 <flux:badge size="sm" :color="$matchday->status->color()">
                                     {{ $matchday->status->label() }}</flux:badge>
+                            </flux:table.cell>
+
+                            {{-- Rozstrzygnięcie z perspektywy Lecha: zielony wygrana, żółty remis, czerwony porażka --}}
+                            <flux:table.cell>
+                                @if ($matchday->status === \App\Enums\MatchdayStatus::Played)
+                                    @php
+                                        $diff = $matchday->lech_goals <=> $matchday->opponent_goals;
+                                        $resultColor = [1 => 'green', 0 => 'yellow', -1 => 'red'][$diff];
+                                        $resultLabel = [1 => __('Lech wins'), 0 => __('A draw'), -1 => __('Lech loses')][$diff];
+                                    @endphp
+                                    <flux:badge size="sm" :color="$resultColor" :title="$resultLabel">
+                                        {{ $matchday->lech_goals }}:{{ $matchday->opponent_goals }} &middot; {{ $resultLabel }}
+                                    </flux:badge>
+                                @else
+                                    <span class="text-zinc-400">—</span>
+                                @endif
+                            </flux:table.cell>
+
+                            <flux:table.cell class="text-sm">
+                                @if (isset($this->accuracy[$matchday->id]))
+                                    @php
+                                        $acc = $this->accuracy[$matchday->id];
+                                    @endphp
+                                    <div class="tabular-nums" title="{{ __('Tips: :count', ['count' => $acc['tips']]) }}">
+                                        {{ __('Outcome :outcome%, exact :exact%', ['outcome' => $acc['outcome'], 'exact' => $acc['exact']]) }}
+                                    </div>
+                                    <div class="text-xs text-zinc-500">{{ __('Tips: :count', ['count' => $acc['tips']]) }}</div>
+                                @elseif ($matchday->status === \App\Enums\MatchdayStatus::Played)
+                                    <span class="text-zinc-400">{{ __('No tips') }}</span>
+                                @else
+                                    <span class="text-zinc-400">—</span>
+                                @endif
                             </flux:table.cell>
 
                             <flux:table.cell align="end">
