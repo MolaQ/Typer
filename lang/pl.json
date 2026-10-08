@@ -682,5 +682,13 @@
     "Win in round :round": "Wygrana w rundzie :round",
     "Winner": "Zwycięzca",
     "match won": "wygrany mecz",
-    "winner": "zwycięzca"
+    "winner": "zwycięzca",
+    "Full ranking": "Pełny ranking",
+    "Show ranking": "Pokaż ranking",
+    "Create from history": "Utwórz z historii",
+    "Fill from :season": "Uzupełnij z: :season",
+    "There is nothing to create from the previous season.": "Z poprzedniego sezonu nie ma czego utworzyć.",
+    "Created from the previous season: :count.": "Utworzono z poprzedniego sezonu: :count.",
+    "There is nothing to add from the previous season.": "Z poprzedniego sezonu nie ma kogo dodać.",
+    "Teams added from the previous season: :count.": "Dodano zespoły z poprzedniego sezonu: :count."
 }

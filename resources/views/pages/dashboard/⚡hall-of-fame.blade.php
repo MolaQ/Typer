@@ -187,13 +187,17 @@ new class extends Component {
             </flux:subheading>
         </div>
 
-        @can(\App\Enums\Permission::SeasonEdit->value)
-            <flux:modal.trigger name="confirm-recalculate">
-                <flux:button icon="arrow-path">
-                    {{ __('Recalculate finished seasons') }} ({{ $this->finishedSeasons->count() }})
-                </flux:button>
-            </flux:modal.trigger>
-        @endcan
+        <div class="flex flex-wrap gap-2">
+            <flux:button icon="eye" :href="route('hall-of-fame')" target="_blank">{{ __('Show ranking') }}</flux:button>
+
+            @can(\App\Enums\Permission::SeasonEdit->value)
+                <flux:modal.trigger name="confirm-recalculate">
+                    <flux:button icon="arrow-path">
+                        {{ __('Recalculate finished seasons') }} ({{ $this->finishedSeasons->count() }})
+                    </flux:button>
+                </flux:modal.trigger>
+            @endcan
+        </div>
     </div>
 
     {{-- Punktacja --}}
