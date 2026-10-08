@@ -86,7 +86,7 @@ class PlayersSeeder extends Seeder
 
     /**
      * Wstawia graczy do losowych lig 1-10 najnowszego niezakończonego sezonu tą samą drogą co panel
-     * (App\Support\Roster::place): gracz zajmuje miejsce bota, bot wraca do puli, a jeśli Liga Legend
+     * (App\Support\Roster::place): gracz zajmuje miejsce bota, bot przechodzi do Ligi podwórkowej, a jeśli Liga Legend
      * już istnieje, gracz do niej dołącza. Gdy w wylosowanej lidze nie ma bota, próbujemy kolejnych.
      */
     private function placeInLeagues(array $userIds): int

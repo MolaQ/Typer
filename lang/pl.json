@@ -987,5 +987,6 @@
     "Enter this code to confirm your email address:": "Wpisz ten kod, żeby potwierdzić adres e-mail:",
     "The code is valid for :minutes minutes.": "Kod jest ważny przez :minutes minut.",
     "Enter the code": "Wpisz kod",
-    "If you did not create an account, ignore this message.": "Jeśli nie zakładałeś konta, zignoruj tę wiadomość."
+    "If you did not create an account, ignore this message.": "Jeśli nie zakładałeś konta, zignoruj tę wiadomość.",
+    "The player takes the place of the highest ranked bot in the chosen league, and the bot moves to the end of the list (Liga podwórkowa). In Liga podwórkowa without bots the player goes to the end of the list.": "Gracz zajmuje miejsce najwyżej sklasyfikowanego bota w wybranej lidze, a bot przechodzi na koniec listy (Liga podwórkowa). W Lidze podwórkowej bez botów gracz trafia na koniec listy."
 }

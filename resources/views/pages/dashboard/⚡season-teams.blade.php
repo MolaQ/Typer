@@ -276,7 +276,7 @@ new class extends Component {
         }
 
         // Każdy gracz zajmuje miejsce najwyżej sklasyfikowanego bota w lidze podwórkowej
-        // (bot wraca do puli), a gdy tam nie ma botów, trafia na koniec listy.
+        // (bot przechodzi na koniec listy), a gdy tam nie ma botów, trafia na koniec listy.
         DB::transaction(function () use ($ids): void {
             foreach ($ids as $userId) {
                 $this->placePlayer($userId, League::Podworkowa);
@@ -346,7 +346,7 @@ new class extends Component {
 
     /**
      * Przypisuje gracza do wybranej ligi wg tej samej zasady co ręczne przenoszenie:
-     * gracz zajmuje miejsce najwyżej sklasyfikowanego bota w tej lidze, a bot wraca do puli.
+     * gracz zajmuje miejsce najwyżej sklasyfikowanego bota w tej lidze, a bot przechodzi na koniec listy (Liga podwórkowa).
      * Po zatwierdzeniu sezonu zmienia się tylko właściciel miejsca, więc terminarz zostaje.
      * W lidze 1-10 bez botów nic się nie zmienia, w podwórkowej gracz idzie na koniec listy.
      */
@@ -1113,7 +1113,7 @@ new class extends Component {
             </flux:select>
 
             <flux:text class="text-sm">
-                {{ __('The player takes the place of the highest ranked bot in the chosen league, and the bot goes back to the pool. In Liga podwórkowa without bots the player goes to the end of the list.') }}
+                {{ __('The player takes the place of the highest ranked bot in the chosen league, and the bot moves to the end of the list (Liga podwórkowa). In Liga podwórkowa without bots the player goes to the end of the list.') }}
             </flux:text>
 
             <div class="flex justify-end gap-2">
