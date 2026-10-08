@@ -377,7 +377,16 @@ new #[Layout('layouts::public')] class extends Component {
                     </ul>
 
                     @if ($this->matches->hasPages())
-                        <div class="pt-2">{{ $this->matches->links() }}</div>
+                        {{-- Własny, zwarty pager: domyślne linki Laravela nie mieszczą się w wąskiej kolumnie. --}}
+                        <div class="flex items-center justify-between gap-2 pt-2">
+                            <flux:button size="sm" variant="ghost" icon="chevron-left"
+                                wire:click="previousPage('matchesPage')" :disabled="$this->matches->onFirstPage()" />
+                            <flux:text class="text-xs tabular-nums">
+                                {{ __('Page :current of :last', ['current' => $this->matches->currentPage(), 'last' => $this->matches->lastPage()]) }}
+                            </flux:text>
+                            <flux:button size="sm" variant="ghost" icon="chevron-right"
+                                wire:click="nextPage('matchesPage')" :disabled="!$this->matches->hasMorePages()" />
+                        </div>
                     @endif
                 @else
                     <flux:text>{{ __('No matches yet.') }}</flux:text>

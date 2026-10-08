@@ -1001,5 +1001,6 @@
     "Outcome :outcome%, exact :exact%": "Rozstrzygnięcie :outcome%, dokładny :exact%",
     "Tips: :count": "Typy: :count",
     "Result": "Wynik",
-    "No tips": "Brak typów"
+    "No tips": "Brak typów",
+    "Page :current of :last": "Strona :current z :last"
 }
