@@ -2,18 +2,20 @@
 
 namespace Database\Seeders;
 
+use App\Enums\League;
 use App\Enums\RoleName;
 use App\Enums\SeasonStatus;
 use App\Models\Season;
 use App\Models\SeasonTeam;
 use App\Models\User;
+use App\Support\Roster;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
 
 /**
  * 30 graczy testowych z polskimi imionami i nazwiskami oraz zespołami nazwanymi jak popularne polskie kluby.
  * Dostają rolę User i potwierdzony e-mail (hasło: password). Jeśli istnieje niezakończony sezon,
- * zajmują losowe miejsca botów w ligach (pozycje 1-100). Ponowne uruchomienie nic nie dubluje.
+ * trafiają do losowych lig 1-10 w miejsce botów (Roster::place). Ponowne uruchomienie nic nie dubluje.
  */
 class PlayersSeeder extends Seeder
 {
@@ -82,7 +84,11 @@ class PlayersSeeder extends Seeder
         $this->command?->info('Gracze testowi: ' . count($created) . ', dodani do lig: ' . $placed . '.');
     }
 
-    /** Wstawia graczy na losowe miejsca botów w ligach 1-10 najnowszego niezakończonego sezonu. */
+    /**
+     * Wstawia graczy do losowych lig 1-10 najnowszego niezakończonego sezonu tą samą drogą co panel
+     * (App\Support\Roster::place): gracz zajmuje miejsce bota, bot wraca do puli, a jeśli Liga Legend
+     * już istnieje, gracz do niej dołącza. Gdy w wylosowanej lidze nie ma bota, próbujemy kolejnych.
+     */
     private function placeInLeagues(array $userIds): int
     {
         $season = Season::where('status', '!=', SeasonStatus::Finished->value)->orderByDesc('number')->first();
@@ -92,20 +98,19 @@ class PlayersSeeder extends Seeder
         }
 
         $listed = SeasonTeam::where('season_id', $season->id)->whereNotNull('user_id')->pluck('user_id')->all();
-        $waiting = array_values(array_diff($userIds, $listed));
+        $leagues = array_values(array_filter(League::cases(), fn(League $l) => $l !== League::Podworkowa));
+        $placed = 0;
 
-        $botSeats = SeasonTeam::where('season_id', $season->id)
-            ->whereNull('user_id')
-            ->whereBetween('position', [1, 100])
-            ->inRandomOrder()
-            ->limit(count($waiting))
-            ->get();
-
-        foreach ($botSeats as $i => $seat) {
-            $seat->update(['user_id' => $waiting[$i], 'bot_id' => null]);
+        foreach (array_diff($userIds, $listed) as $userId) {
+            foreach (collect($leagues)->shuffle() as $league) {
+                if (Roster::place($season->id, $userId, $league)) {
+                    $placed++;
+                    break;
+                }
+            }
         }
 
-        return $botSeats->count();
+        return $placed;
     }
 
     /** "Łukasz" -> "lukasz" (adres e-mail bez polskich znaków). */
