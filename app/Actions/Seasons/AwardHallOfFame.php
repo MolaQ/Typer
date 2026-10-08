@@ -18,9 +18,13 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
 /**
- * Przyznaje punkty i trofea Hall of Fame za zakończony sezon (regulamin, punkt 12), z tabel końcowych
- * (final_standings) i meczów pucharu. Przeliczenie kasuje poprzednie wpisy sezonu, więc można je powtarzać
- * (np. po zmianie wartości punktacji w panelu).
+ * Przyznaje punkty i trofea Hall of Fame za sezon (regulamin, punkt 12). Liczy się na bieżąco po każdym
+ * przeliczeniu kolejki (SaveMatchdayResult) i jeszcze raz przy zakończeniu sezonu (FinishSeason).
+ * W trakcie sezonu wchodzą tylko punkty za mecze (z terminarza): wygrane i remisy w ligach, wygrane
+ * w ligach europejskich, wygrane rundy pucharu. Miejsca, awanse, król strzelców, Liga Legend, tytuły
+ * i trofea dochodzą dopiero z tabel końcowych (final_standings), czyli po zakończeniu sezonu.
+ * Przeliczenie kasuje poprzednie wpisy sezonu, więc można je powtarzać (np. po zmianie punktacji w panelu).
+ * Punkty bieżącego sezonu nie wpływają na kryterium HoF w tabelach tego sezonu (HallOfFame::pointsBefore).
  *  - ligi i podwórkowa (× mnożnik poziomu): wygrane i remisy, miejsca 1-3, awans, król strzelców,
  *  - Puchar Polski: wygrana w każdej rundzie, zwycięzca finału,
  *  - ligi europejskie: wygrane mecze i zwycięstwo,
@@ -34,6 +38,9 @@ class AwardHallOfFame
 
     private Season $season;
 
+    /** Czy sezon ma już tabele końcowe (czyli jest zakończony)? */
+    private bool $finished = false;
+
     /** @return int liczba zapisanych wpisów */
     public function handle(Season $season): int
     {
@@ -44,6 +51,7 @@ class AwardHallOfFame
             HallOfFameAward::where('season_id', $this->season->id)->delete();
 
             $standings = FinalStanding::where('season_id', $this->season->id)->orderBy('place')->get()->groupBy('competition_id');
+            $this->finished = $standings->isNotEmpty();
 
             foreach (Competition::where('season_id', $this->season->id)->get() as $competition) {
                 $final = $standings->get($competition->id, collect())->values();
@@ -70,22 +78,23 @@ class AwardHallOfFame
     /** Ligi 1-10 i podwórkowa. */
     private function league(Competition $competition, Collection $final): void
     {
-        if ($final->isEmpty() || $final->max(fn($s) => $s->stats['played'] ?? 0) === 0) {
-            return; // rozgrywki bez rozegranych meczów
-        }
-
         $tier = $competition->type === CompetitionType::Swiss ? League::Podworkowa->value : (int) $competition->tier;
         $multiplier = HallOfFame::multiplier($tier);
+
+        // Mecze: na bieżąco z terminarza.
+        foreach ($this->results($competition) as $result) {
+            $points = ($result['won'] * HallOfFame::value('league_win') + $result['drawn'] * HallOfFame::value('league_draw')) * $multiplier;
+            $this->addTeam($competition, $result['team'], 'matches', $points, null, ['won' => $result['won'], 'drawn' => $result['drawn']]);
+        }
+
+        if ($final->isEmpty() || $final->max(fn($s) => $s->stats['played'] ?? 0) === 0) {
+            return; // sezon trwa albo rozgrywki bez rozegranych meczów
+        }
+
         $topGoals = (int) $final->max(fn($s) => $s->stats['for'] ?? 0);
         $topScorerGiven = false;
 
         foreach ($final as $standing) {
-            $won = (int) ($standing->stats['won'] ?? 0);
-            $drawn = (int) ($standing->stats['drawn'] ?? 0);
-
-            $matches = ($won * HallOfFame::value('league_win') + $drawn * HallOfFame::value('league_draw')) * $multiplier;
-            $this->add($competition, $standing, 'matches', $matches, null, ['won' => $won, 'drawn' => $drawn]);
-
             $placeKey = [1 => 'champion', 2 => 'second', 3 => 'third'][$standing->place] ?? null;
             if ($placeKey) {
                 $trophy = $standing->place === 1 ? 'league_' . $tier : null;
@@ -105,19 +114,60 @@ class AwardHallOfFame
         }
     }
 
-    /** Liga Mistrzów, Europy i Konferencji. */
+    /** Liga Mistrzów, Europy i Konferencji: wygrane na bieżąco, tytuł po zakończeniu sezonu. */
     private function european(Competition $competition, Collection $final): void
     {
         $type = $competition->type->value;
 
-        foreach ($final as $standing) {
-            $won = (int) ($standing->stats['won'] ?? 0);
-            $this->add($competition, $standing, 'matches', $won * HallOfFame::value($type . '_win'), null, ['won' => $won]);
+        foreach ($this->results($competition) as $result) {
+            $this->addTeam($competition, $result['team'], 'matches', $result['won'] * HallOfFame::value($type . '_win'), null, ['won' => $result['won']]);
+        }
 
-            if ($standing->place === 1 && ($standing->stats['played'] ?? 0) > 0) {
-                $this->add($competition, $standing, 'title', HallOfFame::value($type . '_winner'), $type);
+        $winner = $final->first();
+        if ($winner && $winner->place === 1 && ($winner->stats['played'] ?? 0) > 0) {
+            $this->add($competition, $winner, 'title', HallOfFame::value($type . '_winner'), $type);
+        }
+    }
+
+    /**
+     * Wygrane i remisy zespołów z rozegranych meczów terminarza. Wolny los w podwórkowej (wirtualny
+     * rywal) liczy się jak zwykły mecz, tak jak w tabeli.
+     *
+     * @return list<array{team: SeasonTeam, won: int, drawn: int}>
+     */
+    private function results(Competition $competition): array
+    {
+        $fixtures = Fixture::where('competition_id', $competition->id)
+            ->whereNotNull('home_goals')->whereNotNull('away_goals')
+            ->get(['home_entry_id', 'away_entry_id', 'home_goals', 'away_goals']);
+
+        $counts = [];
+        foreach ($fixtures as $fixture) {
+            foreach ([[$fixture->home_entry_id, $fixture->home_goals, $fixture->away_goals], [$fixture->away_entry_id, $fixture->away_goals, $fixture->home_goals]] as [$entryId, $for, $against]) {
+                if (!$entryId) {
+                    continue; // wirtualny rywal
+                }
+                $counts[$entryId] ??= ['won' => 0, 'drawn' => 0];
+                $counts[$entryId]['won'] += (int) ($for > $against);
+                $counts[$entryId]['drawn'] += (int) ($for === $against);
             }
         }
+
+        if ($counts === []) {
+            return [];
+        }
+
+        $teamOfEntry = CompetitionEntry::whereIn('id', array_keys($counts))->pluck('season_team_id', 'id');
+        $teams = SeasonTeam::whereIn('id', $teamOfEntry->values())->get(['id', 'user_id', 'bot_id'])->keyBy('id');
+
+        $out = [];
+        foreach ($counts as $entryId => $count) {
+            if ($team = $teams->get($teamOfEntry[$entryId] ?? 0)) {
+                $out[] = ['team' => $team] + $count;
+            }
+        }
+
+        return $out;
     }
 
     /** Puchar Polski: punkty za każdą wygraną rundę (z meczów), zwycięzca finału osobno. */
@@ -143,7 +193,8 @@ class AwardHallOfFame
             $points = collect($rounds)->filter(fn($r) => $r < CupBracket::ROUNDS)->sum(fn($r) => HallOfFame::value('cup_round_' . $r));
             $this->addTeam($competition, $team, 'cup_rounds', $points, null, ['rounds' => $rounds]);
 
-            if (in_array(CupBracket::ROUNDS, $rounds, true)) {
+            // Zwycięzca pucharu: punkty i trofeum dopiero po zakończeniu sezonu.
+            if ($this->finished && in_array(CupBracket::ROUNDS, $rounds, true)) {
                 $this->addTeam($competition, $team, 'cup_winner', HallOfFame::value('cup_winner'), CompetitionType::Cup->value);
             }
         }

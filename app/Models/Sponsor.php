@@ -4,7 +4,6 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-use Illuminate\Support\Facades\Storage;
 
 /**
  * Sponsor rozgrywek (przypisywany do rozgrywek w danym sezonie w panelu „Sponsorzy”).
@@ -24,6 +23,6 @@ class Sponsor extends Model
 
     public function logoUrl(): ?string
     {
-        return $this->logo_path ? Storage::disk('public')->url($this->logo_path) : null;
+        return $this->logo_path ? asset('storage/' . $this->logo_path) : null;
     }
 }

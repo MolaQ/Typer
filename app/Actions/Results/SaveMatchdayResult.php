@@ -3,6 +3,7 @@
 namespace App\Actions\Results;
 
 use App\Actions\Competitions\DrawNextSwissRound;
+use App\Actions\Seasons\AwardHallOfFame;
 use App\Enums\MatchdayStatus;
 use App\Enums\SeasonStatus;
 use App\Models\Matchday;
@@ -121,6 +122,9 @@ class SaveMatchdayResult
 
             // Liga podwórkowa: pary kolejnej rundy losujemy od razu według nowej klasyfikacji.
             $stats['swiss'] = app(DrawNextSwissRound::class)->afterMatchday($matchday->fresh());
+
+            // Hall of Fame na bieżąco: punkty za mecze sezonu (tytuły i trofea dopiero po jego zakończeniu).
+            app(AwardHallOfFame::class)->handle($matchday->season);
 
             Audit::log(
                 'matchday.scored',

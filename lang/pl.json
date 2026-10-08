@@ -1002,5 +1002,9 @@
     "Tips: :count": "Typy: :count",
     "Result": "Wynik",
     "No tips": "Brak typów",
-    "Page :current of :last": "Strona :current z :last"
+    "Page :current of :last": "Strona :current z :last",
+    "Recalculate seasons": "Przelicz sezony",
+    "Point values saved. Recalculate the seasons to apply them.": "Punktacja zapisana. Przelicz sezony, żeby ją zastosować.",
+    "All-time ranking: points for won matches and cup rounds are added after every matchday, titles, promotions and trophies at the end of the season.": "Ranking wszech czasów: punkty za wygrane mecze i rundy pucharu dochodzą po każdej kolejce, a za tytuły, awanse i trofea po zakończeniu sezonu.",
+    "Recalculate Hall of Fame for all finished seasons and the current one?": "Przeliczyć Hall of Fame dla wszystkich zakończonych sezonów i bieżącego?"
 }

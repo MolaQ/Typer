@@ -126,7 +126,7 @@ new class extends Component {
         }
 
         if ($this->currentLogoPath && !$this->removeLogo) {
-            return Storage::disk('public')->url($this->currentLogoPath);
+            return asset('storage/' . $this->currentLogoPath);
         }
 
         return null;

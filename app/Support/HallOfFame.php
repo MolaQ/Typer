@@ -9,7 +9,6 @@ use App\Models\Season;
 use App\Models\TrophyIcon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
-use Illuminate\Support\Facades\Storage;
 
 /**
  * Hall of Fame (regulamin, punkt 12): punktacja wszech czasów za sukcesy w zakończonych sezonach.
@@ -155,7 +154,7 @@ final class HallOfFame
     /** @return array<string, string> klucz trofeum => adres ikony */
     public static function iconUrls(): array
     {
-        return TrophyIcon::pluck('path', 'key')->map(fn($path) => Storage::disk('public')->url($path))->all();
+        return TrophyIcon::pluck('path', 'key')->map(fn($path) => asset('storage/' . $path))->all();
     }
 
     /**

@@ -8,7 +8,6 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-use Illuminate\Support\Facades\Storage;
 
 /**
  * Sezon rozgrywek. Do sezonu należą kolejki (mecze Lecha), a w kolejnych
@@ -115,7 +114,7 @@ class Season extends Model
     protected function sponsorLogoUrl(): Attribute
     {
         return Attribute::get(fn () => $this->sponsor_logo_path
-            ? Storage::disk('public')->url($this->sponsor_logo_path)
+            ? asset('storage/' . $this->sponsor_logo_path)
             : null);
     }
 
