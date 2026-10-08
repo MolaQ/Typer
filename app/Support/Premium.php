@@ -53,9 +53,21 @@ final class Premium
         return $days;
     }
 
+    /**
+     * Czy konto ma premium: data ważności w przyszłości albo rola Premium nadana ręcznie w panelu bez daty
+     * (premium bezterminowe, np. dla admina).
+     */
     public static function isActive(?User $user, ?CarbonInterface $at = null): bool
     {
-        return $user?->premium_until !== null && $user->premium_until->greaterThan($at ?? now());
+        if (!$user) {
+            return false;
+        }
+
+        if ($user->premium_until !== null) {
+            return $user->premium_until->greaterThan($at ?? now());
+        }
+
+        return $user->hasRole(RoleName::Premium->value);
     }
 
     /**
@@ -64,7 +76,7 @@ final class Premium
      */
     public static function extend(User $user, int $days): CarbonInterface
     {
-        $from = self::isActive($user) ? $user->premium_until->copy() : now();
+        $from = $user->premium_until?->isFuture() ? $user->premium_until->copy() : now();
 
         return self::setUntil($user, $from->addDays($days));
     }
@@ -84,13 +96,15 @@ final class Premium
     }
 
     /**
-     * Zdejmuje rolę Premium tym, którym minęła data (polecenie premium:expire w harmonogramie).
+     * Zdejmuje rolę Premium tym, którym minęła data (rola bez daty zostaje) (polecenie premium:expire w harmonogramie).
      * Zwraca liczbę kont.
      */
     public static function expire(): int
     {
+        // Rola bez daty to premium bezterminowe nadane w panelu, więc jej nie zdejmujemy.
         $users = User::role(RoleName::Premium->value)
-            ->where(fn ($q) => $q->whereNull('premium_until')->orWhere('premium_until', '<=', now()))
+            ->whereNotNull('premium_until')
+            ->where('premium_until', '<=', now())
             ->get();
 
         foreach ($users as $user) {

@@ -116,7 +116,7 @@ new class extends Component {
         $this->userSearch = '';
         unset($this->selectedUser, $this->userResults);
 
-        $this->premiumUntil = Premium::isActive($this->selectedUser) ? $this->selectedUser->premium_until->format('Y-m-d') : now()->addDays(30)->format('Y-m-d');
+        $this->premiumUntil = Premium::isActive($this->selectedUser) && $this->selectedUser->premium_until ? $this->selectedUser->premium_until->format('Y-m-d') : now()->addDays(30)->format('Y-m-d');
     }
 
     /* ==================================================================

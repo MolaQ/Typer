@@ -205,7 +205,7 @@ new #[Layout('layouts::public')] class extends Component {
                 <flux:heading size="lg">{{ __('Your premium') }}</flux:heading>
                 @if ($this->isPremium)
                     <flux:badge color="purple" icon="sparkles">
-                        {{ __('Active until :date', ['date' => auth()->user()->premium_until->format('d.m.Y H:i')]) }}
+                        {{ auth()->user()->premium_until ? __('Active until :date', ['date' => auth()->user()->premium_until->format('d.m.Y H:i')]) : __('Active without an end date') }}
                     </flux:badge>
                 @else
                     <flux:badge color="zinc">{{ __('Inactive') }}</flux:badge>

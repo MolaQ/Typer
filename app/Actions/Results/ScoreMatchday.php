@@ -298,7 +298,9 @@ class ScoreMatchday
         $tipped = Tip::where('matchday_id', $matchday->id)->pluck('user_id')->all();
 
         $users = User::whereIn('id', array_diff($userIds, $tipped))
-            ->where('premium_until', '>', $kickoff)
+            // Premium z datą ważną w chwili meczu albo bezterminowe (rola Premium bez daty).
+            ->where(fn($q) => $q->where('premium_until', '>', $kickoff)
+                ->orWhere(fn($w) => $w->whereNull('premium_until')->whereHas('roles', fn($r) => $r->where('name', \App\Enums\RoleName::Premium->value))))
             ->get(['id', 'premium_until', 'default_tip_lech', 'default_tip_opponent']);
 
         foreach ($users as $user) {

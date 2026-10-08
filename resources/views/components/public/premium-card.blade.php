@@ -20,7 +20,7 @@
 
     @if ($active)
         <flux:text class="text-sm">
-            {{ __('Active until :date', ['date' => $user->premium_until->format('d.m.Y')]) }}
+            {{ $user->premium_until ? __('Active until :date', ['date' => $user->premium_until->format('d.m.Y')]) : __('Active without an end date') }}
         </flux:text>
     @endif
 
