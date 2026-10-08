@@ -2,6 +2,7 @@
 
 namespace Database\Seeders;
 
+use App\Enums\MatchdayStatus;
 use App\Enums\QuestionSide;
 use App\Enums\RoleName;
 use App\Enums\SeasonStatus;
@@ -20,7 +21,7 @@ use Illuminate\Support\Facades\DB;
 
 /**
  * Typy testowe (tylko ręcznie: php artisan db:seed --class=TestTipSeeder).
- * Dla każdej kolejki aktywnego sezonu otwartej do typowania bierze 25 losowych graczy z listy sezonu
+ * Dla każdej nierozliczonej kolejki aktywnego sezonu (otwartej albo już po gwizdku) bierze 25 losowych graczy z listy sezonu
  * (bez adminów) i zapisuje im losowy typ 0-3 : 0-3 oraz 0-2 odpowiedzi ofensywne i 0-2 defensywne
  * w każdym zestawie pytań ich rozgrywek. Czas zapisu jest losowy, zawsze przed pierwszym gwizdkiem
  * i nie później niż teraz. Wcześniejszy typ i odpowiedzi wylosowanego gracza w tej kolejce są nadpisywane.
@@ -36,10 +37,12 @@ class TestTipSeeder extends Seeder
         $matchdays = Matchday::whereHas('season', fn($q) => $q->where('status', SeasonStatus::Active->value))
             ->orderBy('number')
             ->get()
-            ->filter(fn(Matchday $m) => $m->isOpenForTips());
+            // Otwarte do typowania i zamknięte, ale jeszcze nierozliczone (po gwizdku, przed wpisaniem wyniku),
+            // żeby po ResultMatchSeederze było co liczyć. Rozliczonych nie ruszamy.
+            ->filter(fn(Matchday $m) => $m->kickoff_at !== null && $m->status === MatchdayStatus::Planned && $m->isFilled());
 
         if ($matchdays->isEmpty()) {
-            $this->command?->warn('Brak kolejek otwartych do typowania.');
+            $this->command?->warn('Brak nierozliczonych kolejek z rywalem i godziną meczu.');
 
             return;
         }
@@ -86,7 +89,7 @@ class TestTipSeeder extends Seeder
                 }
             });
 
-            $this->command?->info("Kolejka {$matchday->number}: typy dla {$users->count()} graczy.");
+            $this->command?->info("Kolejka {$matchday->number}: typy dla {$users->count()} graczy" . ($slots->isEmpty() ? ' (bez pytań: kolejka nie ma jeszcze zestawów).' : '.'));
         }
     }
 
