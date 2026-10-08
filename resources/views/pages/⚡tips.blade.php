@@ -53,7 +53,7 @@ new #[Layout('layouts::public')] class extends Component {
 
     public function updatedNumber(): void
     {
-        unset($this->matchday, $this->tip, $this->isOpen, $this->sets, $this->scores);
+        unset($this->matchday, $this->tip, $this->isOpen, $this->sets, $this->scores, $this->rivals);
         $this->loadTip();
     }
 
@@ -176,6 +176,13 @@ new #[Layout('layouts::public')] class extends Component {
         }
 
         return $sets;
+    }
+
+    /** Rywale w tej kolejce z widocznością zależną od etapu i premium (App\Support\Rivals). */
+    #[Computed]
+    public function rivals(): array
+    {
+        return $this->matchday && $this->canPlay ? \App\Support\Rivals::forUser(auth()->user(), $this->matchday) : [];
     }
 
     /** Rozliczenie kolejki po wpisaniu wyniku: zestaw pytań (wartość typu) => TeamScore. */
@@ -326,6 +333,75 @@ new #[Layout('layouts::public')] class extends Component {
             @endif
         @endif
     </flux:card>
+
+    {{-- Rywale w tej kolejce --}}
+    @if (count($this->rivals) > 0)
+        @php
+            $phase = \App\Support\Rivals::phase($this->matchday);
+            $isPremium = \App\Support\Premium::isActive(auth()->user());
+        @endphp
+        <flux:card class="space-y-3">
+            <div class="flex flex-wrap items-center justify-between gap-2">
+                <flux:heading>{{ __('Your rivals in this matchday') }}</flux:heading>
+                @if (!$isPremium && $phase !== \App\Support\Rivals::PLAYED)
+                    <flux:link :href="route('support')" wire:navigate class="text-sm">{{ __('Premium shows more') }}</flux:link>
+                @endif
+            </div>
+
+            <div class="divide-y divide-zinc-100 dark:divide-zinc-700">
+                @foreach ($this->rivals as $rival)
+                    <div class="flex flex-wrap items-center gap-x-4 gap-y-1 py-2 text-sm" wire:key="rival-{{ $loop->index }}">
+                        <div class="min-w-0 flex-1">
+                            <div class="font-medium">{{ $rival['rival'] }}</div>
+                            <div class="text-xs text-zinc-500">{{ $rival['competition'] }}</div>
+                        </div>
+
+                        @if ($rival['virtual'])
+                            <span class="text-xs text-zinc-500">{{ __('Scores as many as Lech in the real match.') }}</span>
+                        @elseif ($rival['bot'] && $phase !== \App\Support\Rivals::PLAYED)
+                            <span class="text-xs text-zinc-500">{{ __('Bot: random tip at the kick-off.') }}</span>
+                        @else
+                            <div class="flex items-center gap-3">
+                                @if ($rival['tip'])
+                                    <flux:badge>{{ $rival['tip'] }}</flux:badge>
+                                @elseif ($rival['outcome'])
+                                    <flux:badge>{{ $rival['outcome'] }}</flux:badge>
+                                @elseif ($rival['tipped'])
+                                    <flux:badge color="green" size="sm">{{ __('Tipped') }}</flux:badge>
+                                @else
+                                    <flux:badge color="zinc" size="sm">{{ __('No tip') }}</flux:badge>
+                                @endif
+
+                                @foreach (['offense' => __('Offensive'), 'defense' => __('Defensive')] as $side => $label)
+                                    @if ($rival[$side] !== null)
+                                        <span class="inline-flex items-center gap-0.5" title="{{ $label }}: {{ $rival[$side] }}/5">
+                                            <span class="me-1 text-xs text-zinc-500">{{ mb_substr($label, 0, 3) }}.</span>
+                                            @for ($i = 1; $i <= 5; $i++)
+                                                @if ($i <= $rival[$side])
+                                                    <flux:icon.star variant="micro" class="text-amber-500" />
+                                                @else
+                                                    <flux:icon.star variant="micro" class="text-zinc-300 dark:text-zinc-600" />
+                                                @endif
+                                            @endfor
+                                        </span>
+                                    @endif
+                                @endforeach
+                            </div>
+                        @endif
+
+                        @if ($rival['bonus'] || $rival['score'])
+                            <div class="w-full text-xs text-zinc-500 sm:w-auto">
+                                {{ $rival['bonus'] }}
+                                @if ($rival['score'])
+                                    &middot; {{ __('Match: :score', ['score' => $rival['score']]) }}
+                                @endif
+                            </div>
+                        @endif
+                    </div>
+                @endforeach
+            </div>
+        </flux:card>
+    @endif
 
     @if ($this->matchday->isFilled())
     @if (count($this->sets) === 0)

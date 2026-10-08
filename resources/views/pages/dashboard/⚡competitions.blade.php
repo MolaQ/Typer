@@ -570,6 +570,12 @@ new class extends Component {
         </div>
     </div>
 
+    <flux:callout icon="information-circle" variant="secondary">
+        <flux:callout.text>
+            {{ __('Liga Legend, the leagues, the cup and Liga podwórkowa are created automatically when the season is approved (or with "Generate missing competitions" on the Fixtures page), because they depend on the final season list.') }}
+        </flux:callout.text>
+    </flux:callout>
+
     @if (!$this->season)
         <flux:card class="space-y-4">
             <flux:heading>{{ __('Create a season first.') }}</flux:heading>
@@ -669,6 +675,10 @@ new class extends Component {
                                         </flux:button>
                                     </div>
                                 @endcan
+                            @elseif ($this->isOpen && $selected->type === \App\Enums\CompetitionType::Golden)
+                                <flux:text class="text-sm text-zinc-500">
+                                    {{ __('No payments in the last 12 months from teams on the list, so add the teams by hand.') }}
+                                </flux:text>
                             @endif
                         @endforelse
                     </div>
