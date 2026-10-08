@@ -290,4 +290,57 @@
         @endforelse
         <flux:link :href="route('team.show', auth()->user())" wire:navigate class="text-sm">{{ __('Trophy cabinet') }}</flux:link>
     </flux:card>
+@elseif ($tab === 'scalps')
+    {{-- Moje skalpy (premium): gracze, z którymi mam lepszy bilans bezpośredni, od najwyżej w rankingu Hall of Fame. --}}
+    <div class="space-y-4">
+        <div class="flex flex-wrap items-center justify-between gap-2">
+            <div class="space-y-1">
+                <flux:heading size="lg" class="flex items-center gap-2">
+                    <flux:icon.fire class="text-orange-500" />
+                    {{ __('My scalps') }}
+                </flux:heading>
+                <flux:text size="sm">{{ __('Players you have a better head-to-head record against, from the highest in the Hall of Fame ranking.') }}</flux:text>
+            </div>
+            <x-premium-badge />
+        </div>
+
+        @if (!\App\Support\Premium::isActive(auth()->user()))
+            <div class="relative overflow-hidden rounded-2xl border border-purple-200 p-6 dark:border-purple-500/30">
+                <div class="space-y-2 blur-sm select-none" aria-hidden="true">
+                    @foreach (range(1, 4) as $i)
+                        <div class="h-12 rounded-xl bg-purple-100 dark:bg-purple-500/20"></div>
+                    @endforeach
+                </div>
+                <div class="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-white/60 p-6 text-center dark:bg-zinc-900/60">
+                    <flux:text>{{ __('See whose scalps you have collected with premium.') }}</flux:text>
+                    <flux:button size="sm" variant="primary" :href="route('support')" wire:navigate>{{ __('From 5 zł a week') }}</flux:button>
+                </div>
+            </div>
+        @elseif (count($this->myScalps) === 0)
+            <flux:card>
+                <flux:text>{{ __('No scalps yet. Win more matches than you lose against a player and they will appear here.') }}</flux:text>
+            </flux:card>
+        @else
+            <div class="grid gap-3 sm:grid-cols-2">
+                @foreach ($this->myScalps as $scalp)
+                    <a href="{{ route('team.show', $scalp['user']) }}" wire:navigate wire:key="scalp-{{ $scalp['user']->id }}"
+                        class="group flex items-center gap-3 rounded-2xl border border-zinc-200 bg-white p-3 shadow-xs transition hover:-translate-y-0.5 hover:border-orange-300 hover:shadow-md dark:border-zinc-700 dark:bg-zinc-900">
+                        <span class="flex size-10 shrink-0 items-center justify-center rounded-full bg-linear-to-br from-orange-400 to-red-600 text-sm font-bold text-white">
+                            {{ $loop->iteration }}
+                        </span>
+                        <span class="min-w-0 flex-1">
+                            <span class="block truncate font-semibold">{{ $scalp['user']->team_name ?: $scalp['user']->name }}</span>
+                            <span class="block truncate text-xs text-zinc-500">
+                                {{ $scalp['user']->name }} &middot; {{ __('Hall of Fame: :points pts', ['points' => \App\Support\HallOfFame::format($scalp['hof'])]) }}
+                            </span>
+                        </span>
+                        <span class="shrink-0 text-right text-xs font-semibold tabular-nums">
+                            <span class="text-green-600">{{ $scalp['won'] }}</span>–<span>{{ $scalp['drawn'] }}</span>–<span class="text-red-600">{{ $scalp['lost'] }}</span>
+                            <span class="block font-normal text-zinc-500">{{ __('W–D–L') }}</span>
+                        </span>
+                    </a>
+                @endforeach
+            </div>
+        @endif
+    </div>
 @endif

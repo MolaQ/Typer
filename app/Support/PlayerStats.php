@@ -144,6 +144,89 @@ final class PlayerStats
     }
 
     /**
+     * Statystyki sezonu dowolnego zespołu (do okna z drużyną na stronie wyników). Bot nie odpowiada
+     * na pytania i nie ma typów do statystyk, więc ma tylko mecze.
+     *
+     * @return array<string, mixed>
+     */
+    public static function teamSeason(SeasonTeam $team, Season $season): array
+    {
+        $all = self::seasonAll($season);
+
+        if (isset($all[$team->id])) {
+            return $all[$team->id];
+        }
+
+        $matches = self::seasonMatches($season, collect([$team->id]));
+
+        return array_merge(self::empty(), $matches[$team->id] ?? self::matchSummary([]));
+    }
+
+    /**
+     * Moje skalpy (premium): gracze, z którymi gracz ma lepszy bilans bezpośredni (więcej wygranych niż porażek)
+     * ze wszystkich sezonów i rozgrywek, od najwyżej w rankingu Hall of Fame (potem bilans, potem nazwa).
+     *
+     * @return array<int, array{user: User, won: int, drawn: int, lost: int, hof: float}>
+     */
+    public static function scalps(User $user): array
+    {
+        $mine = CompetitionEntry::whereIn('season_team_id', SeasonTeam::where('user_id', $user->id)->select('id'))->pluck('id');
+
+        if ($mine->isEmpty()) {
+            return [];
+        }
+
+        $fixtures = Fixture::whereNotNull('home_goals')
+            ->where(fn($q) => $q->whereIn('home_entry_id', $mine)->orWhereIn('away_entry_id', $mine))
+            ->whereNotNull('away_entry_id')
+            ->get();
+
+        // Właściciel każdego wpisu rywala (tylko ludzie).
+        $rivalEntries = $fixtures->map(fn($f) => $mine->contains($f->home_entry_id) ? $f->away_entry_id : $f->home_entry_id)->unique();
+        $ownerOfEntry = CompetitionEntry::query()
+            ->join('season_teams', 'season_teams.id', '=', 'competition_entries.season_team_id')
+            ->whereIn('competition_entries.id', $rivalEntries)
+            ->whereNotNull('season_teams.user_id')
+            ->pluck('season_teams.user_id', 'competition_entries.id');
+
+        $records = [];
+        foreach ($fixtures as $fixture) {
+            $home = $mine->contains($fixture->home_entry_id);
+            $rivalEntry = $home ? $fixture->away_entry_id : $fixture->home_entry_id;
+            $owner = $ownerOfEntry[$rivalEntry] ?? null;
+
+            if (!$owner || $owner === $user->id) {
+                continue;
+            }
+
+            [$outcome] = self::result($fixture, $home ? $fixture->home_entry_id : $fixture->away_entry_id, $home);
+            $records[$owner] ??= ['won' => 0, 'drawn' => 0, 'lost' => 0];
+            $records[$owner][['W' => 'won', 'D' => 'drawn', 'L' => 'lost'][$outcome]]++;
+        }
+
+        $records = array_filter($records, fn($r) => $r['won'] > $r['lost']);
+
+        if ($records === []) {
+            return [];
+        }
+
+        $hof = \App\Models\HallOfFameAward::whereIn('user_id', array_keys($records))
+            ->groupBy('user_id')->selectRaw('user_id, sum(points) as total')->pluck('total', 'user_id');
+        $users = User::whereIn('id', array_keys($records))->get(['id', 'name', 'team_name'])->keyBy('id');
+
+        $out = [];
+        foreach ($records as $owner => $record) {
+            if ($rival = $users->get($owner)) {
+                $out[] = ['user' => $rival, 'hof' => round((float) ($hof[$owner] ?? 0), 1)] + $record;
+            }
+        }
+
+        usort($out, fn($a, $b) => [$b['hof'], $b['won'] - $b['lost'], $a['user']->name] <=> [$a['hof'], $a['won'] - $a['lost'], $b['user']->name]);
+
+        return $out;
+    }
+
+    /**
      * Ulubione typy (wszystkie sezony): najczęstszy wynik gracza i wszystkich graczy serwisu.
      *
      * @return array{mine: ?array{score: string, count: int, total: int}, all: ?array{score: string, count: int, total: int}}

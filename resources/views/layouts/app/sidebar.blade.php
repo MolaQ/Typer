@@ -62,6 +62,11 @@
                         :current="request()->routeIs('dashboard.questions')" wire:navigate>
                         {{ __('Question bank') }}
                     </flux:sidebar.item>
+                    <flux:sidebar.item icon="light-bulb" :href="route('dashboard.question-proposals')"
+                        :current="request()->routeIs('dashboard.question-proposals')"
+                        :badge="\App\Models\QuestionProposal::pending()->count() ?: null" badge-color="amber" wire:navigate>
+                        {{ __('Question proposals') }}
+                    </flux:sidebar.item>
                 </flux:sidebar.group>
 
                 <flux:sidebar.group expandable

@@ -96,12 +96,16 @@ final class Rivals
 
             $row = [
                 'competition' => $competition->name ?: $competition->type->label(),
+                'type' => $competition->type,
+                'trophy' => $competition->trophyKey(),
+                'fixture_id' => $fixture->id,
                 'rival' => $rival?->name ?? Fixture::VIRTUAL_OPPONENT,
                 'bot' => (bool) $rival?->is_bot,
                 'virtual' => $rival === null,
                 'tipped' => null, 'outcome' => null, 'tip' => null, 'offense' => null, 'defense' => null,
                 'bonus' => null, 'score' => $fixture->isPlayed() ? $fixture->score() : null,
-                'h2h' => $rival ? self::headToHead($viewer, $rival) : null,
+                // Bilans bezpośredni to dodatek premium.
+                'h2h' => $rival && $premium ? self::headToHead($viewer, $rival) : null,
             ];
 
             if ($rival && !$rival->is_bot) {
@@ -137,6 +141,89 @@ final class Rivals
         }
 
         return $out;
+    }
+
+    /**
+     * Szczegóły jednego meczu terminarza (okno na stronie wyników) z tą samą widocznością co podgląd rywali:
+     * przed zamknięciem typowania i przed wynikami widać tylko to, co pozwala etap i premium oglądającego,
+     * a po wynikach pełne rozliczenie obu stron (typ, punkty za typ, bonusy, wynik ofensywny i bramki).
+     *
+     * @return array{phase: string, premium: bool, played: bool, score: ?string, sides: array<int, array<string, mixed>>}
+     */
+    public static function fixture(Fixture $fixture, ?Matchday $matchday, ?User $viewer): array
+    {
+        $fixture->loadMissing(['competition', 'home.seasonTeam.user:id,name,team_name', 'home.seasonTeam.bot:id,name', 'away.seasonTeam.user:id,name,team_name', 'away.seasonTeam.bot:id,name']);
+
+        $phase = $matchday ? self::phase($matchday) : self::OPEN;
+        $premium = $viewer !== null && Premium::isActive($viewer);
+        $set = $fixture->competition->type->questionSet();
+        $teams = [$fixture->home?->seasonTeam, $fixture->away?->seasonTeam];
+        $users = collect($teams)->filter()->pluck('user_id')->filter();
+
+        $tips = $matchday ? Tip::where('matchday_id', $matchday->id)->whereIn('user_id', $users)->get()->keyBy('user_id') : collect();
+        $counts = [];
+        if ($matchday && $users->isNotEmpty()) {
+            $slots = MatchdayQuestion::where('matchday_id', $matchday->id)->where('competition_type', $set->value)->get(['id', 'side'])->keyBy('id');
+            foreach (TipAnswer::where('matchday_id', $matchday->id)->whereIn('user_id', $users)->whereIn('matchday_question_id', $slots->keys())->get(['user_id', 'matchday_question_id']) as $answer) {
+                $side = $slots[$answer->matchday_question_id]->side->value;
+                $counts[$answer->user_id][$side] = ($counts[$answer->user_id][$side] ?? 0) + 1;
+            }
+        }
+
+        $scores = $matchday && $phase === self::PLAYED
+            ? TeamScore::where('matchday_id', $matchday->id)->where('question_set', $set->value)
+                ->whereIn('season_team_id', collect($teams)->filter()->pluck('id'))->get()->keyBy('season_team_id')
+            : collect();
+
+        $sides = [];
+        foreach ($teams as $index => $team) {
+            $goals = $index === 0 ? $fixture->home_goals : $fixture->away_goals;
+            $side = [
+                'name' => $team?->name ?? ($index === 1 && $fixture->isBye() ? Fixture::VIRTUAL_OPPONENT : __('Seat :number', ['number' => $index === 0 ? $fixture->home_seat : $fixture->away_seat])),
+                'owner' => $team?->user?->name,
+                'user_id' => $team?->user_id,
+                'season_team_id' => $team?->id,
+                'bot' => (bool) $team?->is_bot,
+                'virtual' => $index === 1 && $fixture->isBye(),
+                'goals' => $goals,
+                'winner' => $fixture->winner_entry_id !== null && (int) $fixture->winner_entry_id === (int) ($index === 0 ? $fixture->home_entry_id : $fixture->away_entry_id),
+                'tipped' => null, 'outcome' => null, 'tip' => null, 'tipped_at' => null, 'offense' => null, 'defense' => null, 'score' => null,
+            ];
+
+            if ($team && !$team->is_bot) {
+                $tip = $tips->get($team->user_id);
+                $side['tipped'] = $tip !== null;
+
+                if ($tip && ($phase === self::PLAYED || ($phase === self::CLOSED && $premium))) {
+                    $side['tip'] = $tip->score();
+                } elseif ($tip && $phase === self::OPEN && $premium) {
+                    $side['outcome'] = self::outcome($tip->lech_goals, $tip->opponent_goals);
+                }
+
+                if ($phase !== self::OPEN || $premium) {
+                    $side['offense'] = $counts[$team->user_id][QuestionSide::Offensive->value] ?? 0;
+                    $side['defense'] = $counts[$team->user_id][QuestionSide::Defensive->value] ?? 0;
+                }
+            }
+
+            // Po wynikach pełne rozliczenie (także boty).
+            if ($team && ($score = $scores->get($team->id))) {
+                $side['tipped'] = $score->has_tip;
+                $side['tip'] = $score->has_tip ? $score->tip_lech . ':' . $score->tip_opponent : null;
+                $side['tipped_at'] = $score->tipped_at;
+                $side['score'] = $score;
+            }
+
+            $sides[] = $side;
+        }
+
+        return [
+            'phase' => $phase,
+            'premium' => $premium,
+            'played' => $fixture->isPlayed(),
+            'score' => $fixture->isPlayed() ? $fixture->score() : null,
+            'sides' => $sides,
+        ];
     }
 
     /**

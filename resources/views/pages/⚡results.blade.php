@@ -8,7 +8,11 @@ use App\Models\Season;
 use App\Models\SeasonTeam;
 use App\Support\CupBracket;
 use App\Support\LegendsRanking;
+use App\Support\PlayerStats;
+use App\Support\Premium;
+use App\Support\Rivals;
 use App\Support\Standings;
+use Flux\Flux;
 use Illuminate\Contracts\View\View;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Layout;
@@ -19,6 +23,8 @@ use Livewire\WithPagination;
 /**
  * Wyniki i tabele aktywnego sezonu na stronie głównej (dla wszystkich, także gości).
  * Ligi i Liga podwórkowa: tabela + mecze wybranej kolejki. Puchar Polski: mecze wybranej rundy.
+ * Kliknięcie zespołu otwiera okno ze statystykami (podstawowe i premium), kliknięcie meczu okno ze szczegółami
+ * (widoczność jak w podglądzie rywali: przed zamknięciem typowania, po zamknięciu i po wynikach).
  * Uwaga: nie nazywaj własności "slots" ani "rows" – Livewire rezerwuje część nazw.
  */
 new #[Layout('layouts::public')] class extends Component {
@@ -30,6 +36,10 @@ new #[Layout('layouts::public')] class extends Component {
 
     #[Url(as: 'round', except: 0)]
     public int $round = 0;
+
+    /** Zespół (season_teams.id) i mecz pokazywane w oknach. */
+    public ?int $teamId = null;
+    public ?int $fixtureId = null;
 
     public function mount(): void
     {
@@ -159,6 +169,76 @@ new #[Layout('layouts::public')] class extends Component {
     }
 
     /* ==================================================================
+     | OKNA: ZESPÓŁ I MECZ
+     * ================================================================*/
+
+    public function showTeam(int $id): void
+    {
+        $this->teamId = $id;
+        unset($this->teamCard);
+        Flux::modal('fixture-details')->close();
+        Flux::modal('team-details')->show();
+    }
+
+    public function showFixture(int $id): void
+    {
+        $this->fixtureId = $id;
+        unset($this->fixtureCard);
+        Flux::modal('fixture-details')->show();
+    }
+
+    /** Statystyki zespołu w sezonie; część tylko dla premium (oglądającego). */
+    #[Computed]
+    public function teamCard(): ?array
+    {
+        if (!$this->teamId || !$this->season) {
+            return null;
+        }
+
+        $team = SeasonTeam::with(['user:id,name,team_name,premium_until', 'bot:id,name'])
+            ->where('season_id', $this->season->id)
+            ->find($this->teamId);
+
+        if (!$team) {
+            return null;
+        }
+
+        $viewer = auth()->user();
+        $premium = $viewer !== null && Premium::isActive($viewer);
+        $index = $this->hasTable ? $this->table->search(fn($row) => $row['team']->id === $team->id) : false;
+
+        return [
+            'team' => $team,
+            'place' => $index === false ? null : $index + 1,
+            'count' => $this->table->count(),
+            'stats' => PlayerStats::teamSeason($team, $this->season),
+            'premium' => $premium,
+            'owner_premium' => $team->user !== null && Premium::isActive($team->user),
+            'favourite' => $premium && $team->user ? PlayerStats::favourites($team->user)['mine'] : null,
+            'h2h' => $premium && $team->user_id !== $viewer?->id ? Rivals::headToHead($viewer, $team) : null,
+        ];
+    }
+
+    /** Szczegóły meczu wybranej rundy (App\Support\Rivals::fixture). */
+    #[Computed]
+    public function fixtureCard(): ?array
+    {
+        if (!$this->fixtureId || !$this->competition) {
+            return null;
+        }
+
+        $fixture = Fixture::where('competition_id', $this->competition->id)->find($this->fixtureId);
+
+        if (!$fixture) {
+            return null;
+        }
+
+        $matchday = Matchday::where('season_id', $this->season->id)->where('number', $fixture->round)->first();
+
+        return Rivals::fixture($fixture, $matchday, auth()->user()) + ['round' => $fixture->round];
+    }
+
+    /* ==================================================================
      | POMOCNICZE
      * ================================================================*/
 
@@ -269,7 +349,7 @@ new #[Layout('layouts::public')] class extends Component {
                                     class="{{ $zoneClass }} border-b border-zinc-100 last:border-b-0 dark:border-zinc-700/50 {{ $row['team']->id == $this->myTeamId ? 'bg-amber-50 font-semibold dark:bg-amber-900/20' : '' }}">
                                     <td class="px-3 py-1.5 text-right tabular-nums text-zinc-500">{{ $index + 1 }}.</td>
                                     <td class="max-w-56 truncate px-3 py-1.5">
-                                        {{ $row['team']->name }}
+                                        <button type="button" wire:click="showTeam({{ $row['team']->id }})" class="truncate hover:text-lech-700 hover:underline dark:hover:text-lech-300">{{ $row['team']->name }}</button>
                                         @if ($badge)
                                             <span class="ms-1 rounded bg-blue-100 px-1 text-[10px] font-semibold text-blue-700 dark:bg-blue-900/40 dark:text-blue-300">{{ $badge }}</span>
                                         @endif
@@ -328,7 +408,9 @@ new #[Layout('layouts::public')] class extends Component {
                                 <tr wire:key="leg-{{ $row['entry_id'] }}"
                                     class="border-b border-zinc-100 last:border-b-0 dark:border-zinc-700/50 {{ $out ? 'text-zinc-400' : '' }} {{ $row['team']->id == $this->myTeamId ? 'bg-amber-50 font-semibold dark:bg-amber-900/20' : '' }}">
                                     <td class="px-3 py-1.5 text-right tabular-nums">{{ $index + 1 }}.</td>
-                                    <td class="max-w-56 truncate px-3 py-1.5">{{ $row['team']->name }}</td>
+                                    <td class="max-w-56 truncate px-3 py-1.5">
+                                        <button type="button" wire:click="showTeam({{ $row['team']->id }})" class="truncate hover:text-lech-700 hover:underline dark:hover:text-lech-300">{{ $row['team']->name }}</button>
+                                    </td>
                                     <td class="px-2 py-1.5 text-right tabular-nums">{{ $row['tip_points'] }}</td>
                                     <td class="px-2 py-1.5 text-right tabular-nums">{{ $row['bonus'] }}</td>
                                     <td class="px-2 py-1.5 text-right tabular-nums">{{ $row['exact'] }}</td>
@@ -357,8 +439,8 @@ new #[Layout('layouts::public')] class extends Component {
                             @php
                                 $mine = $this->myTeamId && in_array($this->myTeamId, [$fixture->home?->season_team_id, $fixture->away?->season_team_id]);
                             @endphp
-                            <li wire:key="fx-{{ $fixture->id }}"
-                                class="grid grid-cols-[1fr_auto_1fr] items-center gap-2 text-sm {{ $mine ? 'font-semibold' : '' }}">
+                            <li wire:key="fx-{{ $fixture->id }}" wire:click="showFixture({{ $fixture->id }})" title="{{ __('Match details') }}"
+                                class="-mx-2 grid cursor-pointer grid-cols-[1fr_auto_1fr] items-center gap-2 rounded-md px-2 py-0.5 text-sm transition hover:bg-zinc-100 dark:hover:bg-zinc-700/50 {{ $mine ? 'font-semibold' : '' }}">
                                 <span class="truncate text-right {{ $fixture->winner_entry_id && $fixture->winner_entry_id === $fixture->home_entry_id && $this->isCup ? 'text-green-700 dark:text-green-400' : '' }}">
                                     {{ $fixture->home?->seasonTeam->name ?? __('Seat :number', ['number' => $fixture->home_seat]) }}
                                 </span>
@@ -395,4 +477,6 @@ new #[Layout('layouts::public')] class extends Component {
             @endif
         </div>
     @endif
+
+    @include('partials.results-modals')
 </div>

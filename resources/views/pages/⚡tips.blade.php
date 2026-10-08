@@ -28,7 +28,7 @@ new #[Layout('layouts::public')] class extends Component {
     #[Url(as: 'matchday', except: 0)]
     public int $number = 0;
 
-    /** Zakładka: tip (typowanie), matchdays (kolejki), competitions (rozgrywki), stats (statystyki), history (historia). */
+    /** Zakładka: tip (typowanie), matchdays (kolejki), competitions (rozgrywki), stats (statystyki), history (historia), scalps (moje skalpy). */
     #[Url(as: 'tab', except: 'tip')]
     public string $tab = 'tip';
 
@@ -57,8 +57,11 @@ new #[Layout('layouts::public')] class extends Component {
 
     public function updatedNumber(): void
     {
-        unset($this->matchday, $this->tip, $this->isOpen, $this->sets, $this->scores, $this->rivals);
+        unset($this->matchday, $this->tip, $this->isOpen, $this->sets, $this->scores);
         $this->loadTip();
+
+        // Panel rywali po prawej pokazuje tę samą kolejkę.
+        $this->dispatch('matchday-selected', number: $this->number);
     }
 
     /** Wczytuje zapisany typ i odpowiedzi gracza do pól formularza. */
@@ -229,11 +232,11 @@ new #[Layout('layouts::public')] class extends Component {
         $this->updatedNumber();
     }
 
-    /** Rywale w tej kolejce z widocznością zależną od etapu i premium (App\Support\Rivals). */
+    /** Moje skalpy (premium): gracze z gorszym bilansem bezpośrednim, od najwyżej w rankingu. */
     #[Computed]
-    public function rivals(): array
+    public function myScalps(): array
     {
-        return $this->matchday && $this->canPlay ? \App\Support\Rivals::forUser(auth()->user(), $this->matchday) : [];
+        return \App\Support\Premium::isActive(auth()->user()) ? \App\Support\PlayerStats::scalps(auth()->user()) : [];
     }
 
     /** Rozliczenie kolejki po wpisaniu wyniku: zestaw pytań (wartość typu) => TeamScore. */
@@ -285,13 +288,18 @@ new #[Layout('layouts::public')] class extends Component {
         Flux::toast(variant: 'success', text: __('Tip saved.'));
     }
 }; ?>
-
 <div class="mx-auto flex w-full max-w-4xl flex-col gap-6">
-    <div class="space-y-1">
-        <flux:heading size="xl" level="1">LechTYPER</flux:heading>
-        <flux:text>
-            {{ __('Tip the score of the Lech match and answer the bonus questions. You can change your tip until kickoff.') }}
-        </flux:text>
+    {{-- Nagłówek w barwach Lecha --}}
+    <div class="relative overflow-hidden rounded-2xl bg-linear-to-br from-lech-700 via-lech-800 to-lech-950 px-6 py-6 text-white shadow-lg">
+        <div class="pointer-events-none absolute -end-10 -top-10 size-48 rounded-full bg-white/10 blur-2xl"></div>
+        <div class="pointer-events-none absolute -bottom-16 end-24 size-40 rounded-full bg-lech-400/20 blur-2xl"></div>
+        <div class="relative space-y-1">
+            <div class="text-xs font-semibold uppercase tracking-widest text-white/60">{{ $this->season?->title }}</div>
+            <h1 class="text-2xl font-bold tracking-tight sm:text-3xl">LechTYPER</h1>
+            <p class="max-w-2xl text-sm text-white/80">
+                {{ __('Tip the score of the Lech match and answer the bonus questions. You can change your tip until kickoff.') }}
+            </p>
+        </div>
     </div>
 
     @if (!$this->season)
@@ -312,205 +320,134 @@ new #[Layout('layouts::public')] class extends Component {
     @else
     @php
         $tabs = [
-            'tip' => __('Tipping'),
-            'matchdays' => __('My matchdays'),
-            'competitions' => __('Competitions'),
-            'stats' => __('Statistics'),
-            'history' => __('History and records'),
+            'tip' => ['pencil-square', __('Tipping')],
+            'matchdays' => ['calendar-days', __('My matchdays')],
+            'competitions' => ['trophy', __('Competitions')],
+            'stats' => ['chart-bar', __('Statistics')],
+            'history' => ['clock', __('History and records')],
+            'scalps' => ['fire', __('My scalps')],
         ];
         $missingCount = collect($this->myMatchdays)->where('open', true)->where('missing', true)->count();
+        $played = $this->matchday->status === \App\Enums\MatchdayStatus::Played;
     @endphp
-    <nav class="-mb-2 flex gap-1 overflow-x-auto border-b border-zinc-200 dark:border-zinc-700">
-        @foreach ($tabs as $key => $label)
+
+    {{-- Zakładki: segmentowy przełącznik --}}
+    <nav class="flex gap-1 overflow-x-auto rounded-xl bg-zinc-100 p-1 dark:bg-zinc-800">
+        @foreach ($tabs as $key => [$icon, $label])
             <button type="button" wire:click="$set('tab', '{{ $key }}')"
-                class="{{ $tab === $key ? 'border-blue-700 text-blue-800 dark:border-blue-400 dark:text-blue-300' : 'border-transparent text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200' }} -mb-px whitespace-nowrap border-b-2 px-3 py-2 text-sm font-medium transition">
+                class="{{ $tab === $key ? 'bg-white text-lech-800 shadow-sm dark:bg-zinc-900 dark:text-lech-300' : 'text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200' }} flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-2 text-sm font-medium transition">
+                <flux:icon :name="$icon" variant="micro" />
                 {{ $label }}
                 @if ($key === 'matchdays' && $missingCount > 0)
-                    <span class="ms-1 rounded-full bg-amber-500 px-1.5 text-xs font-bold text-white">{{ $missingCount }}</span>
+                    <span class="rounded-full bg-amber-500 px-1.5 text-xs font-bold text-white">{{ $missingCount }}</span>
+                @endif
+                @if ($key === 'scalps')
+                    <flux:icon.sparkles variant="micro" class="text-purple-500" />
                 @endif
             </button>
         @endforeach
     </nav>
 
     @if ($tab === 'tip')
-    <div class="w-full sm:w-80">
-        <flux:select wire:model.live="number" :label="__('Matchday')">
-            @foreach ($this->matchdays as $option)
-                <flux:select.option :value="$option->number">
-                    {{ $option->number }}. {{ filled($option->opponent) ? $option->fixture : __('not set yet') }}
-                </flux:select.option>
-            @endforeach
-        </flux:select>
+    {{-- Wybór kolejki: kafelki z kolorem stanu --}}
+    <div class="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
+        @foreach ($this->matchdays as $option)
+            @php
+                $state = $option->status === \App\Enums\MatchdayStatus::Played ? 'played' : ($option->isOpenForTips() ? 'open' : 'closed');
+                $dot = ['played' => 'bg-lech-500', 'open' => 'bg-green-500', 'closed' => 'bg-zinc-400'][$state];
+                $selected = $option->number === $this->number;
+            @endphp
+            <button type="button" wire:click="openMatchday({{ $option->number }})" wire:key="md-{{ $option->id }}"
+                class="{{ $selected ? 'border-lech-600 bg-lech-50 ring-2 ring-lech-500/30 dark:border-lech-400 dark:bg-lech-500/10' : 'border-zinc-200 bg-white hover:border-lech-300 dark:border-zinc-700 dark:bg-zinc-900' }} flex w-28 shrink-0 flex-col items-start gap-0.5 rounded-xl border px-3 py-2 text-left transition">
+                <span class="flex items-center gap-1.5 text-xs font-semibold text-zinc-500">
+                    <span class="{{ $dot }} size-2 rounded-full"></span>
+                    {{ __('Matchday :number', ['number' => $option->number]) }}
+                </span>
+                <span class="w-full truncate text-sm font-medium">{{ filled($option->opponent) ? $option->opponent : __('not set yet') }}</span>
+                @if ($option->status === \App\Enums\MatchdayStatus::Played)
+                    <span class="text-xs font-semibold tabular-nums text-lech-700 dark:text-lech-300">{{ $option->lech_goals }}:{{ $option->opponent_goals }}</span>
+                @elseif ($option->kickoff_at)
+                    <span class="text-xs text-zinc-500">{{ $option->kickoff_at->translatedFormat('j M, H:i') }}</span>
+                @endif
+            </button>
+        @endforeach
     </div>
 
-    <flux:card class="space-y-5">
-        <div class="flex flex-wrap items-start justify-between gap-3">
-            <div class="space-y-1">
-                <flux:heading size="lg">{{ __('Matchday :number', ['number' => $this->matchday->number]) }}:
-                    {{ $this->matchday->fixture }}
-                </flux:heading>
-                <flux:text>
-                    {{ $this->matchday->kickoff_at ? $this->matchday->kickoff_at->translatedFormat('j F Y, H:i') : __('not set yet') }}
-                    @if ($this->matchday->competition) · {{ $this->matchday->competition }} @endif
-                </flux:text>
+    {{-- Tablica meczu i typ wyniku --}}
+    <div class="overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
+        <div class="flex flex-wrap items-center justify-between gap-2 border-b border-zinc-100 px-5 py-3 dark:border-zinc-800">
+            <div class="text-sm text-zinc-500">
+                <span class="font-semibold text-zinc-800 dark:text-zinc-100">{{ __('Matchday :number', ['number' => $this->matchday->number]) }}</span>
+                &middot; {{ $this->matchday->kickoff_at ? $this->matchday->kickoff_at->translatedFormat('j F Y, H:i') : __('not set yet') }}
+                @if ($this->matchday->competition) &middot; {{ $this->matchday->competition }} @endif
             </div>
-
             @if ($this->isOpen)
-                <flux:badge color="green">{{ __('Open') }}</flux:badge>
+                <flux:badge color="green" icon="lock-open">{{ __('Open') }}</flux:badge>
+            @elseif ($played)
+                <flux:badge color="blue" icon="check-circle">{{ __('Final') }}</flux:badge>
             @else
-                <flux:badge color="zinc">{{ __('Closed') }}</flux:badge>
+                <flux:badge color="zinc" icon="lock-closed">{{ __('Closed') }}</flux:badge>
             @endif
         </div>
 
-        @if (!$this->matchday->isFilled())
-            <flux:text>{{ __('The opponent and date are not set yet, so tipping is not open.') }}</flux:text>
-        @else
-            {{-- Wynik: zawsze z perspektywy Lecha (Lech : rywal), bez względu na gospodarza. --}}
-            <div class="flex flex-wrap items-end gap-3">
-                <div class="w-28">
-                    <flux:input type="number" min="0" max="{{ \App\Support\TipRules::MAX_GOALS }}" wire:model="lech"
-                        :label="'Lech Poznań'" :disabled="! $this->isOpen" />
-                </div>
-                <span class="pb-2 text-lg font-semibold">:</span>
-                <div class="w-28">
-                    <flux:input type="number" min="0" max="{{ \App\Support\TipRules::MAX_GOALS }}" wire:model="opponent"
-                        :label="$this->matchday->opponent" :disabled="! $this->isOpen" />
-                </div>
-            </div>
-
-            @if ($this->matchday->status === \App\Enums\MatchdayStatus::Played)
-                <flux:text>
-                    {{ __('Final score: :score.', ['score' => 'Lech ' . $this->matchday->lech_goals . ':' . $this->matchday->opponent_goals . ' ' . $this->matchday->opponent]) }}
-                    @if ($first = $this->scores->first())
-                        {{ __('Points for the tip: :points of 3.', ['points' => $first->tip_points]) }}
-                    @endif
-                </flux:text>
-            @endif
-
-            @if ($this->tip && $this->tip->is_default)
-                <flux:text size="sm">{{ __('Your premium default tip was used: :score.', ['score' => $this->tip->score()]) }}</flux:text>
-            @elseif ($this->tip)
-                <flux:text size="sm">
-                    {{ __('Saved tip: :score, last change :time.', ['score' => $this->tip->score(), 'time' => $this->tip->saved_at->translatedFormat('j F, H:i:s')]) }}
-                </flux:text>
+        <div class="space-y-4 px-5 py-6">
+            @if (!$this->matchday->isFilled())
+                <flux:text>{{ __('The opponent and date are not set yet, so tipping is not open.') }}</flux:text>
             @else
-                <flux:text size="sm">{{ __('You have not tipped this matchday yet.') }}</flux:text>
-                @if (\App\Support\Premium::isActive(auth()->user()))
-                    @php
-                        $defaultTip = \App\Support\Premium::defaultTip(auth()->user());
-                    @endphp
-                    <flux:text size="sm" class="flex flex-wrap items-center gap-1">
-                        <x-premium-badge />
-                        {{ __('Premium: without a tip your default tip :score will be used.', ['score' => $defaultTip[0] . ':' . $defaultTip[1]]) }}
-                        <flux:link :href="route('support')" wire:navigate>{{ __('Change') }}</flux:link>
-                    </flux:text>
-                @endif
-            @endif
-        @endif
-    </flux:card>
-
-    {{-- Rywale w tej kolejce --}}
-    @if (count($this->rivals) > 0)
-        @php
-            $phase = \App\Support\Rivals::phase($this->matchday);
-            $isPremium = \App\Support\Premium::isActive(auth()->user());
-        @endphp
-        <flux:card class="space-y-3">
-            <div class="flex flex-wrap items-center justify-between gap-2">
-                <div class="flex items-center gap-2">
-                    <flux:heading>{{ __('Your rivals in this matchday') }}</flux:heading>
-                    <x-premium-badge />
+                {{-- Wynik: zawsze z perspektywy Lecha (Lech : rywal), bez względu na gospodarza. --}}
+                <div class="grid grid-cols-[1fr_auto_1fr] items-center gap-3 sm:gap-6">
+                    <div class="flex flex-col items-end gap-2 text-right">
+                        <span class="text-sm font-semibold sm:text-base">Lech Poznań</span>
+                        <input type="number" min="0" max="{{ \App\Support\TipRules::MAX_GOALS }}" wire:model="lech" @disabled(! $this->isOpen)
+                            aria-label="Lech Poznań"
+                            class="h-16 w-20 rounded-xl border border-zinc-300 bg-zinc-50 text-center text-3xl font-bold tabular-nums shadow-inner focus:border-lech-500 focus:outline-none focus:ring-4 focus:ring-lech-500/20 disabled:opacity-60 dark:border-zinc-600 dark:bg-zinc-800">
+                    </div>
+                    <span class="pt-7 text-3xl font-bold text-zinc-400">:</span>
+                    <div class="flex flex-col items-start gap-2">
+                        <span class="truncate text-sm font-semibold sm:text-base">{{ $this->matchday->opponent }}</span>
+                        <input type="number" min="0" max="{{ \App\Support\TipRules::MAX_GOALS }}" wire:model="opponent" @disabled(! $this->isOpen)
+                            aria-label="{{ $this->matchday->opponent }}"
+                            class="h-16 w-20 rounded-xl border border-zinc-300 bg-zinc-50 text-center text-3xl font-bold tabular-nums shadow-inner focus:border-lech-500 focus:outline-none focus:ring-4 focus:ring-lech-500/20 disabled:opacity-60 dark:border-zinc-600 dark:bg-zinc-800">
+                    </div>
                 </div>
-                @if (!$isPremium && $phase !== \App\Support\Rivals::PLAYED)
-                    <flux:link :href="route('support')" wire:navigate class="text-sm">{{ __('Premium shows more') }}</flux:link>
-                @endif
-            </div>
 
-            <div class="divide-y divide-zinc-100 dark:divide-zinc-700">
-                @foreach ($this->rivals as $rival)
-                    <div class="flex flex-wrap items-center gap-x-4 gap-y-1 py-2 text-sm" wire:key="rival-{{ $loop->index }}">
-                        <div class="min-w-0 flex-1">
-                            <div class="font-medium">{{ $rival['rival'] }}</div>
-                            <div class="text-xs text-zinc-500">{{ $rival['competition'] }}</div>
-                        </div>
-
-                        @if ($rival['virtual'])
-                            <span class="text-xs text-zinc-500">{{ __('Scores as many as Lech in the real match.') }}</span>
-                        @elseif ($rival['bot'] && $phase !== \App\Support\Rivals::PLAYED)
-                            <span class="text-xs text-zinc-500">{{ __('Bot: random tip at the kick-off.') }}</span>
-                        @else
-                            <div class="flex items-center gap-3">
-                                @if ($rival['tip'])
-                                    <flux:badge>{{ $rival['tip'] }}</flux:badge>
-                                @elseif ($rival['outcome'])
-                                    <flux:badge>{{ $rival['outcome'] }}</flux:badge>
-                                @elseif ($rival['tipped'])
-                                    <flux:badge color="green" size="sm">{{ __('Tipped') }}</flux:badge>
-                                @else
-                                    <flux:badge color="zinc" size="sm">{{ __('No tip') }}</flux:badge>
-                                @endif
-
-                                @foreach (['offense' => __('Offensive'), 'defense' => __('Defensive')] as $side => $label)
-                                    @if ($rival[$side] !== null)
-                                        <span class="inline-flex items-center gap-0.5" title="{{ $label }}: {{ $rival[$side] }}/5">
-                                            <span class="me-1 text-xs text-zinc-500">{{ mb_substr($label, 0, 3) }}.</span>
-                                            @for ($i = 1; $i <= 5; $i++)
-                                                @if ($i <= $rival[$side])
-                                                    <flux:icon.star variant="micro" class="text-amber-500" />
-                                                @else
-                                                    <flux:icon.star variant="micro" class="text-zinc-300 dark:text-zinc-600" />
-                                                @endif
-                                            @endfor
-                                        </span>
-                                    @endif
-                                @endforeach
-                            </div>
-                        @endif
-
-                        @if ($rival['bonus'] || $rival['score'])
-                            <div class="w-full text-xs text-zinc-500 sm:w-auto">
-                                {{ $rival['bonus'] }}
-                                @if ($rival['score'])
-                                    &middot; {{ __('Match: :score', ['score' => $rival['score']]) }}
-                                @endif
-                            </div>
-                        @endif
-
-                        {{-- Bilans bezpośredni i historia spotkań (od ostatniego) --}}
-                        @if ($rival['h2h'])
-                            @php
-                                $h2h = $rival['h2h'];
-                            @endphp
-                            <details class="group w-full text-xs">
-                                <summary class="flex cursor-pointer list-none items-center gap-2 text-zinc-500 hover:text-lech-700 dark:hover:text-lech-300 [&::-webkit-details-marker]:hidden">
-                                    <flux:icon.chevron-right variant="micro" class="transition group-open:rotate-90" />
-                                    @if (count($h2h['meetings']) === 0)
-                                        {{ __('First meeting') }}
-                                    @else
-                                        {{ __('Head to head: :won W, :drawn D, :lost L', ['won' => $h2h['won'], 'drawn' => $h2h['drawn'], 'lost' => $h2h['lost']]) }}
-                                    @endif
-                                </summary>
-                                @if (count($h2h['meetings']) > 0)
-                                    <div class="mt-2 space-y-1 ps-5">
-                                        @foreach ($h2h['meetings'] as $meeting)
-                                            @php
-                                                $meetingClass = ['W' => 'bg-green-600', 'D' => 'bg-zinc-400', 'L' => 'bg-red-600'][$meeting['outcome']];
-                                            @endphp
-                                            <div class="flex items-center gap-2">
-                                                <span class="{{ $meetingClass }} flex size-5 items-center justify-center rounded text-[10px] font-bold text-white">{{ __($meeting['outcome']) }}</span>
-                                                <span class="w-10 font-semibold tabular-nums">{{ $meeting['score'] }}</span>
-                                                <span class="text-zinc-500">{{ $meeting['season'] }} &middot; {{ $meeting['competition'] }} &middot; {{ __('Matchday :number', ['number' => $meeting['round']]) }}</span>
-                                            </div>
-                                        @endforeach
-                                    </div>
-                                @endif
-                            </details>
+                @if ($played)
+                    <div class="flex flex-wrap items-center justify-center gap-2 text-sm">
+                        <span class="rounded-full bg-lech-700 px-3 py-1 font-semibold text-white">
+                            {{ __('Final score: :score.', ['score' => 'Lech ' . $this->matchday->lech_goals . ':' . $this->matchday->opponent_goals . ' ' . $this->matchday->opponent]) }}
+                        </span>
+                        @if ($first = $this->scores->first())
+                            <span class="rounded-full bg-amber-100 px-3 py-1 font-semibold text-amber-800 dark:bg-amber-500/15 dark:text-amber-300">
+                                {{ __('Points for the tip: :points of 3.', ['points' => $first->tip_points]) }}
+                            </span>
                         @endif
                     </div>
-                @endforeach
-            </div>
-        </flux:card>
-    @endif
+                @endif
+
+                <div class="text-center">
+                    @if ($this->tip && $this->tip->is_default)
+                        <flux:text size="sm">{{ __('Your premium default tip was used: :score.', ['score' => $this->tip->score()]) }}</flux:text>
+                    @elseif ($this->tip)
+                        <flux:text size="sm">
+                            {{ __('Saved tip: :score, last change :time.', ['score' => $this->tip->score(), 'time' => $this->tip->saved_at->translatedFormat('j F, H:i:s')]) }}
+                        </flux:text>
+                    @else
+                        <flux:text size="sm">{{ __('You have not tipped this matchday yet.') }}</flux:text>
+                        @if (\App\Support\Premium::isActive(auth()->user()))
+                            @php
+                                $defaultTip = \App\Support\Premium::defaultTip(auth()->user());
+                            @endphp
+                            <flux:text size="sm" class="mt-1 flex flex-wrap items-center justify-center gap-1">
+                                <x-premium-badge />
+                                {{ __('Premium: without a tip your default tip :score will be used.', ['score' => $defaultTip[0] . ':' . $defaultTip[1]]) }}
+                                <flux:link :href="route('support')" wire:navigate>{{ __('Change') }}</flux:link>
+                            </flux:text>
+                        @endif
+                    @endif
+                </div>
+            @endif
+        </div>
+    </div>
 
     @if ($this->matchday->isFilled())
     @if (count($this->sets) === 0)
@@ -520,15 +457,16 @@ new #[Layout('layouts::public')] class extends Component {
     @else
     @php
         $progress = $this->progress();
+        $percent = $progress[1] > 0 ? round($progress[0] / $progress[1] * 100) : 0;
     @endphp
-    <flux:text size="sm">
-        {{ __('Answered :done of :total questions. Unanswered questions score nothing.', ['done' => $progress[0], 'total' => $progress[1]]) }}
-    </flux:text>
 
     @foreach ($this->sets as $set)
-    <flux:card class="space-y-4">
-        <div class="flex flex-wrap items-center justify-between gap-2">
-            <flux:heading size="lg">{{ $set['type']->questionSetLabel() }}</flux:heading>
+    <section class="overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-700 dark:bg-zinc-900" wire:key="set-{{ $set['type']->value }}">
+        <div class="flex flex-wrap items-center justify-between gap-2 border-b border-zinc-100 bg-zinc-50/70 px-5 py-3 dark:border-zinc-800 dark:bg-zinc-800/40">
+            <h2 class="flex items-center gap-2 text-base font-semibold">
+                <flux:icon.question-mark-circle variant="mini" class="text-lech-600 dark:text-lech-300" />
+                {{ $set['type']->questionSetLabel() }}
+            </h2>
 
             @if ($score = $this->scores->get($set['type']->value))
                 <div class="flex flex-wrap gap-2">
@@ -542,7 +480,7 @@ new #[Layout('layouts::public')] class extends Component {
             @endif
         </div>
 
-        <div class="grid gap-6 md:grid-cols-2">
+        <div class="grid gap-6 p-5 md:grid-cols-2">
             @foreach ($set['sides'] as $sideValue => $items)
             @php
                 $side = \App\Enums\QuestionSide::from($sideValue);
@@ -551,36 +489,46 @@ new #[Layout('layouts::public')] class extends Component {
                 <flux:badge :color="$side->color()">{{ $side->label() }}</flux:badge>
 
                 @foreach ($items as $item)
-                    <div class="space-y-1 rounded-lg border border-zinc-200 p-3 dark:border-zinc-700"
+                    <div class="space-y-2 rounded-xl border border-zinc-200 p-3 transition hover:border-lech-300 dark:border-zinc-700 dark:hover:border-lech-500/50"
                         wire:key="q-{{ $item->id }}">
-                        <flux:text class="font-medium text-zinc-800 dark:text-zinc-100">{{ $item->position }}.
-                            {{ $item->question->text }}
-                        </flux:text>
-                        @if ($item->correct_answer === null && $this->matchday->status === \App\Enums\MatchdayStatus::Played)
+                        <div class="flex gap-2 text-sm font-medium text-zinc-800 dark:text-zinc-100">
+                            <span class="flex size-5 shrink-0 items-center justify-center rounded-full bg-zinc-100 text-xs text-zinc-500 dark:bg-zinc-800">{{ $item->position }}</span>
+                            <span>{{ $item->question->text }}</span>
+                        </div>
+                        @if ($item->correct_answer === null && $played)
                             <flux:text size="sm" class="text-amber-600 dark:text-amber-400">{{ __('Question cancelled: answers do not count.') }}</flux:text>
                         @endif
                         {{-- Po rozliczeniu: wybrana odpowiedź zielona (dobra) albo czerwona (zła). --}}
                         <x-answer-toggle :model="'answers.' . $item->id" :value="$answers[$item->id] ?? ''"
                             :disabled="! $this->isOpen"
-                            :result="$this->matchday->status === \App\Enums\MatchdayStatus::Played ? $item->correct_answer : null" />
+                            :result="$played ? $item->correct_answer : null" />
                     </div>
                 @endforeach
             </div>
             @endforeach
         </div>
-    </flux:card>
+    </section>
     @endforeach
-    @endif
 
-    @if ($this->isOpen)
-        <div>
-            <flux:button variant="primary" wire:click="save" wire:loading.attr="disabled">
+    {{-- Pasek zapisu: postęp odpowiedzi i przycisk, przyklejony do dołu ekranu --}}
+    <div class="sticky bottom-4 z-10 flex flex-wrap items-center gap-4 rounded-2xl border border-zinc-200 bg-white/90 px-5 py-3 shadow-lg backdrop-blur dark:border-zinc-700 dark:bg-zinc-900/90">
+        <div class="min-w-48 flex-1 space-y-1">
+            <div class="text-xs text-zinc-500">
+                {{ __('Answered :done of :total questions. Unanswered questions score nothing.', ['done' => $progress[0], 'total' => $progress[1]]) }}
+            </div>
+            <div class="h-2 overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-700">
+                <div class="h-full rounded-full bg-linear-to-r from-lech-500 to-lech-700 transition-all" style="width: {{ $percent }}%"></div>
+            </div>
+        </div>
+        @if ($this->isOpen)
+            <flux:button variant="primary" icon="check" wire:click="save" wire:loading.attr="disabled">
                 <span wire:loading.remove wire:target="save">{{ __('Save tip') }}</span>
                 <span wire:loading wire:target="save">{{ __('Saving...') }}</span>
             </flux:button>
-        </div>
-    @else
-        <flux:text>{{ __('Tipping for this matchday is closed.') }}</flux:text>
+        @else
+            <flux:text size="sm">{{ __('Tipping for this matchday is closed.') }}</flux:text>
+        @endif
+    </div>
     @endif
     @endif
     @else

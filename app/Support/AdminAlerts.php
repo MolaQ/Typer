@@ -59,6 +59,11 @@ final class AdminAlerts
             $alerts[] = self::alert(self::INFO, 'identification', trans_choice(':count team name request|:count team name requests', $requests, ['count' => $requests]), __('Approve or reject the new names.'), 'dashboard.team-requests');
         }
 
+        $proposals = \App\Models\QuestionProposal::pending()->count();
+        if ($proposals > 0) {
+            $alerts[] = self::alert(self::INFO, 'light-bulb', trans_choice(':count question proposal waits for review|:count question proposals wait for review', $proposals, ['count' => $proposals]), __('Accept them into the question bank or reject them.'), 'dashboard.question-proposals');
+        }
+
         $unverified = User::whereNull('email_verified_at')->where('created_at', '<', now()->subDay())->count();
         if ($unverified > 0) {
             $alerts[] = self::alert(self::INFO, 'envelope', trans_choice(':count user has not confirmed the email for a day|:count users have not confirmed the email for a day', $unverified, ['count' => $unverified]), __('You can see their codes on the Users page.'), 'dashboard.users', ['roleFilter' => '__unverified']);
