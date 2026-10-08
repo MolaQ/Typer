@@ -7,11 +7,14 @@ use Illuminate\Support\Facades\Route;
 Route::livewire('/', 'pages::home.welcome')->name('home');
 Route::livewire('/permission', 'pages::home.permissiontest')->name('permission'); // tymczasowy test
 
+// Strefa gracza na stronie głównej (bez panelu admina): typowanie i wyniki.
+Route::livewire('tips', 'pages::tips')
+    ->middleware(['auth', 'verified'])
+    ->name('tips');
+Route::livewire('results', 'pages::results')->name('results');
+
 // Panel: wejście tylko z uprawnieniem dashboard-access (Admin ma je zawsze)
 Route::middleware(['auth', 'verified', 'permission:' . Permission::DashboardAccess->value])->group(function () {
-    Route::livewire('tips', 'pages::tips')
-        ->middleware('auth')
-        ->name('tips');
     Route::livewire('dashboard', 'pages::dashboard.stats')
         ->name('dashboard');
     //Zarządzanie rozgrywkami
@@ -45,6 +48,9 @@ Route::middleware(['auth', 'verified', 'permission:' . Permission::DashboardAcce
     Route::livewire('dashboard/tips', 'pages::dashboard.tips-overview')
         ->middleware('permission:season-list')
         ->name('dashboard.tips');
+    Route::livewire('dashboard/results', 'pages::dashboard.results')
+        ->middleware('permission:season-list')
+        ->name('dashboard.results');
     // Zarządzanie rolami i użytkownikami: nadal tylko Admin
     Route::livewire('dashboard/roles', 'pages::dashboard.roles')
         ->middleware('role:Admin')

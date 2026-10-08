@@ -58,6 +58,7 @@ class Audit
             // Kolejki sezonu (mecze Lecha)
             'matchday.created' => __('Matchdays created'),
             'matchday.updated' => __('Matchday updated'),
+            'matchday.scored' => __('Matchday result saved'),
 
             // Lista przedsezonowa
             'season_list.built' => __('Team list built'),

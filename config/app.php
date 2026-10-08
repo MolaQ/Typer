@@ -66,7 +66,8 @@ return [
     |
     */
 
-    'timezone' => 'UTC',
+    // Godziny meczów Lecha wpisujemy czasem polskim (zamknięcie typowania o pierwszym gwizdku).
+    'timezone' => env('APP_TIMEZONE', 'Europe/Warsaw'),
 
     /*
     |--------------------------------------------------------------------------

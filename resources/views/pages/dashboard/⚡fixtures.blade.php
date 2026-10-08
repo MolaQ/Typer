@@ -10,6 +10,7 @@ use App\Models\Fixture;
 use App\Models\Matchday;
 use App\Models\Season;
 use App\Support\CupBracket;
+use App\Support\Standings;
 use Flux\Flux;
 use Illuminate\Contracts\View\View;
 use Livewire\Attributes\Computed;
@@ -193,7 +194,7 @@ new class extends Component {
      | AKCJE
      * ================================================================*/
 
-    /** Losuje kolejną rundę ligi podwórkowej (rundy 2-9 wymagają klasyfikacji z wyników, etap 11-12). */
+    /** Losuje kolejną rundę ligi podwórkowej (rundy 2-9 według klasyfikacji z wyników). */
     public function drawRound(): void
     {
         $this->authorizeAbility(Permission::SeasonEdit);
@@ -205,9 +206,23 @@ new class extends Component {
         }
 
         $next = $this->drawnRounds + 1;
+        $ranked = null;
+
+        // Rundy 2-9 losujemy według klasyfikacji, więc poprzednia runda musi mieć wyniki.
+        if ($next > 1) {
+            $previous = $this->matchdays->get($next - 1);
+
+            if (!$previous || $previous->status !== \App\Enums\MatchdayStatus::Played) {
+                Flux::toast(text: __('Enter the result of matchday :number first.', ['number' => $next - 1]), variant: 'warning');
+
+                return;
+            }
+
+            $ranked = Standings::rankedEntryIds($competition);
+        }
 
         try {
-            $matches = app(DrawSwissRound::class)->handle($competition, $next);
+            $matches = app(DrawSwissRound::class)->handle($competition, $next, $ranked);
         } catch (DomainException $e) {
             Flux::toast(text: $e->getMessage(), variant: 'warning');
 
@@ -392,7 +407,7 @@ new class extends Component {
                                         <span
                                             class="text-[11px] tabular-nums text-zinc-400/70 dark:text-zinc-500">{{ $fixture->home_seat }}&ndash;{{ $fixture->away_seat }}</span>
                                         <span class="truncate text-right">{{ $fixture->home->seasonTeam->name }}</span>
-                                        <span class="text-zinc-400">&ndash;</span>
+                                        <span class="tabular-nums {{ $fixture->isPlayed() ? 'font-semibold' : 'text-zinc-400' }}">{{ $fixture->score() }}</span>
                                         <span class="truncate">{{ $fixture->away->seasonTeam->name }}</span>
                                     </li>
                                 @endforeach
@@ -442,7 +457,7 @@ new class extends Component {
                 </flux:text>
             @else
                 <flux:text class="text-sm">
-                    {{ __('Round 1 is drawn from the pre-season list (1-2, 3-4, ...). Next rounds follow the standings, which need match results. With an odd number of teams the lowest ranked team without a bye plays a virtual opponent.') }}
+                    {{ __('Round 1 is drawn from the pre-season list (1-2, 3-4, ...). Next rounds follow the standings after the previous round has results. With an odd number of teams the lowest ranked team without a bye plays a virtual opponent (Lech Poznań).') }}
                 </flux:text>
             @endif
 
@@ -450,6 +465,7 @@ new class extends Component {
                 <flux:table.columns>
                     <flux:table.column>{{ __('Seats') }}</flux:table.column>
                     <flux:table.column align="end">{{ __('Home') }}</flux:table.column>
+                    <flux:table.column align="center">{{ __('Score') }}</flux:table.column>
                     <flux:table.column>{{ __('Away') }}</flux:table.column>
                 </flux:table.columns>
 
@@ -469,6 +485,10 @@ new class extends Component {
                                 @endif
                             </flux:table.cell>
 
+                            <flux:table.cell align="center" class="tabular-nums {{ $fixture->isPlayed() ? 'font-semibold' : 'text-zinc-400' }}">
+                                {{ $fixture->score() }}
+                            </flux:table.cell>
+
                             <flux:table.cell>
                                 @if ($fixture->away)
                                     {{ $fixture->away->seasonTeam->name }}
@@ -476,13 +496,13 @@ new class extends Component {
                                     <span
                                         class="text-zinc-400">{{ __('Seat :number', ['number' => $fixture->away_seat]) }}</span>
                                 @else
-                                    <span class="italic text-zinc-400">{{ __('Virtual opponent') }}</span>
+                                    <span class="italic text-zinc-400">{{ \App\Models\Fixture::VIRTUAL_OPPONENT }} ({{ __('virtual opponent') }})</span>
                                 @endif
                             </flux:table.cell>
                         </flux:table.row>
                     @empty
                         <flux:table.row>
-                            <flux:table.cell colspan="3" class="py-10 text-center text-zinc-500">
+                            <flux:table.cell colspan="4" class="py-10 text-center text-zinc-500">
                                 {{ $isCup ? __('No matches in this round.') : __('This round has not been drawn yet.') }}
                             </flux:table.cell>
                         </flux:table.row>
