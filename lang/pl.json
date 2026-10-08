@@ -779,5 +779,17 @@
     "Extend premium": "Przedłuż premium",
     "From 5 zł a week": "Od 5 zł za tydzień",
     "No payments in the last 12 months from teams on the list, so add the teams by hand.": "Brak wpłat z ostatnich 12 miesięcy od zespołów z listy, więc dodaj zespoły ręcznie.",
-    "Liga Legend, the leagues, the cup and Liga podwórkowa are created automatically when the season is approved (or with \"Generate missing competitions\" on the Fixtures page), because they depend on the final season list.": "Liga Legend, ligi, puchar i Liga podwórkowa powstają automatycznie przy zatwierdzeniu sezonu (albo przyciskiem „Wygeneruj brakujące rozgrywki” na stronie Terminarz), bo zależą od ostatecznej listy sezonu."
+    "Liga Legend, the leagues, the cup and Liga podwórkowa are created automatically when the season is approved (or with \"Generate missing competitions\" on the Fixtures page), because they depend on the final season list.": "Liga Legend, ligi, puchar i Liga podwórkowa powstają automatycznie przy zatwierdzeniu sezonu (albo przyciskiem „Wygeneruj brakujące rozgrywki” na stronie Terminarz), bo zależą od ostatecznej listy sezonu.",
+    "Enter the Lech score after 90 minutes and the correct answers. Every change is saved at once, then recalculate the matchday.": "Wpisz wynik Lecha po 90 minutach i poprawne odpowiedzi. Każda zmiana zapisuje się od razu, potem przelicz kolejkę.",
+    "A question left without a correct answer is cancelled at the recalculation and all answers to it are deleted.": "Pytanie bez poprawnej odpowiedzi zostaje przy przeliczeniu anulowane, a wszystkie odpowiedzi na nie są usuwane.",
+    "Result saved.": "Zapisano wynik.",
+    "Matchday recalculated. Matches settled: :count.": "Kolejka przeliczona. Rozliczone mecze: :count.",
+    "Saved and the matchday recalculated. Matches settled: :count.": "Zapisano i przeliczono kolejkę od nowa. Rozliczone mecze: :count.",
+    "The result is saved, but the matchday is not recalculated yet.": "Wynik jest zapisany, ale kolejka nie jest jeszcze przeliczona.",
+    "Recalculate the matchday to settle the points and matches.": "Przelicz kolejkę, żeby rozliczyć punkty i mecze.",
+    "Questions without a correct answer (:count) will be cancelled.": "Pytania bez poprawnej odpowiedzi (:count) zostaną anulowane.",
+    "The matchday is recalculated. Every change recalculates it again automatically.": "Kolejka jest przeliczona. Każda zmiana przelicza ją od nowa automatycznie.",
+    "Recalculate again": "Przelicz ponownie",
+    "Recalculate results": "Przelicz wyniki",
+    "Recalculating...": "Przeliczam..."
 }

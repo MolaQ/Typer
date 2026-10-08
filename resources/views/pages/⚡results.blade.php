@@ -223,7 +223,7 @@ new #[Layout('layouts::public')] class extends Component {
         @if ($this->matchday && filled($this->matchday->opponent))
             <flux:text>
                 {{ $this->matchday->fixture }}
-                @if ($this->matchday->lech_goals !== null)
+                @if ($this->matchday->status === \App\Enums\MatchdayStatus::Played)
                     &middot; <span class="font-semibold">{{ $this->matchday->is_home ? $this->matchday->lech_goals . ':' . $this->matchday->opponent_goals : $this->matchday->opponent_goals . ':' . $this->matchday->lech_goals }}</span>
                 @elseif ($this->matchday->kickoff_at)
                     &middot; {{ $this->matchday->kickoff_at->translatedFormat('j F Y, H:i') }}

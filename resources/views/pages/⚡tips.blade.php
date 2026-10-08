@@ -304,7 +304,7 @@ new #[Layout('layouts::public')] class extends Component {
                 </div>
             </div>
 
-            @if ($this->matchday->lech_goals !== null)
+            @if ($this->matchday->status === \App\Enums\MatchdayStatus::Played)
                 <flux:text>
                     {{ __('Final score: :score.', ['score' => 'Lech ' . $this->matchday->lech_goals . ':' . $this->matchday->opponent_goals . ' ' . $this->matchday->opponent]) }}
                     @if ($first = $this->scores->first())
@@ -450,17 +450,10 @@ new #[Layout('layouts::public')] class extends Component {
                         @if ($item->correct_answer === null && $this->matchday->status === \App\Enums\MatchdayStatus::Played)
                             <flux:text size="sm" class="text-amber-600 dark:text-amber-400">{{ __('Question cancelled: answers do not count.') }}</flux:text>
                         @endif
-                        @if ($item->correct_answer !== null && $this->matchday->status === \App\Enums\MatchdayStatus::Played)
-                            @php
-                                $given = $answers[$item->id] ?? '';
-                                $answerClass = $given === '' ? '' : (($given === '1') === $item->correct_answer ? 'text-green-700 dark:text-green-400' : 'text-red-600 dark:text-red-400');
-                            @endphp
-                            <flux:text size="sm" :class="$answerClass">
-                                {{ __('Correct answer: :answer', ['answer' => $item->correct_answer ? __('Yes') : __('No')]) }}
-                            </flux:text>
-                        @endif
+                        {{-- Po rozliczeniu: wybrana odpowiedź zielona (dobra) albo czerwona (zła). --}}
                         <x-answer-toggle :model="'answers.' . $item->id" :value="$answers[$item->id] ?? ''"
-                            :disabled="! $this->isOpen" />
+                            :disabled="! $this->isOpen"
+                            :result="$this->matchday->status === \App\Enums\MatchdayStatus::Played ? $item->correct_answer : null" />
                     </div>
                 @endforeach
             </div>
