@@ -25,7 +25,8 @@ use Illuminate\Support\Facades\DB;
  *  2. każdy zespół dostaje dorobek (team_scores) dla każdego zestawu pytań swoich rozgrywek,
  *  3. mecze tej kolejki we wszystkich rozgrywkach dostają wynik,
  *  4. w pucharze zwycięzca wchodzi na lepsze miejsce pary w meczu następnej rundy,
- *  5. w Lidze Legend odpadają zespoły poza limitem po tej kolejce (LegendsRanking).
+ *  5. w Lidze Legend odpadają zespoły poza limitem po tej kolejce (LegendsRanking),
+ *  6. kto odpadł z pucharu albo Ligi Legend, traci odpowiedzi na pytania tych rozgrywek w kolejnych kolejkach.
  * Można wywołać wielokrotnie: przeliczenie nadpisuje poprzednie wyniki tej kolejki.
  * Runda rozgrywek = numer kolejki.
  */
@@ -49,13 +50,12 @@ class ScoreMatchday
 
             // Rozgrywki sezonu i to, w których zestawach pytań gra każdy zespół.
             $competitions = Competition::where('season_id', $matchday->season_id)->get()->keyBy('id');
-            // Liga Legend: przeliczenie kolejki cofa odpadnięcia z tej kolejki (odcięcie liczymy na końcu od nowa).
+            // Puchar i Liga Legend: przeliczenie kolejki cofa odpadnięcia z tej kolejki (liczymy je od nowa niżej).
             $legends = $competitions->first(fn($c) => $c->type === CompetitionType::Legends);
-            if ($legends) {
-                CompetitionEntry::where('competition_id', $legends->id)
-                    ->where('eliminated_round', '>=', $matchday->number)
-                    ->update(['eliminated_round' => null]);
-            }
+            $knockout = $competitions->filter(fn($c) => in_array($c->type, [CompetitionType::Cup, CompetitionType::Legends], true));
+            CompetitionEntry::whereIn('competition_id', $knockout->keys())
+                ->where('eliminated_round', '>=', $matchday->number)
+                ->update(['eliminated_round' => null]);
 
             $entries = CompetitionEntry::whereIn('competition_id', $competitions->keys())
                 ->get(['id', 'competition_id', 'season_team_id', 'seed', 'eliminated_round'])
@@ -185,12 +185,18 @@ class ScoreMatchday
 
                 if ($competition->type === CompetitionType::Cup && $winner !== null) {
                     $this->advance($fixture, $winner);
+
+                    // Przegrany odpada z pucharu po tej rundzie.
+                    $loser = $winner === $fixture->home_entry_id ? $fixture->away_entry_id : $fixture->home_entry_id;
+                    CompetitionEntry::whereKey($loser)->update(['eliminated_round' => $matchday->number]);
                 }
 
                 $scored++;
             }
 
             $eliminated = $legends ? LegendsRanking::eliminate($legends, $matchday->number) : 0;
+
+            $this->dropAnswersOfEliminated($matchday, $knockout);
 
             return ['teams' => count($scores), 'fixtures' => $scored, 'eliminated' => $eliminated];
         });
@@ -226,6 +232,36 @@ class ScoreMatchday
         }
 
         return BotTip::where('matchday_id', $matchday->id)->get()->keyBy('season_team_id')->all();
+    }
+
+    /**
+     * Kto odpadł z pucharu albo Ligi Legend, nie gra już w tych rozgrywkach: jego odpowiedzi na ich pytania
+     * w kolejnych kolejkach są usuwane i nie liczą się do niczego.
+     *
+     * @param  \Illuminate\Support\Collection<int, Competition>  $knockout
+     */
+    private function dropAnswersOfEliminated(Matchday $matchday, $knockout): void
+    {
+        $later = Matchday::where('season_id', $matchday->season_id)->where('number', '>', $matchday->number)->pluck('id');
+
+        if ($later->isEmpty()) {
+            return;
+        }
+
+        foreach ($knockout as $competition) {
+            $out = CompetitionEntry::where('competition_id', $competition->id)->whereNotNull('eliminated_round')->select('season_team_id');
+            $userIds = SeasonTeam::whereIn('id', $out)->whereNotNull('user_id')->pluck('user_id');
+
+            if ($userIds->isEmpty()) {
+                continue;
+            }
+
+            $slotIds = MatchdayQuestion::whereIn('matchday_id', $later)
+                ->where('competition_type', $competition->type->questionSet()->value)
+                ->pluck('id');
+
+            TipAnswer::whereIn('user_id', $userIds)->whereIn('matchday_question_id', $slotIds)->delete();
+        }
     }
 
     /** Puchar: zwycięzca zajmuje lepsze miejsce pary (home_seat) w meczu następnej rundy. */

@@ -384,7 +384,7 @@
     "Liga podwórkowa": "Liga podwórkowa",
     "Liga podwórkowa uses the Swiss system: the pairs of each round are drawn after the previous round. This arrives in the next stage.": "Liga podwórkowa gra systemem szwajcarskim: pary każdej kolejki losuje się po poprzedniej kolejce. Pojawi się to w następnym etapie.",
     "Player removed from the list": "Usunięto gracza z listy",
-     "The player was added to the season list.": "Gracz został dodany do listy sezonu.",
+    "The player was added to the season list.": "Gracz został dodany do listy sezonu.",
     "The player was removed from the season list.": "Gracz został usunięty z listy sezonu.",
     "There is no team at that place of the list.": "Na tym miejscu listy nie ma żadnego zespołu.",
     "Place in the league": "Miejsce w lidze",
@@ -624,5 +624,6 @@
     "The final standings of :league are incomplete.": "Tabela końcowa ligi :league jest niekompletna.",
     "There is no finished previous season with final standings.": "Brak zakończonego poprzedniego sezonu z tabelami końcowymi.",
     "You can also build the list from the final standings of :season: 4 teams go up and down between leagues, bots are swapped for players, inactive players are replaced by bots.": "Możesz też zbudować listę z tabel końcowych sezonu :season: po 4 zespoły awansują i spadają, boty ustępują miejsca graczom, a miejsca nieaktywnych graczy przejmują boty.",
-    "out after matchday :round": "odpadł po kolejce :round"
+    "out after matchday :round": "odpadł po kolejce :round",
+    "No answer": "Brak odpowiedzi"
 }

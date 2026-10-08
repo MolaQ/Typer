@@ -77,10 +77,19 @@ new #[Layout('layouts::public')] class extends Component {
             $this->opponent = (string) $tip->opponent_goals;
         }
 
-        $this->answers = TipAnswer::where('matchday_id', $matchday->id)->where('user_id', auth()->id())
+        $saved = TipAnswer::where('matchday_id', $matchday->id)->where('user_id', auth()->id())
             ->pluck('answer', 'matchday_question_id')
             ->map(fn($a) => $a ? '1' : '0')
             ->all();
+
+        // Domyślnie „brak odpowiedzi” ('') na każde pytanie z zestawów gracza.
+        foreach ($this->sets as $set) {
+            foreach ($set['sides'] as $items) {
+                foreach ($items as $item) {
+                    $this->answers[$item->id] = $saved[$item->id] ?? '';
+                }
+            }
+        }
     }
 
     /* ==================================================================
@@ -133,7 +142,8 @@ new #[Layout('layouts::public')] class extends Component {
     }
 
     /**
-     * Zestawy pytań gracza: lista [typ, [strona => miejsca]] tylko dla typów, w których gra.
+     * Zestawy pytań gracza: lista [typ, [strona => miejsca]] tylko dla typów, w których gra
+     * (bez pucharu i Ligi Legend po odpadnięciu).
      *
      * @return array<int, array{type: \App\Enums\CompetitionType, sides: array<string, \Illuminate\Support\Collection>}>
      */
@@ -144,7 +154,7 @@ new #[Layout('layouts::public')] class extends Component {
             return [];
         }
 
-        $types = PlayerCompetitions::types(auth()->id(), $this->season->id);
+        $types = PlayerCompetitions::types(auth()->id(), $this->season->id, $this->matchday->number);
         $all = MatchdayQuestion::with('question:id,text')
             ->where('matchday_id', $this->matchday->id)
             ->orderBy('position')
@@ -211,7 +221,7 @@ new #[Layout('layouts::public')] class extends Component {
             return;
         }
 
-        unset($this->tip);
+        unset($this->tip, $this->sets);
         $this->loadTip();
 
         Flux::toast(variant: 'success', text: __('Tip saved.'));
@@ -359,15 +369,15 @@ new #[Layout('layouts::public')] class extends Component {
                                 {{ __('Correct answer: :answer', ['answer' => $item->correct_answer ? __('Yes') : __('No')]) }}
                             </flux:text>
                         @endif
-                        <div class="flex gap-5">
-                            <label class="flex items-center gap-2 text-sm">
-                                <input type="radio" wire:model="answers.{{ $item->id }}" value="1"
-                                    @disabled(!$this->isOpen)> {{ __('Yes') }}
-                            </label>
-                            <label class="flex items-center gap-2 text-sm">
-                                <input type="radio" wire:model="answers.{{ $item->id }}" value="0"
-                                    @disabled(!$this->isOpen)> {{ __('No') }}
-                            </label>
+                        {{-- Przycisk trójstanowy: Tak / Brak odpowiedzi / Nie (domyślnie brak odpowiedzi). --}}
+                        <div class="inline-flex overflow-hidden rounded-md border border-zinc-300 text-sm dark:border-zinc-600">
+                            @foreach ([['1', __('Yes'), 'peer-checked:bg-green-600'], ['', __('No answer'), 'peer-checked:bg-zinc-500'], ['0', __('No'), 'peer-checked:bg-red-600']] as [$value, $label, $active])
+                                <label class="cursor-pointer border-l border-zinc-300 first:border-l-0 dark:border-zinc-600">
+                                    <input type="radio" class="peer sr-only" name="answer-{{ $item->id }}"
+                                        wire:model="answers.{{ $item->id }}" value="{{ $value }}" @disabled(!$this->isOpen)>
+                                    <span class="{{ $active }} block px-3 py-1.5 text-zinc-700 transition peer-checked:text-white peer-disabled:cursor-not-allowed peer-disabled:opacity-60 dark:text-zinc-200">{{ $label }}</span>
+                                </label>
+                            @endforeach
                         </div>
                     </div>
                 @endforeach

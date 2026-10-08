@@ -62,7 +62,7 @@ class SaveTip
         }
 
         // Miejsca, na które ten gracz może odpowiadać (zestawy jego typów rozgrywek).
-        $types = array_map(fn($t) => $t->value, PlayerCompetitions::types($user->id, $season->id));
+        $types = array_map(fn($t) => $t->value, PlayerCompetitions::types($user->id, $season->id, $matchday->number));
         $allowedIds = MatchdayQuestion::where('matchday_id', $matchday->id)
             ->whereIn('competition_type', $types)
             ->pluck('id')
@@ -76,7 +76,7 @@ class SaveTip
             }
         }
 
-        return DB::transaction(function () use ($user, $matchday, $lech, $opponent, $allowedIds, $new) {
+        return DB::transaction(function () use ($user, $matchday, $lech, $opponent, $new) {
             $tip = Tip::where('matchday_id', $matchday->id)->where('user_id', $user->id)->lockForUpdate()->first();
 
             $old = TipAnswer::where('matchday_id', $matchday->id)->where('user_id', $user->id)
@@ -96,9 +96,8 @@ class SaveTip
             $tip ??= new Tip(['matchday_id' => $matchday->id, 'user_id' => $user->id]);
             $tip->fill(['lech_goals' => $lech, 'opponent_goals' => $opponent, 'saved_at' => now()])->save();
 
-            // Usuń odpowiedzi, które gracz wyczyścił, i zapisz pozostałe.
+            // Usuń odpowiedzi wyczyszczone przez gracza i te z rozgrywek, z których odpadł; zapisz pozostałe.
             TipAnswer::where('matchday_id', $matchday->id)->where('user_id', $user->id)
-                ->whereIn('matchday_question_id', $allowedIds)
                 ->whereNotIn('matchday_question_id', array_keys($new))
                 ->delete();
 
