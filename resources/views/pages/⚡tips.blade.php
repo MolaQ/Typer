@@ -423,25 +423,38 @@ new #[Layout('layouts::public')] class extends Component {
     </nav>
 
     @if ($tab === 'tip')
-    {{-- Wybór kolejki: kafelki z kolorem stanu --}}
-    <div class="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
+    {{--
+        Wybór kolejki: siatka 3 x 3. Kolejki z wynikiem w kolorze meczu Lecha (zielony wygrana, żółty remis,
+        czerwony porażka), bez wyniku szare z ciemnoszarą obwódką. Kropka: zielona = typowanie otwarte.
+    --}}
+    <div class="grid grid-cols-3 gap-2">
         @foreach ($this->matchdays as $option)
             @php
-                $state = $option->status === \App\Enums\MatchdayStatus::Played ? 'played' : ($option->isOpenForTips() ? 'open' : 'closed');
-                $dot = ['played' => 'bg-lech-500', 'open' => 'bg-green-500', 'closed' => 'bg-zinc-400'][$state];
+                $hasResult = $option->status === \App\Enums\MatchdayStatus::Played && $option->lech_goals !== null;
+                $tileClass = !$hasResult
+                    ? 'border-zinc-500 bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-200'
+                    : match ($option->lech_goals <=> $option->opponent_goals) {
+                        1 => 'border-green-700 bg-green-500 text-white',
+                        0 => 'border-yellow-500 bg-yellow-300 text-yellow-950',
+                        default => 'border-red-700 bg-red-500 text-white',
+                    };
                 $selected = $option->number === $this->number;
             @endphp
             <button type="button" wire:click="openMatchday({{ $option->number }})" wire:key="md-{{ $option->id }}"
-                class="{{ $selected ? 'border-lech-600 bg-lech-50 ring-2 ring-lech-500/30 dark:border-lech-400 dark:bg-lech-500/10' : 'border-zinc-200 bg-white hover:border-lech-300 dark:border-zinc-700 dark:bg-zinc-900' }} flex w-28 shrink-0 flex-col items-start gap-0.5 rounded-xl border px-3 py-2 text-left transition">
-                <span class="flex items-center gap-1.5 text-xs font-semibold text-zinc-500">
-                    <span class="{{ $dot }} size-2 rounded-full"></span>
-                    {{ __('Matchday :number', ['number' => $option->number]) }}
+                class="{{ $tileClass }} {{ $selected ? 'ring-2 ring-lech-600 ring-offset-2 dark:ring-lech-400 dark:ring-offset-zinc-900' : 'hover:shadow-md' }} flex min-w-0 flex-col items-start gap-0.5 rounded-xl border px-3 py-2 text-left transition">
+                <span class="flex w-full items-center justify-between gap-1.5 text-xs font-semibold opacity-80">
+                    <span>{{ __('Matchday :number', ['number' => $option->number]) }}</span>
+                    @if (!$hasResult && $option->isOpenForTips())
+                        <span class="size-2 rounded-full bg-green-500" title="{{ __('Tipping open') }}"></span>
+                    @endif
                 </span>
                 <span class="w-full truncate text-sm font-medium">{{ filled($option->opponent) ? $option->opponent : __('not set yet') }}</span>
-                @if ($option->status === \App\Enums\MatchdayStatus::Played)
-                    <span class="text-xs font-semibold tabular-nums text-lech-700 dark:text-lech-300">{{ $option->lech_goals }}:{{ $option->opponent_goals }}</span>
+                @if ($hasResult)
+                    <span class="text-lg font-black leading-tight tabular-nums">{{ $option->lech_goals }}:{{ $option->opponent_goals }}</span>
                 @elseif ($option->kickoff_at)
-                    <span class="text-xs text-zinc-500">{{ $option->kickoff_at->translatedFormat('j M, H:i') }}</span>
+                    <span class="text-xs opacity-80">{{ $option->kickoff_at->translatedFormat('j M, H:i') }}</span>
+                @else
+                    <span class="text-xs opacity-80">–</span>
                 @endif
             </button>
         @endforeach
