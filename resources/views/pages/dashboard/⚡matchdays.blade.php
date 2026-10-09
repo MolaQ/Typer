@@ -249,6 +249,17 @@ new class extends Component {
 
         if ($before !== $after) {
             Audit::log('matchday.updated', null, $before, $after, $this->season->title . ', ' . __('matchday :n', ['n' => $matchday->number]));
+
+            // Informacje systemowe: nowy albo przełożony mecz (rywal lub godzina), tylko dla kompletnych kolejek.
+            if ($matchday->isFilled() && ($before['opponent'] !== $after['opponent'] || $before['kickoff_at'] !== $after['kickoff_at'])) {
+                \App\Support\SystemFeed::record(
+                    'matches',
+                    filled($before['opponent']) ? 'Match updated: :fixture (matchday :number, :date)' : 'Match added: :fixture (matchday :number, :date)',
+                    ['fixture' => $matchday->fixture, 'number' => $matchday->number, 'date' => $matchday->kickoff_at->format('d.m.Y H:i')],
+                    'results',
+                    ['round' => $matchday->number],
+                );
+            }
         }
 
         Flux::modal('matchday-form')->close();

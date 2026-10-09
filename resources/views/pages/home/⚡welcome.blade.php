@@ -68,7 +68,7 @@ new #[Layout('layouts::public')] class extends Component {
 
         {{-- Baner sezonu --}}
         <section
-            class="relative overflow-hidden rounded-2xl bg-linear-to-br from-lech-950 via-lech-800 to-lech-600 px-6 py-10 text-white shadow-lg sm:px-10">
+            class="lech-banner relative overflow-hidden rounded-2xl px-6 py-10 sm:px-10">
             {{-- Duża cyfra rzymska w tle --}}
             <span aria-hidden="true"
                 class="pointer-events-none absolute -right-4 -top-10 select-none text-[10rem] font-black leading-none text-white/10 sm:text-[14rem]">{{ $season->roman_number }}</span>
@@ -165,13 +165,13 @@ new #[Layout('layouts::public')] class extends Component {
     @elseif ($this->upcoming)
         {{-- Brak aktywnego sezonu, ale kolejny jest w przygotowaniu --}}
         <section
-            class="relative overflow-hidden rounded-2xl bg-linear-to-br from-zinc-900 via-zinc-800 to-lech-900 px-6 py-10 text-white sm:px-10">
+            class="lech-banner relative overflow-hidden rounded-2xl px-6 py-10 sm:px-10">
             <span aria-hidden="true"
                 class="pointer-events-none absolute -right-4 -top-10 select-none text-[10rem] font-black leading-none text-white/10 sm:text-[14rem]">{{ $this->upcoming->roman_number }}</span>
             <div class="relative space-y-3">
-                <p class="text-sm font-semibold uppercase tracking-[0.2em] text-zinc-300">LechTYPER</p>
+                <p class="text-sm font-semibold uppercase tracking-[0.2em] text-lech-200">LechTYPER</p>
                 <h1 class="text-4xl font-black tracking-tight sm:text-5xl">{{ $this->upcoming->title }}</h1>
-                <p class="text-lg text-zinc-200">{{ __('Coming soon') }}</p>
+                <p class="text-lg text-lech-100">{{ __('Coming soon') }}</p>
             </div>
         </section>
     @else
@@ -180,6 +180,9 @@ new #[Layout('layouts::public')] class extends Component {
             <flux:subheading>{{ __('This is the public home page.') }}</flux:subheading>
         </div>
     @endif
+
+    {{-- Newsy z panelu z ocenami kciukami --}}
+    <livewire:pages::home.news />
 
     {{-- Wyszukiwarka zespołów (premium) --}}
     @auth

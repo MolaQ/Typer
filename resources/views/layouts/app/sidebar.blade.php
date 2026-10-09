@@ -108,6 +108,13 @@
                 </flux:sidebar.group>
             @endif
 
+            @can(\App\Enums\Permission::NewsCreate->value)
+                <flux:sidebar.item icon="newspaper" :href="route('dashboard.news')"
+                    :current="request()->routeIs('dashboard.news')" wire:navigate>
+                    {{ __('News') }}
+                </flux:sidebar.item>
+            @endcan
+
             @if ($canRoles || $canRequests)
                 <flux:sidebar.group expandable
                     :expanded="request()->routeIs('dashboard.users', 'dashboard.team-requests', 'dashboard.payments')"

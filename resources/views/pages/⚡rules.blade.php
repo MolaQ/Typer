@@ -18,5 +18,5 @@ new #[Layout('layouts::public')] class extends Component {
         <flux:subheading>{{ __('LechTYPER in a nutshell.') }}</flux:subheading>
     </div>
 
-    <x-accordion :items="\App\Support\Guide::rules()" />
+    <x-accordion anchor="rule" :items="\App\Support\Guide::rules()" />
 </div>

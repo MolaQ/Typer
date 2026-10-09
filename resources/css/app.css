@@ -60,6 +60,18 @@
     }
 }
 
+/* Banery LechTYPER: zawsze gradient z niebieskiego do granatowego (jak sidebar i belki) z delikatnym cieniem. */
+@utility lech-banner {
+    background-image: linear-gradient(135deg, var(--color-lech-600) 0%, var(--color-lech-800) 55%, var(--color-lech-950) 100%);
+    color: var(--color-white);
+    box-shadow: 0 14px 28px -14px rgb(6 19 49 / 0.55);
+}
+
+/* Delikatny cień pod belkami (nagłówek, pasek informacji). */
+@utility lech-bar-shadow {
+    box-shadow: 0 6px 18px -10px rgb(6 19 49 / 0.45);
+}
+
 [data-flux-field]:not(ui-radio, ui-checkbox) {
     @apply grid gap-2;
 }

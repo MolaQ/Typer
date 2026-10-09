@@ -8,6 +8,7 @@ use App\Enums\RoleName;
 use App\Enums\SeasonStatus;
 use App\Models\Competition;
 use App\Models\FinalStanding;
+use App\Models\HallOfFameAward;
 use App\Models\Fixture;
 use App\Models\Matchday;
 use App\Models\Season;
@@ -19,6 +20,7 @@ use App\Support\CupBracket;
 use App\Support\LegendsRanking;
 use App\Support\Roster;
 use App\Support\Standings;
+use App\Support\SystemFeed;
 use DomainException;
 use Illuminate\Support\Facades\DB;
 use Spatie\Permission\Models\Role;
@@ -79,7 +81,36 @@ class FinishSeason
             Audit::log('roles.updated', $user, ['roles' => RoleName::User->value], ['roles' => RoleName::Inactive->value], __('No tips in :count matchdays in a row', ['count' => self::INACTIVE_STREAK]));
         }
 
+        $this->recordFeed($season);
+
         return ['standings' => $result['standings'], 'inactive' => count($result['inactive'])];
+    }
+
+    /** Informacje systemowe: koniec sezonu i trofea zdobyte przez ludzi. */
+    private function recordFeed(Season $season): void
+    {
+        SystemFeed::record('seasons', 'Season :season finished', ['season' => $season->title], 'hall-of-fame');
+
+        $awards = HallOfFameAward::with(['user', 'competition'])
+            ->where('season_id', $season->id)
+            ->whereNotNull('trophy')
+            ->whereNotNull('user_id')
+            ->get();
+
+        foreach ($awards as $award) {
+            if (!$award->user) {
+                continue;
+            }
+
+            SystemFeed::record(
+                'trophies',
+                ':team won :competition',
+                ['team' => $award->user->team_name ?: $award->user->name, 'competition' => $award->competition?->name ?? $season->title],
+                'team.show',
+                ['user' => $award->user_id],
+                $award->user_id,
+            );
+        }
     }
 
     /** Zapisuje tabele końcowe. Zwraca liczbę zapisanych miejsc. */

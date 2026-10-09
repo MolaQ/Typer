@@ -1,17 +1,20 @@
+{{-- Nagłówek strony publicznej (zalogowani i goście, na każdej szerokości) z globalną wyszukiwarką. --}}
 @auth
-    {{-- Zalogowany: header na każdej szerokości --}}
-    <flux:header class="sticky top-0 z-10 h-16 border-b-2 border-lech-700 bg-white/90 backdrop-blur dark:border-lech-500 dark:bg-zinc-900/90">
+    <flux:header class="lech-bar-shadow sticky top-0 z-20 h-16 border-b-2 border-lech-700 bg-white/90 backdrop-blur dark:border-lech-500 dark:bg-zinc-900/90">
         <flux:sidebar.toggle class="lg:hidden" icon="bars-2" inset="left" />
 
         <x-lechtyper-logo class="ms-2 lg:hidden" />
 
         <flux:spacer />
+
+        {{-- Wyszukiwarka: po lewej stronie przycisku panelu administracyjnego --}}
+        <livewire:pages::home.global-search />
+
         @can(\App\Enums\Permission::DashboardAccess->value)
             <flux:button :href="route('dashboard')" variant="ghost" size="sm" icon="squares-2x2" class="hidden sm:inline-flex">
                 {{ __('Dashboard') }}
             </flux:button>
         @endcan
-
 
         <flux:modal.trigger name="right-panel">
             <flux:button variant="ghost" size="sm" icon="bars-3-bottom-right" class="xl:hidden"
@@ -34,21 +37,23 @@
         </flux:dropdown>
     </flux:header>
 @else
-    {{-- Gość: wąski pasek tylko poniżej xl, z przyciskami otwierającymi panele --}}
+    {{-- Gość: pasek z wyszukiwarką, logowaniem i przyciskiem prawego panelu --}}
     <div
-        class="sticky top-0 z-10 flex h-16 items-center gap-2 border-b-2 border-lech-700 bg-white/90 px-4 backdrop-blur dark:border-lech-500 dark:bg-zinc-900/90 xl:hidden">
+        class="lech-bar-shadow sticky top-0 z-20 flex h-16 items-center gap-2 border-b-2 border-lech-700 bg-white/90 px-4 backdrop-blur dark:border-lech-500 dark:bg-zinc-900/90">
         <flux:sidebar.toggle class="lg:hidden" icon="bars-2" />
 
         <x-lechtyper-logo class="lg:hidden" />
 
         <flux:spacer />
 
+        <livewire:pages::home.global-search />
+
         <flux:button :href="route('login')" variant="ghost" size="sm">{{ __('Log in') }}</flux:button>
         @if (Route::has('register'))
-            <flux:button :href="route('register')" variant="primary" size="sm">{{ __('Register') }}</flux:button>
+            <flux:button :href="route('register')" variant="primary" size="sm" class="hidden sm:inline-flex">{{ __('Register') }}</flux:button>
         @endif
         <flux:modal.trigger name="right-panel">
-            <flux:button variant="ghost" size="sm" icon="bars-3-bottom-right" :aria-label="__('Open panel')" />
+            <flux:button variant="ghost" size="sm" icon="bars-3-bottom-right" class="xl:hidden" :aria-label="__('Open panel')" />
         </flux:modal.trigger>
     </div>
 @endauth

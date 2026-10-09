@@ -12,7 +12,7 @@
         @endphp
         <div class="space-y-5">
             {{-- Nagłówek z gradientem w barwach Lecha --}}
-            <div class="-mx-6 -mt-6 rounded-t-xl bg-linear-to-br from-lech-700 to-lech-950 px-6 py-5 text-white">
+            <div class="lech-banner -mx-6 -mt-6 rounded-t-xl px-6 py-5">
                 <div class="flex items-start gap-3">
                     <div class="flex size-12 shrink-0 items-center justify-center rounded-full bg-white/15 text-lg font-bold">
                         {{ mb_strtoupper(mb_substr($team->name, 0, 1)) }}
@@ -183,7 +183,7 @@
             </div>
 
             {{-- Tablica wyników --}}
-            <div class="grid grid-cols-[1fr_auto_1fr] items-center gap-3 rounded-xl bg-linear-to-br from-lech-700 to-lech-950 px-4 py-5 text-white">
+            <div class="grid grid-cols-[1fr_auto_1fr] items-center gap-3 lech-banner rounded-xl px-4 py-5">
                 @foreach ([$home, null, $away] as $side)
                     @if ($side === null)
                         <div class="text-center text-3xl font-bold tabular-nums">{{ $card['score'] ?? '–' }}</div>

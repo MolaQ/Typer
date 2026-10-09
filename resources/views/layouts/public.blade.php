@@ -7,10 +7,8 @@
 
 <body class="bg-zinc-50 antialiased dark:bg-zinc-950">
     @php
-        // 4rem = header, 3rem = stopka. Gość nie ma headera na szerokich ekranach.
-        $asideClasses = auth()->check()
-            ? 'top-16 h-[calc(100dvh-7rem)]'
-            : 'top-0 h-[calc(100dvh-3rem)]';
+        // 4rem = header (także dla gości, bo jest w nim wyszukiwarka), 3rem = stopka.
+        $asideClasses = 'top-16 h-[calc(100dvh-7rem)]';
     @endphp
 
     <div class="flex min-h-dvh">

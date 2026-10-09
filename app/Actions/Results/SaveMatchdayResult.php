@@ -123,6 +123,21 @@ class SaveMatchdayResult
             // Liga podwórkowa: pary kolejnej rundy losujemy od razu według nowej klasyfikacji.
             $stats['swiss'] = app(DrawNextSwissRound::class)->afterMatchday($matchday->fresh());
 
+            // Informacje systemowe: wynik kolejki i nowe pary Ligi podwórkowej (tylko przy pierwszym przeliczeniu).
+            if (!$wasPlayed && $stats['swiss'] > 0) {
+                \App\Support\SystemFeed::record('competitions', 'Liga podwórkowa: pairs for round :round drawn', ['round' => $matchday->number + 1], 'results', ['c' => 'swiss', 'round' => $matchday->number + 1]);
+            }
+            if (!$wasPlayed) {
+                $md = $matchday->fresh();
+                \App\Support\SystemFeed::record(
+                    'results',
+                    'Matchday :number settled: :fixture :score',
+                    ['number' => $md->number, 'fixture' => $md->fixture, 'score' => $md->lech_goals . ':' . $md->opponent_goals],
+                    'results',
+                    ['round' => $md->number],
+                );
+            }
+
             // Hall of Fame na bieżąco: punkty za mecze sezonu (tytuły i trofea dopiero po jego zakończeniu).
             app(AwardHallOfFame::class)->handle($matchday->season);
 

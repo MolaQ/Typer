@@ -290,7 +290,7 @@ new #[Layout('layouts::public')] class extends Component {
 }; ?>
 <div class="mx-auto flex w-full max-w-4xl flex-col gap-6">
     {{-- Nagłówek w barwach Lecha --}}
-    <div class="relative overflow-hidden rounded-2xl bg-linear-to-br from-lech-700 via-lech-800 to-lech-950 px-6 py-6 text-white shadow-lg">
+    <div class="lech-banner relative overflow-hidden rounded-2xl px-6 py-6">
         <div class="pointer-events-none absolute -end-10 -top-10 size-48 rounded-full bg-white/10 blur-2xl"></div>
         <div class="pointer-events-none absolute -bottom-16 end-24 size-40 rounded-full bg-lech-400/20 blur-2xl"></div>
         <div class="relative space-y-1">

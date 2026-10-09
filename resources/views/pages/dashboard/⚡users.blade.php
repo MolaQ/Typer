@@ -175,7 +175,19 @@ new class extends Component {
             $this->selected = array_values(array_diff($this->selected, [$inactive]));
         }
 
+        $wasPlayer = \App\Support\Players::canPlay($user);
+        $wasBanned = $user->hasRole(RoleName::Banned->value);
+
         $user->syncRoles($this->selected);
+        $user->unsetRelation('roles');
+
+        // Informacje systemowe: nowy gracz albo ban.
+        if (!$wasPlayer && \App\Support\Players::canPlay($user)) {
+            \App\Support\SystemFeed::record('players', ':name joined the game', ['name' => $user->team_name ?: $user->name], 'team.show', ['user' => $user->id], $user->id);
+        }
+        if (!$wasBanned && $user->hasRole(RoleName::Banned->value)) {
+            \App\Support\SystemFeed::record('moderation', ':name was banned', ['name' => $user->name], null, [], $user->id);
+        }
 
         // Rola decyduje o udziale w zabawie: gracz (bez bana) trafia na listy sezonów,
         // a zbanowany albo bez roli traci miejsce na rzecz bota (patrz App\Support\Roster).

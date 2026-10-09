@@ -29,6 +29,18 @@ class Roster
      */
     public static function place(int $seasonId, int $userId, League $league): bool
     {
+        $placed = self::placeTeam($seasonId, $userId, $league);
+
+        // Informacje systemowe: gracz trafił do ligi.
+        if ($placed && ($user = \App\Models\User::find($userId))) {
+            SystemFeed::record('leagues', ':team joined :league', ['team' => $user->team_name ?: $user->name, 'league' => $league->label()], 'team.show', ['user' => $user->id], $user->id);
+        }
+
+        return $placed;
+    }
+
+    private static function placeTeam(int $seasonId, int $userId, League $league): bool
+    {
         $bot = SeasonTeam::where('season_id', $seasonId)
             ->whereNull('user_id')
             ->inLeague($league)

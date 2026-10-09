@@ -1,10 +1,12 @@
 {{-- Akordeon na natywnym <details> (Flux free nie ma akordeonu). $items: lista [pytanie, odpowiedź].
-     W odpowiedzi dozwolony prosty HTML z tłumaczeń (bez danych od użytkowników). --}}
-@props(['items' => [], 'name' => null])
+     W odpowiedzi dozwolony prosty HTML z tłumaczeń (bez danych od użytkowników).
+     anchor: przedrostek id pozycji (np. faq -> #faq-3); pozycja z adresu (#faq-3) otwiera się sama (wyszukiwarka). --}}
+@props(['items' => [], 'name' => null, 'anchor' => null])
 
 <div {{ $attributes->class('divide-y divide-zinc-200 overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm dark:divide-zinc-700 dark:border-zinc-700 dark:bg-zinc-900') }}>
     @foreach ($items as [$title, $body])
-        <details class="group" @if ($name) name="{{ $name }}" @endif>
+        <details class="group scroll-mt-24" @if ($name) name="{{ $name }}" @endif
+            @if ($anchor) id="{{ $anchor }}-{{ $loop->index }}" x-data x-init="if (location.hash === '#' + $el.id) { $el.open = true; $nextTick(() => $el.scrollIntoView({ block: 'center' })) }" @endif>
             <summary
                 class="flex cursor-pointer list-none items-center justify-between gap-4 px-5 py-4 font-medium text-zinc-800 transition hover:bg-lech-50 group-open:bg-lech-50 group-open:text-lech-800 dark:text-zinc-100 dark:hover:bg-lech-950 dark:group-open:bg-lech-950 dark:group-open:text-lech-200 [&::-webkit-details-marker]:hidden">
                 <span>{{ $title }}</span>

@@ -20,6 +20,7 @@ Route::livewire('teams/{user}', 'pages::team-profile')->name('team.show');
 Route::livewire('support', 'pages::support')->name('support');
 Route::livewire('rules', 'pages::rules')->name('rules');
 Route::livewire('faq', 'pages::faq')->name('faq');
+Route::livewire('system', 'pages::system-feed')->name('system');
 Route::post('payments/przelewy24/status', [Przelewy24Controller::class, 'status'])->name('przelewy24.status');
 
 // Panel: wejście tylko z uprawnieniem dashboard-access (Admin ma je zawsze)
@@ -69,6 +70,9 @@ Route::middleware(['auth', 'verified', 'permission:' . Permission::DashboardAcce
     Route::livewire('dashboard/hall-of-fame', 'pages::dashboard.hall-of-fame')
         ->middleware('permission:season-list')
         ->name('dashboard.hall-of-fame');
+    Route::livewire('dashboard/news', 'pages::dashboard.news')
+        ->middleware('permission:' . Permission::NewsCreate->value)
+        ->name('dashboard.news');
     // Zarządzanie rolami i użytkownikami: nadal tylko Admin
     Route::livewire('dashboard/roles', 'pages::dashboard.roles')
         ->middleware('role:Admin')
