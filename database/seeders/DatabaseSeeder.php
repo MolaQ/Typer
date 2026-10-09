@@ -23,7 +23,7 @@ class DatabaseSeeder extends Seeder
             QuestionsSeeder::class,
             TrophyIconsSeeder::class,
             PlayersSeeder::class,
-            DemoSeasonSeeder::class, // sezon testowy: kolejka 1 za 10 minut, rozgrywki i terminarze
+                //DemoSeasonSeeder::class, // sezon testowy: kolejka 1 za 10 minut, rozgrywki i terminarze
             NewsSeeder::class, // 25 newsów do strony głównej
         ]);
     }
