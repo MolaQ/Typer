@@ -127,7 +127,7 @@ new #[Layout('layouts::public')] class extends Component {
                             @if ($index === 1)
                                 <div class="flex flex-col items-center gap-1">
                                     @if ($played)
-                                        <div class="{{ $lechWon ? 'bg-green-600' : ($lechLost ? 'bg-red-600' : 'bg-zinc-500') }} flex items-center gap-2 rounded-xl px-4 py-2 text-4xl font-black tabular-nums text-white sm:text-5xl">
+                                        <div class="{{ $lechWon ? 'bg-green-500 text-white' : ($lechLost ? 'bg-red-500 text-white' : 'bg-yellow-300 text-yellow-950') }} flex items-center gap-2 rounded-xl px-4 py-2 text-4xl font-black tabular-nums sm:text-5xl">
                                             <span>{{ $sides[0]['goals'] }}</span><span class="opacity-60">:</span><span>{{ $sides[1]['goals'] }}</span>
                                         </div>
                                     @else
