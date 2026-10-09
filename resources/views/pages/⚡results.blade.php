@@ -402,7 +402,7 @@ new #[Layout('layouts::public')] class extends Component {
             </flux:text>
         @endif
 
-        <div class="grid gap-6 {{ $this->hasTable || $this->isLegends ? 'lg:grid-cols-[1fr_20rem]' : '' }}">
+        <div class="grid gap-6 {{ $this->hasTable ? 'lg:grid-cols-[1fr_20rem]' : '' }}">
             {{-- ============ Tabela ============ --}}
             @if ($this->hasTable)
                 <flux:card class="overflow-x-auto p-0">
@@ -467,45 +467,78 @@ new #[Layout('layouts::public')] class extends Component {
 
             {{-- ============ Liga Legend: ranking z odcięciem ============ --}}
             @if ($this->isLegends)
-                <flux:card class="overflow-x-auto p-0">
+                @php
+                    // Najpierw zespoły, które grają w tej rundzie (według punktów Legend), potem odpadnięci wcześniej.
+                    [$alive, $gone] = $this->legends->partition(fn ($row) => $row['eliminated_round'] === null || $row['eliminated_round'] >= $round);
+                    $legendRows = $alive->concat($gone->sortByDesc('eliminated_round'))->values();
+                    $limit = $round < \App\Support\LegendsRanking::ROUNDS ? \App\Support\LegendsRanking::limitAfter($round) : 1;
+                @endphp
+                <flux:card class="space-y-0 overflow-x-auto p-0">
+                    {{-- Pasek etapów: 512 → 256 → … → finał, aktualna runda wyróżniona --}}
+                    <div class="flex flex-wrap items-center gap-1 border-b border-zinc-200 px-3 py-3 text-xs dark:border-zinc-700">
+                        @foreach (range(1, \App\Support\LegendsRanking::ROUNDS) as $stage)
+                            @php
+                                $stageClass = $stage === $round
+                                    ? 'lech-bar font-semibold'
+                                    : ($stage < $round ? 'bg-lech-100 text-lech-800 dark:bg-lech-900/40 dark:text-lech-200' : 'bg-zinc-100 text-zinc-500 dark:bg-zinc-800');
+                            @endphp
+                            <span class="{{ $stageClass }} rounded-full px-2.5 py-1 tabular-nums" title="{{ __('Matchday :number', ['number' => $stage]) }}">
+                                {{ $stage < \App\Support\LegendsRanking::ROUNDS ? \App\Support\LegendsRanking::limitAfter($stage - 1) : __('Final') }}
+                            </span>
+                            @if ($stage < \App\Support\LegendsRanking::ROUNDS)
+                                <flux:icon.chevron-right variant="micro" class="text-zinc-400" />
+                            @endif
+                        @endforeach
+                    </div>
                     <div class="px-3 py-2 text-xs text-zinc-500">
                         @if ($round < \App\Support\LegendsRanking::ROUNDS)
-                            {{ __('After matchday :round the best :limit teams stay in the competition.', ['round' => $round, 'limit' => \App\Support\LegendsRanking::limitAfter($round)]) }}
+                            {{ __('After matchday :round the best :limit teams stay in the competition.', ['round' => $round, 'limit' => $limit]) }}
                         @else
                             {{ __('Final: the better total from matchday 1 wins.') }}
                         @endif
+                        {{ __('Legend points per matchday: 12 each for the exact score, the outcome and the goal difference, and for each question set 2, 4, 8, 16 or 32 for 1-5 correct answers (up to 100).') }}
                     </div>
                     <table class="w-full text-sm">
                         <thead class="text-xs text-zinc-500">
                             <tr class="border-b border-zinc-200 dark:border-zinc-700">
                                 <th class="px-3 py-2 text-right">#</th>
                                 <th class="px-3 py-2 text-left">{{ __('Team') }}</th>
-                                <th class="px-2 py-2 text-right" title="{{ __('Points for the tip') }}">{{ __('Tip') }}</th>
-                                <th class="px-2 py-2 text-right" title="{{ __('Bonus') }}">{{ __('Bon.') }}</th>
+                                <th class="px-2 py-2 text-right" title="{{ __('Points in matchday :round', ['round' => $round]) }}">{{ __('Matchday') }}</th>
+                                <th class="px-2 py-2 text-right" title="{{ __('Exact score, outcome and goal difference') }}">{{ __('Tip') }}</th>
+                                <th class="px-2 py-2 text-right" title="{{ __('Bonus questions') }}">{{ __('Bon.') }}</th>
                                 <th class="px-2 py-2 text-right" title="{{ __('Exact tips') }}">{{ __('Ex.') }}</th>
-                                <th class="px-3 py-2 text-left">{{ __('Status') }}</th>
+                                <th class="px-3 py-2 text-right">{{ __('Pts') }}</th>
                             </tr>
                         </thead>
                         <tbody>
-                            @foreach ($this->legends as $index => $row)
+                            @foreach ($legendRows as $index => $row)
                                 @php
                                     $out = $row['eliminated_round'] !== null && $row['eliminated_round'] < $round;
                                     $cut = $row['eliminated_round'] === $round;
+                                    $zoneClass = $out ? 'border-l-4 border-l-transparent text-zinc-400' : ($index < $limit ? 'border-l-4 border-l-green-500' : 'border-l-4 border-l-red-500');
                                 @endphp
+                                {{-- Kreska odcięcia: pod ostatnim zespołem, który przechodzi dalej --}}
+                                @if ($index === $limit && !$out && $round < \App\Support\LegendsRanking::ROUNDS)
+                                    <tr wire:key="leg-cut">
+                                        <td colspan="7" class="bg-red-50 px-3 py-1 text-center text-[11px] font-semibold uppercase tracking-wide text-red-700 dark:bg-red-900/20 dark:text-red-300">
+                                            {{ __('Cut-off: :limit teams go through to round :next', ['limit' => $limit, 'next' => $round + 1]) }}
+                                        </td>
+                                    </tr>
+                                @endif
                                 <tr wire:key="leg-{{ $row['entry_id'] }}"
-                                    class="border-b border-zinc-100 last:border-b-0 dark:border-zinc-700/50 {{ $out ? 'text-zinc-400' : '' }} {{ $row['team']->id == $this->myTeamId ? 'bg-amber-50 font-semibold dark:bg-amber-900/20' : '' }}">
+                                    class="{{ $zoneClass }} border-b border-zinc-100 last:border-b-0 dark:border-zinc-700/50 {{ $row['team']->id == $this->myTeamId ? 'bg-amber-50 font-semibold dark:bg-amber-900/20' : '' }}">
                                     <td class="px-3 py-1.5 text-right tabular-nums">{{ $index + 1 }}.</td>
                                     <td class="max-w-56 truncate px-3 py-1.5">
                                         <button type="button" wire:click="showTeam({{ $row['team']->id }})" class="truncate hover:text-lech-700 hover:underline dark:hover:text-lech-300">{{ $row['team']->name }}</button>
-                                    </td>
-                                    <td class="px-2 py-1.5 text-right tabular-nums">{{ $row['tip_points'] }}</td>
-                                    <td class="px-2 py-1.5 text-right tabular-nums">{{ $row['bonus'] }}</td>
-                                    <td class="px-2 py-1.5 text-right tabular-nums">{{ $row['exact'] }}</td>
-                                    <td class="px-3 py-1.5 text-xs">
                                         @if ($out || $cut)
-                                            <span class="text-red-600 dark:text-red-400">{{ __('out after matchday :round', ['round' => $row['eliminated_round']]) }}</span>
+                                            <span class="ms-1 text-[11px] text-red-600 dark:text-red-400">{{ __('out after matchday :round', ['round' => $row['eliminated_round']]) }}</span>
                                         @endif
                                     </td>
+                                    <td class="px-2 py-1.5 text-right tabular-nums text-zinc-500">{{ $row['last_points'] ?? '–' }}</td>
+                                    <td class="px-2 py-1.5 text-right tabular-nums">{{ $row['hit_points'] }}</td>
+                                    <td class="px-2 py-1.5 text-right tabular-nums">{{ $row['bonus_points'] }}</td>
+                                    <td class="px-2 py-1.5 text-right tabular-nums">{{ $row['exact'] }}</td>
+                                    <td class="px-3 py-1.5 text-right font-semibold tabular-nums">{{ $row['points'] }}</td>
                                 </tr>
                             @endforeach
                         </tbody>

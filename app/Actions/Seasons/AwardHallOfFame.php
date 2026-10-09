@@ -4,16 +4,19 @@ namespace App\Actions\Seasons;
 
 use App\Enums\CompetitionType;
 use App\Enums\League;
+use App\Enums\MatchdayStatus;
 use App\Models\Competition;
 use App\Models\CompetitionEntry;
 use App\Models\FinalStanding;
 use App\Models\Fixture;
 use App\Models\HallOfFameAward;
+use App\Models\Matchday;
 use App\Models\Season;
 use App\Models\SeasonTeam;
 use App\Models\TeamScore;
 use App\Support\CupBracket;
 use App\Support\HallOfFame;
+use App\Support\LegendsRanking;
 use App\Support\Promotion;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -29,7 +32,7 @@ use Illuminate\Support\Facades\DB;
  *  - ligi i podwórkowa (× mnożnik poziomu): wygrane i remisy, miejsca 1-3, awans, król strzelców,
  *  - Puchar Polski: wygrana w każdej rundzie, zwycięzca finału,
  *  - ligi europejskie: wygrane mecze i zwycięstwo,
- *  - Liga Legend: etapy narastająco (16, 8, 4 najlepszych, finał, zwycięstwo),
+ *  - Liga Legend: punkty Legend z każdej kolejki i premie za przejście rund (na bieżąco), wygrana w finale,
  *  - Złota Liga: tylko trofeum, bez punktów,
  *  - nagrody indywidualne (po zakończeniu sezonu, tylko gracze): MVP sezonu (najwięcej trafionych rozstrzygnięć,
  *    potem dokładne wyniki, potem różnice), Złota Piłka (najwięcej goli w lidze) i Złote Rękawice (najwięcej punktów
@@ -207,28 +210,57 @@ class AwardHallOfFame
     }
 
     /**
-     * Liga Legend: etapy liczone z miejsca końcowego, narastająco. Etapy 16/8/4 tylko wtedy, gdy było
-     * więcej uczestników (inaczej nikt nie odpadł i to nie jest awans).
+     * Liga Legend, na bieżąco po każdej kolejce:
+     *  - punkty Legend z rozegranych kolejek (LegendsRanking::matchdayPoints, do 100 w kolejce) × przelicznik,
+     *    tylko z kolejek, w których zespół jeszcze grał (odpadnięty w kolejce N grał w niej),
+     *  - premia za przejście każdej rundy 1-8 (narastająco), a po zakończeniu sezonu wygrana w finale i trofeum.
      */
     private function legends(Competition $competition, Collection $final): void
     {
-        $count = $final->count();
-        $stages = [16 => 'legends_top16', 8 => 'legends_top8', 4 => 'legends_top4', 2 => 'legends_final', 1 => 'legends_winner'];
+        $matchdays = Matchday::where('season_id', $this->season->id)
+            ->where('status', MatchdayStatus::Played->value)
+            ->pluck('number', 'id');
 
-        foreach ($final as $standing) {
-            $reached = [];
-            foreach ($stages as $limit => $key) {
-                if ($standing->place <= $limit && ($limit <= 2 || $count > $limit)) {
-                    $reached[] = $limit;
-                }
-            }
+        if ($matchdays->isEmpty()) {
+            return;
+        }
 
-            if ($reached === []) {
+        $lastPlayed = (int) $matchdays->max();
+        $entries = CompetitionEntry::with('seasonTeam:id,user_id,bot_id')->where('competition_id', $competition->id)->get();
+        $scores = TeamScore::whereIn('matchday_id', $matchdays->keys())
+            ->whereIn('season_team_id', $entries->pluck('season_team_id'))
+            ->where('question_set', CompetitionType::Legends->value)
+            ->get()
+            ->groupBy('season_team_id');
+
+        $winnerTeamId = $this->finished ? $final->first()?->season_team_id : null;
+
+        foreach ($entries as $entry) {
+            $team = $entry->seasonTeam;
+
+            if (! $team) {
                 continue;
             }
 
-            $points = array_sum(array_map(fn ($limit) => HallOfFame::value($stages[$limit]), $reached));
-            $this->add($competition, $standing, 'legends_stages', $points, $standing->place === 1 ? CompetitionType::Legends->value : null, ['place' => $standing->place]);
+            $out = $entry->eliminated_round;
+
+            // Punkty Legend z kolejek, w których zespół grał.
+            $points = $scores->get($team->id, collect())
+                ->filter(fn (TeamScore $score) => $out === null || $matchdays[$score->matchday_id] <= $out)
+                ->sum(fn (TeamScore $score) => LegendsRanking::matchdayPoints($score));
+            $this->addTeam($competition, $team, 'legends_points', $points * HallOfFame::value('legends_point'), null, ['points' => $points]);
+
+            // Przejście rund 1-8: po przeliczeniu rundy N zespół, który nie odpadł w niej ani wcześniej.
+            $rounds = array_values(array_filter(
+                range(1, min($lastPlayed, LegendsRanking::ROUNDS - 1)),
+                fn (int $round) => $out === null || $out > $round,
+            ));
+            $bonus = array_sum(array_map(fn (int $round) => HallOfFame::value('legends_round_'.$round), $rounds));
+            $this->addTeam($competition, $team, 'legends_stages', $bonus, null, ['rounds' => $rounds]);
+
+            if ($winnerTeamId === $team->id) {
+                $this->addTeam($competition, $team, 'legends_winner', HallOfFame::value('legends_winner'), CompetitionType::Legends->value);
+            }
         }
     }
 
