@@ -1198,5 +1198,15 @@
     "Lech match": "Mecz Lecha",
     "Opponent not set yet.": "Rywal jeszcze nieustalony.",
     "Played on :date": "Rozegrany: :date",
-    "Kick-off: :date": "Początek: :date"
+    "Kick-off: :date": "Początek: :date",
+    "Still in: :round": "W grze: :round",
+    "Knocked out: :round": "Odpadnięcie: :round",
+    "Through to: :round": "Awans: :round",
+    "Through on penalties": "Awans po karnych",
+    "Through": "Awans",
+    "Out on penalties": "Odpadnięcie po karnych",
+    "Out": "Odpadnięcie",
+    "Not played yet": "Przed meczem",
+    "Opponent not known yet": "Rywal nieznany",
+    "Tip saved": "Typ zapisany"
 }

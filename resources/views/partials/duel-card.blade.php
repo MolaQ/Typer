@@ -91,41 +91,49 @@
 
     <div class="grid gap-3 sm:grid-cols-2">
         @foreach ([[$home, $away], [$away, $home]] as [$side, $other])
+            @php
+                // Lustrzany układ: opisy przy zewnętrznych krawędziach, porównywane liczby w środku okna.
+                $mirror = $loop->first ? '' : 'flex-row-reverse';
+                $inner = $loop->first ? 'justify-end text-right' : 'justify-start text-left';
+            @endphp
             <div class="space-y-2 rounded-lg border border-zinc-200 p-3 text-sm dark:border-zinc-700" wire:key="side-{{ $loop->index }}">
-                <div class="truncate font-semibold">{{ $side['name'] }}</div>
+                <div class="truncate font-semibold {{ $loop->first ? 'text-right' : '' }}">{{ $side['name'] }}</div>
 
                 @if ($side['virtual'])
-                    <flux:text size="sm">{{ __('Scores as many as Lech in the real match, minus the player\'s defence.') }}</flux:text>
+                    <flux:text size="sm" class="{{ $loop->first ? 'text-right' : '' }}">{{ __('Scores as many as Lech in the real match, minus the player\'s defence.') }}</flux:text>
                 @elseif ($side['bot'] && !$side['score'])
-                    <flux:text size="sm">{{ __('Bot: random tip at the kick-off.') }}</flux:text>
+                    <flux:text size="sm" class="{{ $loop->first ? 'text-right' : '' }}">{{ __('Bot: random tip at the kick-off.') }}</flux:text>
                 @elseif ($side['score'])
                     @php
                         $score = $side['score'];
                         $rivalDefense = $other['score']?->defense_bonus ?? 0;
                         $hits = [[__('Outcome'), $score->outcome_hit], [__('Goal difference'), $score->diff_hit], [__('Exact score'), $score->exact_hit]];
                     @endphp
-                    @if (!$score->has_tip)
-                        <flux:badge color="zinc" size="sm">{{ __('No tip') }}</flux:badge>
-                    @endif
                     <dl class="space-y-1.5">
-                        <div class="flex justify-between gap-2">
+                        <div class="{{ $mirror }} flex justify-between gap-2">
                             <dt class="text-zinc-500">{{ __('Tip') }}</dt>
-                            <dd class="font-semibold tabular-nums">{{ $side['tip'] ?? '—' }}</dd>
+                            <dd class="font-semibold tabular-nums">
+                                @if ($score->has_tip)
+                                    {{ $side['tip'] ?? '—' }}
+                                @else
+                                    <span class="text-xs font-normal italic text-zinc-400">{{ __('No tip') }}</span>
+                                @endif
+                            </dd>
                         </div>
-                        <div class="flex justify-between gap-2">
+                        <div class="{{ $mirror }} flex justify-between gap-2">
                             <dt class="text-zinc-500">{{ __('Points for the tip') }}</dt>
                             <dd class="tabular-nums">
                                 <span class="font-semibold">{{ $score->tip_points }}</span>/3
                             </dd>
                         </div>
-                        <div class="flex flex-wrap gap-1">
+                        <div class="{{ $inner }} flex flex-wrap gap-1">
                             @foreach ($hits as [$hitLabel, $hit])
                                 <span class="{{ $hit ? 'bg-green-100 text-green-800 dark:bg-green-500/15 dark:text-green-300' : 'bg-zinc-100 text-zinc-500 dark:bg-zinc-700/50' }} rounded px-1.5 py-0.5 text-xs">
                                     {{ $hit ? '✓' : '✗' }} {{ $hitLabel }}
                                 </span>
                             @endforeach
                         </div>
-                        <div class="flex justify-between gap-2">
+                        <div class="{{ $mirror }} flex justify-between gap-2">
                             <dt class="text-zinc-500">{{ __('Offensive bonus') }}</dt>
                             <dd class="tabular-nums">
                                 +{{ $score->offense_bonus }}
@@ -134,7 +142,7 @@
                                 @endif
                             </dd>
                         </div>
-                        <div class="flex justify-between gap-2">
+                        <div class="{{ $mirror }} flex justify-between gap-2">
                             <dt class="text-zinc-500">{{ __('Defensive bonus') }}</dt>
                             <dd class="tabular-nums">
                                 {{ $score->defense_bonus }}
@@ -143,26 +151,29 @@
                                 @endif
                             </dd>
                         </div>
-                        <div class="flex justify-between gap-2 border-t border-zinc-100 pt-1.5 dark:border-zinc-700">
+                        <div class="{{ $mirror }} flex justify-between gap-2 border-t border-zinc-100 pt-1.5 dark:border-zinc-700">
                             <dt class="text-zinc-500">{{ __('Attack (tip + offensive bonus)') }}</dt>
                             <dd class="tabular-nums">{{ $score->offense }}</dd>
                         </div>
                         @if (!$other['virtual'])
-                            <div class="flex justify-between gap-2">
+                            <div class="{{ $mirror }} flex justify-between gap-2">
                                 <dt class="text-zinc-500">{{ __('Rival\'s defence') }}</dt>
                                 <dd class="tabular-nums">−{{ $rivalDefense }}</dd>
                             </div>
                         @endif
-                        <div class="flex justify-between gap-2 font-semibold">
+                        <div class="{{ $mirror }} flex justify-between gap-2 font-semibold">
                             <dt>{{ __('Goals') }}</dt>
                             <dd class="tabular-nums">{{ $side['goals'] ?? '—' }}</dd>
                         </div>
                         @if ($side['tipped_at'] && $isCup)
-                            <div class="text-xs text-zinc-500">{{ __('Tip saved: :time', ['time' => $side['tipped_at']->translatedFormat('j F, H:i:s.v')]) }}</div>
+                            <div class="{{ $mirror }} flex justify-between gap-2 text-xs">
+                                <dt class="text-zinc-500">{{ __('Tip saved') }}</dt>
+                                <dd class="tabular-nums text-zinc-500">{{ $side['tipped_at']->translatedFormat('j M, H:i:s.v') }}</dd>
+                            </div>
                         @endif
                     </dl>
                 @else
-                    <div class="flex flex-wrap items-center gap-2">
+                    <div class="{{ $inner }} flex flex-wrap items-center gap-2">
                         @if ($side['tip'])
                             <flux:badge>{{ __('Tip: :score', ['score' => $side['tip']]) }}</flux:badge>
                         @elseif ($side['outcome'])
@@ -174,7 +185,7 @@
                         @endif
                     </div>
                     @if ($side['offense'] !== null)
-                        <div class="flex flex-col gap-1">
+                        <div class="flex flex-col gap-1 {{ $loop->first ? 'items-end' : 'items-start' }}">
                             <x-risk-stars :count="$side['offense']" :label="__('Offensive')" />
                             <x-risk-stars :count="$side['defense']" :label="__('Defensive')" />
                         </div>
