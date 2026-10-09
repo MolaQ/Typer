@@ -180,7 +180,7 @@ new class extends Component {
     {
         $this->authorizeAbility(Permission::SeasonEdit);
 
-        if (!$this->ensureEditable()) {
+        if (!$this->ensureEditable() || !$this->ensurePreviousFinished()) {
             return;
         }
 
@@ -241,7 +241,7 @@ new class extends Component {
     {
         $this->authorizeAbility(Permission::SeasonEdit);
 
-        if (!$this->ensureEditable()) {
+        if (!$this->ensureEditable() || !$this->ensurePreviousFinished()) {
             return;
         }
 
@@ -769,6 +769,36 @@ new class extends Component {
         return true;
     }
 
+    /**
+     * Wcześniejszy sezon, który jeszcze trwa. Lista nowego sezonu musi powstać z jego tabel końcowych
+     * (awanse i spadki, regulamin pkt 9), więc dopóki go nie zakończymy, listy nie budujemy.
+     * Inaczej aktywacja nowego sezonu zakończyłaby stary, a lista zostałaby ułożona według rejestracji.
+     */
+    #[Computed]
+    public function unfinishedPrevious(): ?Season
+    {
+        if (!$this->season) {
+            return null;
+        }
+
+        return Season::where('number', '<', $this->season->number)
+            ->whereIn('status', [SeasonStatus::Active->value, SeasonStatus::Approved->value])
+            ->orderByDesc('number')
+            ->first();
+    }
+
+    /** Blokada budowy listy, dopóki poprzedni sezon trwa. */
+    private function ensurePreviousFinished(): bool
+    {
+        if ($this->unfinishedPrevious) {
+            Flux::toast(text: __('Finish :season first. The new list is built from its final standings (promotion and relegation).', ['season' => $this->unfinishedPrevious->title]), variant: 'warning');
+
+            return false;
+        }
+
+        return true;
+    }
+
     private function clearCaches(): void
     {
         unset($this->teams, $this->stats, $this->leagueCounts, $this->unlistedPreview);
@@ -878,7 +908,11 @@ new class extends Component {
                     </flux:text>
                 @endif
 
-                @if ($this->isEditable)
+                @if ($this->isEditable && $this->unfinishedPrevious)
+                    {{-- Poprzedni sezon trwa: lista powstanie z jego tabel końcowych dopiero po zakończeniu --}}
+                    <flux:callout variant="warning" icon="exclamation-triangle"
+                        :heading="__('Finish :season first. The new list is built from its final standings (promotion and relegation).', ['season' => $this->unfinishedPrevious->title])" />
+                @elseif ($this->isEditable)
                     @can(\App\Enums\Permission::SeasonEdit->value)
                         <div class="flex flex-wrap gap-2">
                             @if ($this->previousSeason)
