@@ -21,7 +21,7 @@ use Illuminate\Support\Facades\Schema;
  */
 final class HallOfFame
 {
-    /** @var array<string, float> */
+    /** @var array<string, int|float> */
     public const DEFAULTS = [
         // Mnożniki poziomów (League 1-11).
         // Ekstraklasa wyraźnie wyżej niż reszta: między nią a I ligą są nagrody indywidualne i ligi europejskie.

@@ -19,6 +19,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property string|null $sponsor_logo_path
  * @property string|null $sponsor_url
  * @property SeasonStatus $status
+ * @property-read string $title nazwa sezonu, np. „IV sezon” (akcesor title())
+ * @property-read string $roman_number
  */
 class Season extends Model
 {

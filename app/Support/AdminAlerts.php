@@ -142,6 +142,8 @@ final class AdminAlerts
     /**
      * Kolejne kroki, gdy żaden sezon nie trwa: utworzenie sezonu, lista z poprzedniego sezonu,
      * mecze kolejek, zatwierdzenie i aktywacja (pierwszy niezakończony sezon po kolei).
+     *
+     * @return array<int, array<string, mixed>>
      */
     private static function lifecycle(): array
     {
@@ -218,6 +220,8 @@ final class AdminAlerts
     /**
      * Ligi europejskie: gdy jest zakończony poprzedni sezon, miejsca 1-3 lig trafiają do LM, LE i LK.
      * Brak tych rozgrywek w trwającym sezonie to błąd (np. lista zbudowana przed końcem poprzedniego sezonu).
+     *
+     * @return array<int, array<string, mixed>>
      */
     private static function european(Season $season): array
     {

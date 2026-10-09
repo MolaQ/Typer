@@ -69,7 +69,7 @@ class AwardHallOfFame
                 };
             }
 
-            $this->individual($standings);
+            $this->individual($standings->all());
 
             foreach (array_chunk($this->rows, 500) as $chunk) {
                 HallOfFameAward::insert($chunk);
@@ -246,9 +246,9 @@ class AwardHallOfFame
      * Nagrody indywidualne sezonu. Liczymy z zestawu pytań lig (wspólny dla lig 1-10 i podwórkowej),
      * więc każdy gracz ma te same szanse niezależnie od ligi. Gole z tabeli końcowej jego ligi.
      *
-     * @param  Collection<int, Collection<int, FinalStanding>>  $standings  tabele końcowe według rozgrywek
+     * @param  array<array-key, iterable<FinalStanding>>  $standings  tabele końcowe: id rozgrywek => wiersze FinalStanding
      */
-    private function individual(Collection $standings): void
+    private function individual(array $standings): void
     {
         if (! $this->finished) {
             return;
@@ -260,11 +260,12 @@ class AwardHallOfFame
             ->keyBy('id');
 
         // Zespół ludzi => wiersz tabeli końcowej jego ligi (miejsce, gole) i rozgrywki.
+        /** @var array<int, array{standing: FinalStanding, competition: Competition, rank: int, goals: int, gloves: int, outcomes: int, exact: int, diffs: int}> $rows */
         $rows = [];
         foreach ($leagues as $competition) {
             $tier = $competition->type === CompetitionType::Swiss ? League::Podworkowa->value : (int) $competition->tier;
 
-            foreach ($standings->get($competition->id, collect()) as $standing) {
+            foreach ($standings[$competition->id] ?? [] as $standing) {
                 if ($standing->user_id === null) {
                     continue; // boty nie dostają nagród indywidualnych
                 }
@@ -294,11 +295,17 @@ class AwardHallOfFame
                 sum(case when team_scores.outcome_hit then 1 else 0 end) as outcomes,
                 sum(case when team_scores.exact_hit then 1 else 0 end) as exact,
                 sum(case when team_scores.diff_hit then 1 else 0 end) as diffs')
+            ->toBase()
             ->get();
 
         foreach ($sums as $sum) {
-            foreach (['gloves', 'outcomes', 'exact', 'diffs'] as $key) {
-                $rows[$sum->team_id][$key] = (int) $sum->{$key};
+            $teamId = (int) $sum->team_id;
+
+            if (isset($rows[$teamId])) {
+                $rows[$teamId]['gloves'] = (int) $sum->gloves;
+                $rows[$teamId]['outcomes'] = (int) $sum->outcomes;
+                $rows[$teamId]['exact'] = (int) $sum->exact;
+                $rows[$teamId]['diffs'] = (int) $sum->diffs;
             }
         }
 
