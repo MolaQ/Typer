@@ -21,6 +21,7 @@ class Guide
             [__('Puchar Polski'), __('The favourite plays on the left and the winner takes the better seed of the pair. A draw goes to the team that saved its tip earlier (at an equal time the higher seed), shown as “after penalties”.')],
             [__('Promotion and relegation'), __('By default 4 teams go up and 4 go down, and leagues are cleaned of bots with up to 6 extra swaps. The top 3 of leagues 1–10 play in Liga Mistrzów, Europy and Konferencji next season.')],
             [__('Liga Legend'), __('All teams run by people play. After each matchday the weakest drop out (256, 128 and so on down to a final of 2 teams). The criteria add up from round 1.')],
+            [__('Individual awards'), __('Season MVP: the most correct outcomes (then exact scores, then goal differences). Golden Ball: the most goals in your league. Golden Gloves: the most points from defensive bonuses. Only players compete, the league question set counts, and on a tie the higher league place wins. All three give Hall of Fame points.')],
             [__('Inactivity and bots'), __('5 matchdays in a row without a tip turn your team into a bot from the next season. Bots tip a random score from 0–3 : 0–3 and do not answer questions.')],
         ];
     }

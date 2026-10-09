@@ -17,6 +17,7 @@ use App\Models\Tip;
 use App\Models\User;
 use App\Support\Audit;
 use App\Support\CupBracket;
+use App\Support\HallOfFame;
 use App\Support\LegendsRanking;
 use App\Support\Roster;
 use App\Support\Standings;
@@ -105,7 +106,13 @@ class FinishSeason
             SystemFeed::record(
                 'trophies',
                 ':team won :competition',
-                ['team' => $award->user->team_name ?: $award->user->name, 'competition' => $award->competition?->name ?? $season->title],
+                [
+                    'team' => $award->user->team_name ?: $award->user->name,
+                    // Nagrody indywidualne (MVP, Złota Piłka, Złote Rękawice) pod własną nazwą, nie nazwą ligi.
+                    'competition' => in_array($award->trophy, HallOfFame::INDIVIDUAL, true)
+                        ? HallOfFame::trophies()[$award->trophy]
+                        : ($award->competition?->name ?? $season->title),
+                ],
                 'team.show',
                 ['user' => $award->user_id],
                 $award->user_id,

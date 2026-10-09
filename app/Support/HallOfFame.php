@@ -13,29 +13,38 @@ use Illuminate\Support\Facades\Schema;
 /**
  * Hall of Fame (regulamin, punkt 12): punktacja wszech czasów za sukcesy w zakończonych sezonach.
  * Wartości są konfigurowalne w panelu (tabela hall_of_fame_settings), tu są wartości domyślne.
- * Punkty ligowe mnożymy przez mnożnik poziomu: Ekstraklasa 10, I liga 9 … C klasa 1, podwórkowa 0,5.
- * Złota Liga nie daje punktów, tylko unikalne trofeum.
+ * Punkty ligowe mnożymy przez mnożnik poziomu. Wartości domyślne ułożone są tak, żeby tytuły dawały punkty
+ * zgodnie z ważnością rozgrywek (pełny tytuł z meczami i awansem):
+ *   Liga Legend 600 > Ekstraklasa 500 > MVP 400 > Złota Piłka 360 > Złote Rękawice 330 > Liga Mistrzów 300
+ *   > Liga Europy 250 > Puchar Polski 220 > Liga Konferencji 180 > I liga 168 > II liga 144 … > podwórkowa 12.
+ * Złota Liga nie daje punktów, tylko unikalne trofeum (najniżej w gablocie).
  */
 final class HallOfFame
 {
     /** @var array<string, float> */
     public const DEFAULTS = [
         // Mnożniki poziomów (League 1-11).
-        'multiplier_1' => 10, 'multiplier_2' => 9, 'multiplier_3' => 8, 'multiplier_4' => 7, 'multiplier_5' => 6,
-        'multiplier_6' => 5, 'multiplier_7' => 4, 'multiplier_8' => 3, 'multiplier_9' => 2, 'multiplier_10' => 1,
-        'multiplier_11' => 0.5,
-        // Ligi i podwórkowa (× mnożnik poziomu).
-        'league_champion' => 50, 'league_second' => 30, 'league_third' => 20, 'league_promotion' => 10,
-        'league_top_scorer' => 20, 'league_win' => 2, 'league_draw' => 1,
-        // Puchar Polski: za wygraną w każdej rundzie, a zwycięzca finału osobno.
-        'cup_round_1' => 5, 'cup_round_2' => 5, 'cup_round_3' => 5, 'cup_round_4' => 10, 'cup_round_5' => 10,
-        'cup_round_6' => 15, 'cup_round_7' => 20, 'cup_round_8' => 30, 'cup_winner' => 100,
+        // Ekstraklasa wyraźnie wyżej niż reszta: między nią a I ligą są nagrody indywidualne i ligi europejskie.
+        'multiplier_1' => 10, 'multiplier_2' => 2.8, 'multiplier_3' => 2.4, 'multiplier_4' => 2, 'multiplier_5' => 1.6,
+        'multiplier_6' => 1.3, 'multiplier_7' => 1, 'multiplier_8' => 0.8, 'multiplier_9' => 0.6, 'multiplier_10' => 0.4,
+        'multiplier_11' => 0.2,
+        // Ligi i podwórkowa (× mnożnik poziomu): mistrz Ekstraklasy 500, I ligi 140 + awans 28, podwórkowej 10 + awans 2.
+        'league_champion' => 50, 'league_second' => 25, 'league_third' => 15, 'league_promotion' => 10,
+        'league_top_scorer' => 10, 'league_win' => 1, 'league_draw' => 0.5,
+        // Puchar Polski: za wygraną w każdej rundzie (razem 75), a zwycięzca finału osobno (145), łącznie 220.
+        'cup_round_1' => 2, 'cup_round_2' => 2, 'cup_round_3' => 3, 'cup_round_4' => 5, 'cup_round_5' => 8,
+        'cup_round_6' => 12, 'cup_round_7' => 18, 'cup_round_8' => 25, 'cup_winner' => 145,
         // Ligi europejskie: zwycięzca i wygrany mecz.
-        'champions_winner' => 150, 'europa_winner' => 100, 'conference_winner' => 70,
+        'champions_winner' => 300, 'europa_winner' => 250, 'conference_winner' => 180,
         'champions_win' => 3, 'europa_win' => 2, 'conference_win' => 1,
-        // Liga Legend: etapy narastająco (16, 8, 4 najlepszych, finał, zwycięstwo).
-        'legends_top16' => 10, 'legends_top8' => 20, 'legends_top4' => 40, 'legends_final' => 70, 'legends_winner' => 120,
+        // Liga Legend: etapy narastająco (16, 8, 4 najlepszych, finał, zwycięstwo), zwycięzca razem 600.
+        'legends_top16' => 20, 'legends_top8' => 40, 'legends_top4' => 80, 'legends_final' => 160, 'legends_winner' => 300,
+        // Nagrody indywidualne sezonu (tylko gracze, przy remisie wyższe miejsce w lidze).
+        'mvp' => 400, 'golden_ball' => 360, 'golden_gloves' => 330,
     ];
+
+    /** Klucze nagród indywidualnych (te same w trofeach i w punktacji). */
+    public const INDIVIDUAL = ['mvp', 'golden_ball', 'golden_gloves'];
 
     /** @var array<string, float>|null */
     private static ?array $values = null;
@@ -127,28 +136,51 @@ final class HallOfFame
                 'legends_final' => __('Final'),
                 'legends_winner' => __('Winner'),
             ],
+            __('Individual awards') => [
+                'mvp' => __('Season MVP'),
+                'golden_ball' => __('Golden Ball'),
+                'golden_gloves' => __('Golden Gloves'),
+            ],
         ];
     }
 
     /**
-     * Trofea do gabloty: klucz => nazwa. Mistrzostwo i król strzelców osobno dla każdego poziomu (także podwórkowej).
+     * Trofea do gabloty: klucz => nazwa, w kolejności ważności (tak je pokazujemy):
+     * Liga Legend, Ekstraklasa, MVP, Złota Piłka, Złote Rękawice, Liga Mistrzów, Liga Europy, Puchar Polski,
+     * Liga Konferencji, ligi od I ligi do podwórkowej, królowie strzelców lig (od Ekstraklasy), Złota Liga.
      *
      * @return array<string, string>
      */
     public static function trophies(): array
     {
-        $out = [];
+        $out = [
+            CompetitionType::Legends->value => CompetitionType::Legends->label(),
+            'league_1' => __('Champion: :league', ['league' => League::Ekstraklasa->label()]),
+            'mvp' => __('Season MVP'),
+            'golden_ball' => __('Golden Ball'),
+            'golden_gloves' => __('Golden Gloves'),
+            CompetitionType::Champions->value => CompetitionType::Champions->label(),
+            CompetitionType::Europa->value => CompetitionType::Europa->label(),
+            CompetitionType::Cup->value => CompetitionType::Cup->label(),
+            CompetitionType::Conference->value => CompetitionType::Conference->label(),
+        ];
         foreach (League::cases() as $league) {
-            $out['league_'.$league->value] = __('Champion: :league', ['league' => $league->label()]);
+            $out['league_'.$league->value] ??= __('Champion: :league', ['league' => $league->label()]);
         }
         foreach (League::cases() as $league) {
             $out['top_scorer_'.$league->value] = __('Top scorer: :league', ['league' => $league->label()]);
         }
-        foreach ([CompetitionType::Cup, CompetitionType::Champions, CompetitionType::Europa, CompetitionType::Conference, CompetitionType::Legends, CompetitionType::Golden] as $type) {
-            $out[$type->value] = $type->label();
-        }
+        $out[CompetitionType::Golden->value] = CompetitionType::Golden->label();
 
         return $out;
+    }
+
+    /** Pozycja trofeum na liście ważności (do sortowania gabloty i ikon w rankingu). */
+    public static function trophyRank(string $key): int
+    {
+        $index = array_search($key, array_keys(self::trophies()), true);
+
+        return $index === false ? PHP_INT_MAX : $index;
     }
 
     /** @return array<string, string> klucz trofeum => adres ikony */

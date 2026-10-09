@@ -2,8 +2,10 @@
 
 namespace App\Support;
 
+use App\Actions\Competitions\BuildCompetitions;
 use App\Actions\Competitions\DrawSwissRound;
 use App\Actions\Questions\DrawQuestions;
+use App\Actions\Seasons\BuildListFromPrevious;
 use App\Enums\CompetitionType;
 use App\Enums\MatchdayStatus;
 use App\Enums\SeasonStatus;
@@ -13,6 +15,7 @@ use App\Models\Matchday;
 use App\Models\MatchdayQuestion;
 use App\Models\QuestionProposal;
 use App\Models\Season;
+use App\Models\SeasonTeam;
 use App\Models\TeamNameChangeRequest;
 use App\Models\User;
 
@@ -39,17 +42,9 @@ final class AdminAlerts
         $season = Season::current();
 
         if ($season) {
-            $alerts = array_merge($alerts, self::matchdays($season), self::swiss($season));
+            $alerts = array_merge($alerts, self::matchdays($season), self::swiss($season), self::european($season));
         } else {
-            $upcoming = Season::whereIn('status', [SeasonStatus::Draft->value, SeasonStatus::Approved->value])->orderBy('number')->first();
-            $alerts[] = self::alert(
-                self::INFO,
-                'calendar-days',
-                $upcoming ? __('No active season. :season is being prepared.', ['season' => $upcoming->title]) : __('No active season.'),
-                __('Check what is still missing before the start.'),
-                'dashboard.checklist',
-                $upcoming ? ['season' => $upcoming->id] : [],
-            );
+            $alerts = array_merge($alerts, self::lifecycle());
         }
 
         $withoutRole = Players::withoutRole()->whereNotNull('email_verified_at')->count();
@@ -142,6 +137,113 @@ final class AdminAlerts
         }
 
         return $alerts;
+    }
+
+    /**
+     * Kolejne kroki, gdy żaden sezon nie trwa: utworzenie sezonu, lista z poprzedniego sezonu,
+     * mecze kolejek, zatwierdzenie i aktywacja (pierwszy niezakończony sezon po kolei).
+     */
+    private static function lifecycle(): array
+    {
+        $upcoming = Season::whereIn('status', [SeasonStatus::Draft->value, SeasonStatus::Approved->value])->orderBy('number')->first();
+
+        if (! $upcoming) {
+            $last = Season::where('status', SeasonStatus::Finished->value)->max('number');
+
+            return [self::alert(
+                self::WARNING,
+                'calendar-days',
+                $last ? __('Season :number is finished: create the next season', ['number' => $last]) : __('No season yet: create the first season'),
+                __('The new season starts as a draft. Then build its team list.'),
+                'dashboard.seasons',
+            )];
+        }
+
+        $params = ['season' => $upcoming->id];
+        $alerts = [];
+
+        if ($upcoming->status === SeasonStatus::Draft) {
+            $hasList = SeasonTeam::where('season_id', $upcoming->id)->exists();
+            $hasPrevious = BuildListFromPrevious::previousSeason($upcoming) !== null;
+
+            if (! $hasList) {
+                $alerts[] = self::alert(
+                    self::WARNING,
+                    'list-bullet',
+                    __(':season: build the team list', ['season' => $upcoming->title]),
+                    $hasPrevious
+                        ? __('Use "Build from the previous season": promotion, relegation and European places come from the final standings.')
+                        : __('Build the list automatically from the registered players.'),
+                    'dashboard.season-teams',
+                    $params,
+                );
+            }
+
+            $missing = Matchday::where('season_id', $upcoming->id)->get()->reject(fn (Matchday $m) => $m->isFilled())->count();
+            if ($missing > 0) {
+                $alerts[] = self::alert(
+                    self::WARNING,
+                    'calendar',
+                    __(':season: add the Lech matches', ['season' => $upcoming->title]),
+                    trans_choice(':count matchday has no opponent or kick-off time.|:count matchdays have no opponent or kick-off time.', $missing, ['count' => $missing]),
+                    'dashboard.matchdays',
+                    $params,
+                );
+            }
+
+            if ($hasList && $missing === 0) {
+                $alerts[] = self::alert(
+                    self::WARNING,
+                    'check-badge',
+                    __(':season: approve the season', ['season' => $upcoming->title]),
+                    __('Approving creates the competitions with their participants and fixtures.'),
+                    'dashboard.seasons',
+                );
+            }
+        } else {
+            $alerts[] = self::alert(
+                self::WARNING,
+                'play',
+                __(':season: activate the season', ['season' => $upcoming->title]),
+                __('Draw the questions of the first matchday, then activate the season so players can tip.'),
+                'dashboard.seasons',
+            );
+        }
+
+        $alerts[] = self::alert(self::INFO, 'clipboard-document-check', __('Season checklist'), __('Check what is still missing before the start.'), 'dashboard.checklist', $params);
+
+        return $alerts;
+    }
+
+    /**
+     * Ligi europejskie: gdy jest zakończony poprzedni sezon, miejsca 1-3 lig trafiają do LM, LE i LK.
+     * Brak tych rozgrywek w trwającym sezonie to błąd (np. lista zbudowana przed końcem poprzedniego sezonu).
+     */
+    private static function european(Season $season): array
+    {
+        $builder = app(BuildCompetitions::class);
+
+        if (! $builder->previousSeason($season)) {
+            return [];
+        }
+
+        $missing = collect([CompetitionType::Champions, CompetitionType::Europa, CompetitionType::Conference])
+            ->reject(fn (CompetitionType $type) => Competition::where('season_id', $season->id)->where('type', $type->value)->exists())
+            ->filter(fn (CompetitionType $type) => $builder->europeanSeats($season, $type) !== [])
+            ->map(fn (CompetitionType $type) => $type->label());
+
+        if ($missing->isEmpty()) {
+            return [];
+        }
+
+        return [self::alert(
+            self::WARNING,
+            'globe-europe-africa',
+            __('Missing competitions: :list', ['list' => $missing->implode(', ')]),
+            __('The places 1-3 of the leagues from the previous season are known. Create them from history.'),
+            'dashboard.competitions',
+            ['season' => $season->id],
+        )];
     }
 
     /** Liga podwórkowa: runda N+1 powinna być rozlosowana, gdy kolejka N jest przeliczona. */

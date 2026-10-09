@@ -78,7 +78,7 @@ new #[Layout('layouts::public')] class extends Component {
                 'count' => $rows->count(),
                 'seasons' => $rows->map(fn($a) => $a->season?->roman_number)->filter()->sort()->values()->all(),
             ])
-            // Kolejność jak na liście trofeów (od Ekstraklasy w dół).
+            // Kolejność według ważności trofeów (HallOfFame::trophies(): od Ligi Legend w dół).
             ->sortBy(fn($item) => array_search($item['key'], array_keys($names), true))
             ->values()
             ->all();

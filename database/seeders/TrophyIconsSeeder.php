@@ -9,8 +9,11 @@ use Illuminate\Support\Facades\Storage;
 
 /**
  * Domyślne ikony trofeów Hall of Fame (etap 14). Pliki PNG leżą w database/seeders/trophies (nazwa = klucz trofeum),
- * seeder kopiuje je na dysk public (katalog trophies). Ikon wgranych w panelu nie nadpisuje: żeby wrócić do
- * domyślnej, usuń ikonę w panelu i uruchom seeder ponownie.
+ * seeder kopiuje je na dysk public (katalog trophies). Domyślne ikony (plik trophies/default-*.png) odświeża
+ * przy każdym uruchomieniu, więc nowe wersje trafiają na stronę. Ikon wgranych w panelu nie nadpisuje: żeby wrócić
+ * do domyślnej, usuń ikonę w panelu i uruchom seeder ponownie.
+ *
+ *   php artisan db:seed --class=TrophyIconsSeeder
  */
 class TrophyIconsSeeder extends Seeder
 {
@@ -26,14 +29,16 @@ class TrophyIconsSeeder extends Seeder
                 continue;
             }
 
-            if (TrophyIcon::where('key', $key)->exists()) {
+            $path = 'trophies/default-'.$key.'.png';
+            $icon = TrophyIcon::where('key', $key)->first();
+
+            // Ikona wgrana w panelu ma inną ścieżkę: zostawiamy ją.
+            if ($icon && $icon->path !== $path) {
                 continue;
             }
 
-            $path = 'trophies/default-'.$key.'.png';
             $disk->put($path, file_get_contents($source));
-
-            TrophyIcon::create(['key' => $key, 'path' => $path]);
+            $icon ?? TrophyIcon::create(['key' => $key, 'path' => $path]);
             $added++;
         }
 

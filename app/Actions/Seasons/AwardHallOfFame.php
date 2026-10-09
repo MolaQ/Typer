@@ -11,6 +11,7 @@ use App\Models\Fixture;
 use App\Models\HallOfFameAward;
 use App\Models\Season;
 use App\Models\SeasonTeam;
+use App\Models\TeamScore;
 use App\Support\CupBracket;
 use App\Support\HallOfFame;
 use App\Support\Promotion;
@@ -29,7 +30,10 @@ use Illuminate\Support\Facades\DB;
  *  - Puchar Polski: wygrana w każdej rundzie, zwycięzca finału,
  *  - ligi europejskie: wygrane mecze i zwycięstwo,
  *  - Liga Legend: etapy narastająco (16, 8, 4 najlepszych, finał, zwycięstwo),
- *  - Złota Liga: tylko trofeum, bez punktów.
+ *  - Złota Liga: tylko trofeum, bez punktów,
+ *  - nagrody indywidualne (po zakończeniu sezonu, tylko gracze): MVP sezonu (najwięcej trafionych rozstrzygnięć,
+ *    potem dokładne wyniki, potem różnice), Złota Piłka (najwięcej goli w lidze) i Złote Rękawice (najwięcej punktów
+ *    z bonusów defensywnych); przy remisie wyższe miejsce w lidze (poziom, potem miejsce w tabeli końcowej).
  */
 class AwardHallOfFame
 {
@@ -64,6 +68,8 @@ class AwardHallOfFame
                     CompetitionType::Golden => $this->golden($competition, $final),
                 };
             }
+
+            $this->individual($standings);
 
             foreach (array_chunk($this->rows, 500) as $chunk) {
                 HallOfFameAward::insert($chunk);
@@ -233,6 +239,93 @@ class AwardHallOfFame
 
         if ($winner && ($winner->stats['played'] ?? 0) > 0) {
             $this->add($competition, $winner, 'golden_title', 0, CompetitionType::Golden->value);
+        }
+    }
+
+    /**
+     * Nagrody indywidualne sezonu. Liczymy z zestawu pytań lig (wspólny dla lig 1-10 i podwórkowej),
+     * więc każdy gracz ma te same szanse niezależnie od ligi. Gole z tabeli końcowej jego ligi.
+     *
+     * @param  Collection<int, Collection<int, FinalStanding>>  $standings  tabele końcowe według rozgrywek
+     */
+    private function individual(Collection $standings): void
+    {
+        if (! $this->finished) {
+            return;
+        }
+
+        $leagues = Competition::where('season_id', $this->season->id)
+            ->whereIn('type', [CompetitionType::League->value, CompetitionType::Swiss->value])
+            ->get()
+            ->keyBy('id');
+
+        // Zespół ludzi => wiersz tabeli końcowej jego ligi (miejsce, gole) i rozgrywki.
+        $rows = [];
+        foreach ($leagues as $competition) {
+            $tier = $competition->type === CompetitionType::Swiss ? League::Podworkowa->value : (int) $competition->tier;
+
+            foreach ($standings->get($competition->id, collect()) as $standing) {
+                if ($standing->user_id === null) {
+                    continue; // boty nie dostają nagród indywidualnych
+                }
+
+                $rows[$standing->season_team_id] = [
+                    'standing' => $standing,
+                    'competition' => $competition,
+                    'rank' => $tier * 10000 + $standing->place, // remis: wyższa liga, potem wyższe miejsce
+                    'goals' => (int) ($standing->stats['for'] ?? 0),
+                    'gloves' => 0, 'outcomes' => 0, 'exact' => 0, 'diffs' => 0,
+                ];
+            }
+        }
+
+        if ($rows === []) {
+            return;
+        }
+
+        // Sumy z kolejek sezonu (TeamScore, zestaw lig). Wartości logiczne sumujemy jako 0/1.
+        $sums = TeamScore::query()
+            ->join('matchdays', 'matchdays.id', '=', 'team_scores.matchday_id')
+            ->where('matchdays.season_id', $this->season->id)
+            ->where('team_scores.question_set', CompetitionType::League->value)
+            ->whereIn('team_scores.season_team_id', array_keys($rows))
+            ->groupBy('team_scores.season_team_id')
+            ->selectRaw('team_scores.season_team_id as team_id, sum(team_scores.defense_bonus) as gloves,
+                sum(case when team_scores.outcome_hit then 1 else 0 end) as outcomes,
+                sum(case when team_scores.exact_hit then 1 else 0 end) as exact,
+                sum(case when team_scores.diff_hit then 1 else 0 end) as diffs')
+            ->get();
+
+        foreach ($sums as $sum) {
+            foreach (['gloves', 'outcomes', 'exact', 'diffs'] as $key) {
+                $rows[$sum->team_id][$key] = (int) $sum->{$key};
+            }
+        }
+
+        $awards = [
+            'mvp' => ['outcomes', 'exact', 'diffs'],
+            'golden_ball' => ['goals'],
+            'golden_gloves' => ['gloves'],
+        ];
+
+        foreach ($awards as $key => $criteria) {
+            $winner = collect($rows)
+                ->filter(fn ($row) => $row[$criteria[0]] > 0)
+                ->sort(function ($a, $b) use ($criteria) {
+                    foreach ($criteria as $criterion) {
+                        if ($a[$criterion] !== $b[$criterion]) {
+                            return $b[$criterion] <=> $a[$criterion];
+                        }
+                    }
+
+                    return $a['rank'] <=> $b['rank'];
+                })
+                ->first();
+
+            if ($winner) {
+                $meta = array_intersect_key($winner, array_flip($criteria)) + ['place' => $winner['standing']->place];
+                $this->add($winner['competition'], $winner['standing'], $key, HallOfFame::value($key), $key, $meta);
+            }
         }
     }
 
