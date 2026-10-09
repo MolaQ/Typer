@@ -9,7 +9,7 @@ use Livewire\Component;
 
 /**
  * Newsy na stronie głównej. Zalogowani oceniają kciukiem w górę (zielony) albo w dół (czerwony),
- * ponowny klik w ten sam kciuk cofa ocenę; nieocenione kciuki są białe. Goście widzą tylko liczniki.
+ * ponowny klik w ten sam kciuk cofa ocenę; nieocenione kciuki są białe. Liczby ocen widać po zagłosowaniu.
  */
 new class extends Component {
     public int $perPage = 5;
@@ -75,63 +75,73 @@ new class extends Component {
     }
 }; ?>
 
-<section class="space-y-3">
-    @if ($this->items->isNotEmpty())
-        <flux:heading size="lg">{{ __('News') }}</flux:heading>
+<section class="space-y-4">
+    <flux:heading size="lg">{{ __('News') }}</flux:heading>
 
-        <div class="space-y-3">
-            @foreach ($this->items as $news)
-                @php
-                    $mine = $this->myVotes[$news->id] ?? 0;
-                    $base = 'inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-sm font-semibold tabular-nums shadow-xs transition';
-                    $white = 'border-zinc-200 bg-white text-zinc-500 dark:border-zinc-600 dark:bg-white dark:text-zinc-600';
-                    $upClass = $mine === 1 ? 'border-green-600 bg-green-600 text-white' : $white;
-                    $downClass = $mine === -1 ? 'border-red-600 bg-red-600 text-white' : $white;
-                    $hover = auth()->check() ? 'cursor-pointer hover:scale-105' : 'cursor-default';
-                @endphp
-                <article id="news-{{ $news->id }}" wire:key="home-news-{{ $news->id }}"
-                    class="scroll-mt-20 space-y-3 rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
-                    <div class="space-y-1">
-                        <h3 class="text-lg font-bold text-lech-800 dark:text-lech-200">{{ $news->title }}</h3>
-                        <p class="text-xs text-zinc-500">
-                            {{ $news->published_at->format('d.m.Y H:i') }}
-                            @if ($news->author)
-                                · {{ $news->author->name }}
-                            @endif
-                        </p>
-                    </div>
-                    <div class="whitespace-pre-line text-sm text-zinc-700 dark:text-zinc-300">{{ $news->body }}</div>
+    @forelse ($this->items as $news)
+        @php
+            $mine = $this->myVotes[$news->id] ?? 0;
+            $base = 'inline-flex size-8 items-center justify-center rounded-full border transition';
+            $white = 'border-white/70 bg-white text-zinc-500';
+            $upClass = $mine === 1 ? 'border-green-500 bg-green-600 text-white' : $white;
+            $downClass = $mine === -1 ? 'border-red-500 bg-red-600 text-white' : $white;
+        @endphp
+        {{-- Karta newsa: nagłówek i stopka w gradiencie sidebara --}}
+        <article id="news-{{ $news->id }}" wire:key="home-news-{{ $news->id }}"
+            class="lech-bar-shadow scroll-mt-20 overflow-hidden rounded-2xl border border-lech-950/20 bg-white dark:border-lech-900 dark:bg-zinc-900">
+            <header class="lech-bar px-5 py-3">
+                <h3 class="text-base font-bold leading-snug">{{ $news->title }}</h3>
+            </header>
 
-                    <div class="flex items-center gap-2">
-                        @auth
-                            <button type="button" wire:click="vote({{ $news->id }}, 1)" class="{{ $base }} {{ $upClass }} {{ $hover }}"
-                                aria-label="{{ __('Thumbs up') }}" aria-pressed="{{ $mine === 1 ? 'true' : 'false' }}">
-                                <flux:icon.hand-thumb-up :variant="$mine === 1 ? 'solid' : 'outline'" class="size-4" />
-                                {{ $news->up_count }}
-                            </button>
-                            <button type="button" wire:click="vote({{ $news->id }}, -1)" class="{{ $base }} {{ $downClass }} {{ $hover }}"
-                                aria-label="{{ __('Thumbs down') }}" aria-pressed="{{ $mine === -1 ? 'true' : 'false' }}">
-                                <flux:icon.hand-thumb-down :variant="$mine === -1 ? 'solid' : 'outline'" class="size-4" />
-                                {{ $news->down_count }}
-                            </button>
-                        @else
-                            <span class="{{ $base }} {{ $white }} {{ $hover }}" title="{{ __('Log in to rate') }}">
-                                <flux:icon.hand-thumb-up class="size-4" /> {{ $news->up_count }}
-                            </span>
-                            <span class="{{ $base }} {{ $white }} {{ $hover }}" title="{{ __('Log in to rate') }}">
-                                <flux:icon.hand-thumb-down class="size-4" /> {{ $news->down_count }}
-                            </span>
-                            <flux:link :href="route('login')" class="text-xs">{{ __('Log in to rate') }}</flux:link>
-                        @endauth
-                    </div>
-                </article>
-            @endforeach
+            <div class="whitespace-pre-line px-5 py-4 text-sm text-zinc-700 dark:text-zinc-300">{{ $news->body }}</div>
+
+            <footer class="lech-bar flex flex-wrap items-center justify-between gap-3 px-5 py-2.5 text-xs">
+                {{-- Po lewej autor (link do profilu) i data --}}
+                <div class="flex min-w-0 items-center gap-1.5 text-lech-100">
+                    @if ($news->author)
+                        <a href="{{ route('team.show', $news->author) }}" wire:navigate class="truncate font-semibold text-white hover:underline">{{ $news->author->name }}</a>
+                        <span aria-hidden="true">·</span>
+                    @endif
+                    <time datetime="{{ $news->published_at->toIso8601String() }}">{{ $news->published_at->format('d.m.Y H:i') }}</time>
+                </div>
+
+                {{-- Po prawej kciuki; liczby ocen widać dopiero po zagłosowaniu --}}
+                <div class="flex items-center gap-2">
+                    @if ($mine !== 0)
+                        <span class="tabular-nums text-lech-100">
+                            <span class="font-semibold text-green-400">{{ $news->up_count }}</span> {{ __('up') }},
+                            <span class="font-semibold text-red-400">{{ $news->down_count }}</span> {{ __('down') }}
+                        </span>
+                    @endif
+                    @auth
+                        <button type="button" wire:click="vote({{ $news->id }}, 1)" class="{{ $base }} {{ $upClass }} cursor-pointer hover:scale-110"
+                            aria-label="{{ __('Thumbs up') }}" aria-pressed="{{ $mine === 1 ? 'true' : 'false' }}">
+                            <flux:icon.hand-thumb-up :variant="$mine === 1 ? 'solid' : 'outline'" class="size-4" />
+                        </button>
+                        <button type="button" wire:click="vote({{ $news->id }}, -1)" class="{{ $base }} {{ $downClass }} cursor-pointer hover:scale-110"
+                            aria-label="{{ __('Thumbs down') }}" aria-pressed="{{ $mine === -1 ? 'true' : 'false' }}">
+                            <flux:icon.hand-thumb-down :variant="$mine === -1 ? 'solid' : 'outline'" class="size-4" />
+                        </button>
+                    @else
+                        <a href="{{ route('login') }}" class="{{ $base }} {{ $white }}" title="{{ __('Log in to rate') }}" aria-label="{{ __('Log in to rate') }}">
+                            <flux:icon.hand-thumb-up class="size-4" />
+                        </a>
+                        <a href="{{ route('login') }}" class="{{ $base }} {{ $white }}" title="{{ __('Log in to rate') }}" aria-label="{{ __('Log in to rate') }}">
+                            <flux:icon.hand-thumb-down class="size-4" />
+                        </a>
+                    @endauth
+                </div>
+            </footer>
+        </article>
+    @empty
+        <flux:card>
+            <flux:text>{{ __('No news yet.') }}</flux:text>
+        </flux:card>
+    @endforelse
+
+    @if ($this->items->count() >= $perPage)
+        <div class="flex justify-center">
+            <flux:button size="sm" variant="ghost" wire:click="more" icon="arrow-down">{{ __('Older news') }}</flux:button>
         </div>
-
-        @if ($this->items->count() >= $perPage)
-            <div class="flex justify-center">
-                <flux:button size="sm" variant="ghost" wire:click="more" icon="arrow-down">{{ __('Older news') }}</flux:button>
-            </div>
-        @endif
     @endif
 </section>

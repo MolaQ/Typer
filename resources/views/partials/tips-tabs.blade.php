@@ -66,7 +66,7 @@
 
     @forelse ($this->myCompetitions as $row)
         <section class="overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-700 dark:bg-zinc-900" wire:key="comp-{{ $loop->index }}">
-            <div class="flex flex-wrap items-center gap-3 border-b border-zinc-100 bg-linear-to-r from-lech-50 to-transparent px-4 py-3 dark:border-zinc-800 dark:from-lech-500/10">
+            <div class="lech-bar flex flex-wrap items-center gap-3 px-4 py-3">
                 <span class="flex size-10 shrink-0 items-center justify-center rounded-xl bg-white shadow-xs dark:bg-zinc-800">
                     @if (isset($trophyIcons[$row['trophy']]))
                         <img src="{{ $trophyIcons[$row['trophy']] }}" alt="" class="size-7 object-contain" title="{{ __('Trophy to win') }}">
@@ -76,12 +76,12 @@
                 </span>
                 <div class="min-w-0 flex-1">
                     <div class="truncate font-semibold">{{ $row['name'] }}</div>
-                    <div class="text-xs text-zinc-500">{{ $row['status'] }}</div>
+                    <div class="text-xs text-lech-200">{{ $row['status'] }}</div>
                 </div>
                 @if ($row['points'] !== null)
                     <div class="text-right">
-                        <div class="text-xl font-bold tabular-nums text-lech-700 dark:text-lech-300">{{ __(':points pts', ['points' => $row['points']]) }}</div>
-                        <div class="text-xs text-zinc-500">{{ __(':won W, :drawn D, :lost L', ['won' => $row['won'], 'drawn' => $row['drawn'], 'lost' => $row['lost']]) }}</div>
+                        <div class="text-xl font-bold tabular-nums text-white">{{ __(':points pts', ['points' => $row['points']]) }}</div>
+                        <div class="text-xs text-lech-200">{{ __(':won W, :drawn D, :lost L', ['won' => $row['won'], 'drawn' => $row['drawn'], 'lost' => $row['lost']]) }}</div>
                     </div>
                 @endif
             </div>

@@ -846,7 +846,6 @@
     "1 point for the outcome, 1 for the goal difference and 1 for the exact score, up to 3 points. No tip means 0 points.": "1 punkt za rozstrzygnięcie, 1 za różnicę goli i 1 za dokładny wynik, razem do 3 punktów. Brak typu to 0 punktów.",
     "10 leagues of 10 teams (Ekstraklasa to C klasa), Liga podwórkowa (Swiss system), Puchar Polski (512 teams, a fixed bracket of 9 rounds), Liga Mistrzów, Europy and Konferencji, Liga Legend and Złota Liga for supporters.": "10 lig po 10 zespołów (od Ekstraklasy do C klasy), Liga podwórkowa (system szwajcarski), Puchar Polski (512 zespołów, stała drabinka 9 rund), Liga Mistrzów, Europy i Konferencji, Liga Legend oraz Złota Liga dla wspierających.",
     "5 matchdays in a row without a tip turn your team into a bot from the next season. Bots tip a random score from 0–3 : 0–3 and do not answer questions.": "5 kolejek z rzędu bez typu sprawia, że od następnego sezonu Twój zespół staje się botem. Boty typują losowy wynik od 0–3 : 0–3 i nie odpowiadają na pytania.",
-    "A preview of your rivals’ tips, a default tip, your exact place among the players, team search, team name changes without approval, and every payment counts towards Złota Liga. Plans start at 5 zł a week.": "Podgląd typów rywali, domyślny typ, dokładne miejsce wśród graczy, wyszukiwarkę zespołów, zmianę nazwy zespołu bez akceptacji, a każda wpłata liczy się do Złotej Ligi. Pakiety od 5 zł za tydzień.",
     "A season has 9 matchdays, each with one real Lech Poznań match. You give one tip (Lech : opponent after 90 minutes) per matchday and it counts in every competition you play in. Tipping closes at kick-off.": "Sezon ma 9 kolejek, w każdej jeden prawdziwy mecz Lecha Poznań. W kolejce oddajesz jeden typ (Lech : rywal po 90 minutach), który liczy się we wszystkich Twoich rozgrywkach. Typowanie kończy się z pierwszym gwizdkiem.",
     "A win gives 3 points, a draw 1 and a loss 0. Ties are decided by goal balance, goals, wins, draws, exact tips, hit differences, hit outcomes, bonuses, Hall of Fame points and the place on the list.": "Wygrana daje 3 punkty, remis 1, porażka 0. Przy równej liczbie punktów decydują: bilans, bramki, wygrane, remisy, dokładne typy, trafione różnice, trafione rozstrzygnięcia, bonusy, punkty Hall of Fame i pozycja na liście.",
     "After the match the admin enters the result and the correct answers and settles the matchday. The tables update at that moment.": "Po meczu admin wpisuje wynik i poprawne odpowiedzi, a potem przelicza kolejkę. Wtedy aktualizują się tabele.",
@@ -862,7 +861,6 @@
     "Delete this sponsor? The competitions lose their sponsor.": "Usunąć tego sponsora? Rozgrywki stracą sponsora.",
     "Edit sponsor": "Edytuj sponsora",
     "FAQ": "FAQ",
-    "Find a team": "Znajdź zespół",
     "How do I get into Złota Liga?": "Jak dostać się do Złotej Ligi?",
     "In LechTYPER under the History tab, and on your team page in the Hall of Fame.": "W LechTYPER w zakładce Historia oraz na stronie Twojego zespołu w Hall of Fame.",
     "In every matchday each competition type has 5 offensive and 5 defensive yes/no questions. Each correct answer is worth 1 point, no answer gives nothing, and one wrong answer clears the whole set of that side.": "W każdej kolejce każdy typ rozgrywek ma 5 pytań ofensywnych i 5 defensywnych (tak/nie). Poprawna odpowiedź to 1 punkt, brak odpowiedzi nic nie daje, a jedna błędna zeruje cały zestaw danej strony.",
@@ -879,7 +877,6 @@
     "Promotion and relegation": "Awanse i spadki",
     "Puchar Polski": "Puchar Polski",
     "Rules of the game": "Zasady gry",
-    "Searching for teams is a premium feature.": "Wyszukiwanie zespołów to funkcja premium.",
     "Season and matchdays": "Sezon i kolejki",
     "See premium": "Zobacz premium",
     "Sponsor assigned.": "Sponsor przypisany.",
@@ -888,7 +885,6 @@
     "Sponsors of the competitions. Each competition of a season can have its own sponsor.": "Sponsorzy rozgrywek. Każde rozgrywki w sezonie mogą mieć własnego sponsora.",
     "Team name, abbreviation or player": "Nazwa zespołu, skrót lub gracz",
     "Team score": "Wynik zespołu",
-    "Team search on the home page": "Wyszukiwarka zespołów na stronie głównej",
     "The 10 players with the highest payments over the last 12 months play in it. On a tie the earlier last payment wins.": "Grają w niej 10 graczy z najwyższą sumą wpłat z ostatnich 12 miesięcy. Przy remisie wygrywa wcześniejsza ostatnia wpłata.",
     "The favourite plays on the left and the winner takes the better seed of the pair. A draw goes to the team that saved its tip earlier (at an equal time the higher seed), shown as “after penalties”.": "Faworyt gra po lewej, a zwycięzca przejmuje lepsze miejsce pary. Remis rozstrzyga wcześniejszy zapis typu (przy równym czasie wyższe rozstawienie), pokazujemy go jako „po karnych”.",
     "This season has no competitions yet.": "Ten sezon nie ma jeszcze rozgrywek.",
@@ -1134,5 +1130,8 @@
     "Thumbs down": "Kciuk w dół",
     "Thumbs up": "Kciuk w górę",
     "Title": "Tytuł",
-    "What is happening in the game, recorded automatically.": "Co dzieje się w grze, zapisywane automatycznie."
+    "What is happening in the game, recorded automatically.": "Co dzieje się w grze, zapisywane automatycznie.",
+    "A preview of your rivals’ tips, a default tip, your exact place among the players, team name changes without approval, and every payment counts towards Złota Liga. Plans start at 5 zł a week.": "Podgląd typów rywali, domyślny typ, dokładne miejsce wśród graczy, zmianę nazwy zespołu bez akceptacji, a każda wpłata liczy się do Złotej Ligi. Pakiety od 5 zł za tydzień.",
+    "up": "w górę",
+    "down": "w dół"
 }

@@ -69,9 +69,6 @@ new #[Layout('layouts::public')] class extends Component {
         {{-- Baner sezonu --}}
         <section
             class="lech-banner relative overflow-hidden rounded-2xl px-6 py-10 sm:px-10">
-            {{-- Duża cyfra rzymska w tle --}}
-            <span aria-hidden="true"
-                class="pointer-events-none absolute -right-4 -top-10 select-none text-[10rem] font-black leading-none text-white/10 sm:text-[14rem]">{{ $season->roman_number }}</span>
 
             <div class="relative flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
                 <div class="space-y-3">
@@ -166,8 +163,6 @@ new #[Layout('layouts::public')] class extends Component {
         {{-- Brak aktywnego sezonu, ale kolejny jest w przygotowaniu --}}
         <section
             class="lech-banner relative overflow-hidden rounded-2xl px-6 py-10 sm:px-10">
-            <span aria-hidden="true"
-                class="pointer-events-none absolute -right-4 -top-10 select-none text-[10rem] font-black leading-none text-white/10 sm:text-[14rem]">{{ $this->upcoming->roman_number }}</span>
             <div class="relative space-y-3">
                 <p class="text-sm font-semibold uppercase tracking-[0.2em] text-lech-200">LechTYPER</p>
                 <h1 class="text-4xl font-black tracking-tight sm:text-5xl">{{ $this->upcoming->title }}</h1>
@@ -181,38 +176,8 @@ new #[Layout('layouts::public')] class extends Component {
         </div>
     @endif
 
-    {{-- Newsy z panelu z ocenami kciukami --}}
-    <livewire:pages::home.news />
-
-    {{-- Wyszukiwarka zespołów (premium) --}}
-    @auth
-        <livewire:pages::home.team-search />
-    @endauth
-
-    {{-- Hall of Fame: skrócony ranking, otwarty na stronie z zalogowanym graczem --}}
-    <section class="space-y-3">
-        <div class="flex items-end justify-between gap-3">
-            <flux:heading size="lg">{{ __('Hall of Fame') }}</flux:heading>
-            <flux:link :href="route('hall-of-fame')" wire:navigate class="text-sm">{{ __('Full ranking') }}</flux:link>
-        </div>
-        <livewire:pages::home.hall-of-fame-ranking :per-page="10" :compact="true" />
-    </section>
-
-    {{-- Zasady gry i FAQ w akordeonach (pełne wersje pod /rules i /faq) --}}
-    <section class="grid gap-6 lg:grid-cols-2">
-        <div class="space-y-3">
-            <div class="flex items-end justify-between gap-3">
-                <flux:heading size="lg">{{ __('Rules of the game') }}</flux:heading>
-                <flux:link :href="route('rules')" wire:navigate class="text-sm">{{ __('All rules') }}</flux:link>
-            </div>
-            <x-accordion name="home-rules" :items="array_slice(\App\Support\Guide::rules(), 0, 5)" />
-        </div>
-        <div class="space-y-3">
-            <div class="flex items-end justify-between gap-3">
-                <flux:heading size="lg">{{ __('FAQ') }}</flux:heading>
-                <flux:link :href="route('faq')" wire:navigate class="text-sm">{{ __('All questions') }}</flux:link>
-            </div>
-            <x-accordion name="home-faq" :items="array_slice(\App\Support\Guide::faq(), 0, 5)" />
-        </div>
-    </section>
+    {{-- Newsy z panelu z ocenami kciukami: połowa szerokości środkowej części, jeden pod drugim --}}
+    <div class="grid gap-6 lg:grid-cols-2">
+        <livewire:pages::home.news />
+    </div>
 </div>

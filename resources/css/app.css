@@ -62,12 +62,19 @@
 
 /* Banery LechTYPER: zawsze gradient z niebieskiego do granatowego (jak sidebar i belki) z delikatnym cieniem. */
 @utility lech-banner {
-    background-image: linear-gradient(135deg, var(--color-lech-600) 0%, var(--color-lech-800) 55%, var(--color-lech-950) 100%);
+    /* Ten sam gradient co lewy sidebar (lech-900 -> lech-950 -> czarny). */
+    background-image: linear-gradient(to bottom right, var(--color-lech-900) 0%, var(--color-lech-950) 55%, var(--color-black) 100%);
     color: var(--color-white);
     box-shadow: 0 14px 28px -14px rgb(6 19 49 / 0.55);
 }
 
 /* Delikatny cień pod belkami (nagłówek, pasek informacji). */
+/* Belka tytułowa karty: gradient sidebara, biały tekst. */
+@utility lech-bar {
+    background-image: linear-gradient(to right, var(--color-lech-900) 0%, var(--color-lech-950) 60%, var(--color-black) 100%);
+    color: var(--color-white);
+}
+
 @utility lech-bar-shadow {
     box-shadow: 0 6px 18px -10px rgb(6 19 49 / 0.45);
 }

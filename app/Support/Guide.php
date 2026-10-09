@@ -33,7 +33,7 @@ class Guide
             [__('Can I change my tip?'), __('Yes, as many times as you like until kick-off. The time of the last save decides drawn cup ties.')],
             [__('What if I forget to tip?'), __('You get 0 points for that matchday. Premium players can set a default tip that is used automatically.')],
             [__('When are the points counted?'), __('After the match the admin enters the result and the correct answers and settles the matchday. The tables update at that moment.')],
-            [__('What does premium give?'), __('A preview of your rivals’ tips, a default tip, your exact place among the players, team search, team name changes without approval, and every payment counts towards Złota Liga. Plans start at 5 zł a week.')],
+            [__('What does premium give?'), __('A preview of your rivals’ tips, a default tip, your exact place among the players, team name changes without approval, and every payment counts towards Złota Liga. Plans start at 5 zł a week.')],
             [__('How do I get into Złota Liga?'), __('The 10 players with the highest payments over the last 12 months play in it. On a tie the earlier last payment wins.')],
             [__('What is a Koziołek?'), __('An exact score tip, worth the full 3 points for the tip.')],
             [__('Where can I see my history?'), __('In LechTYPER under the History tab, and on your team page in the Hall of Fame.')],
