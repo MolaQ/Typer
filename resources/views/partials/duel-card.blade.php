@@ -101,9 +101,11 @@
                 $mirror = $left ? '' : 'flex-row-reverse';
                 $inner = $left ? 'justify-end' : 'justify-start';
                 $tileWidth = 'w-14';
+                // Bot nie odpowiada na pytania (regulamin: boty bez pytań), więc dostaje po 5 szarych gwiazdek.
+                $noAnswers = array_fill(1, 5, 'none');
                 $starSides = [
-                    [__('Offensive bonus'), $side['stars'][\App\Enums\QuestionSide::Offensive->value] ?? [], 'offense_bonus'],
-                    [__('Defensive bonus'), $side['stars'][\App\Enums\QuestionSide::Defensive->value] ?? [], 'defense_bonus'],
+                    [__('Offensive bonus'), ($side['stars'][\App\Enums\QuestionSide::Offensive->value] ?? []) ?: $noAnswers, 'offense_bonus'],
+                    [__('Defensive bonus'), ($side['stars'][\App\Enums\QuestionSide::Defensive->value] ?? []) ?: $noAnswers, 'defense_bonus'],
                 ];
             @endphp
             <div class="space-y-3 rounded-xl border border-lech-200 bg-lech-50/60 p-3 text-sm dark:border-lech-800 dark:bg-lech-950/40" wire:key="side-{{ $loop->index }}">
