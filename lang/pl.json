@@ -1208,5 +1208,9 @@
     "Out": "Odpadnięcie",
     "Not played yet": "Przed meczem",
     "Opponent not known yet": "Rywal nieznany",
-    "Tip saved": "Typ zapisany"
+    "Tip saved": "Typ zapisany",
+    "Legend points": "punkty Legend",
+    "of :count": "z :count",
+    "Top :limit go through": "Dalej przechodzi :limit najlepszych",
+    "No matchday settled yet.": "Żadna kolejka nie jest jeszcze rozliczona."
 }

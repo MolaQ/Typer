@@ -98,9 +98,12 @@ final class PlayerStats
                     ? __('Knocked out in: :round', ['round' => CupBracket::roundName($entry->eliminated_round)])
                     : __('Still in the cup');
             } elseif ($competition->type === CompetitionType::Legends) {
+                $row['legends'] = self::legendsPath($competition, $entry, $tipPoints);
+                $last = end($row['legends']);
+                $row['points'] = $last ? $last['total'] : null;
                 $row['status'] = $entry->eliminated_round
                     ? __('Knocked out after matchday :number', ['number' => $entry->eliminated_round])
-                    : __('Still in the game');
+                    : ($last ? __(':place. place of :count', ['place' => $last['place'], 'count' => $last['count']]) : __('Still in the game'));
             } else {
                 $table = Standings::for($competition)->values();
                 $index = $table->search(fn ($r) => $r['entry_id'] === $entry->id);
@@ -114,6 +117,44 @@ final class PlayerStats
             }
 
             $out[] = $row;
+        }
+
+        return $out;
+    }
+
+    /**
+     * Liga Legend na zakładce Rozgrywki: po każdej rozliczonej kolejce miejsce zespołu (wśród tych, którzy jeszcze grali),
+     * punkty Legend z tej kolejki i suma z tabeli Legend, limit awansu i czy zespół przeszedł dalej.
+     *
+     * @param  array<int, ?int>  $tipPoints  numer kolejki => punkty za typ
+     * @return array<int, array{round: int, place: ?int, count: int, limit: int, points: ?int, total: int, through: bool, eliminated: bool, tip_points: ?int}>
+     */
+    private static function legendsPath(Competition $competition, CompetitionEntry $entry, array $tipPoints): array
+    {
+        $played = (int) Matchday::where('season_id', $competition->season_id)->where('status', MatchdayStatus::Played)->max('number');
+        $out = [];
+
+        for ($stage = 1; $stage <= $played; $stage++) {
+            if ($entry->eliminated_round !== null && $entry->eliminated_round < $stage) {
+                break; // dalej już nie grał
+            }
+
+            $ranking = LegendsRanking::for($competition, $stage, onlyAlive: true)->values();
+            $index = $ranking->search(fn ($r) => $r['entry_id'] === $entry->id);
+            $own = $index === false ? null : $ranking[$index];
+            $limit = $stage < LegendsRanking::ROUNDS ? LegendsRanking::limitAfter($stage) : 1;
+
+            $out[] = [
+                'round' => $stage,
+                'place' => $index === false ? null : $index + 1,
+                'count' => $ranking->count(),
+                'limit' => $limit,
+                'points' => $own['last_points'] ?? null,
+                'total' => (int) ($own['points'] ?? 0),
+                'through' => $index !== false && $index < $limit,
+                'eliminated' => $entry->eliminated_round === $stage,
+                'tip_points' => $tipPoints[$stage] ?? null,
+            ];
         }
 
         return $out;

@@ -81,12 +81,53 @@
                 @if ($row['points'] !== null)
                     <div class="text-right">
                         <div class="text-xl font-bold tabular-nums text-white">{{ __(':points pts', ['points' => $row['points']]) }}</div>
-                        <div class="text-xs text-lech-200">{{ __(':won W, :drawn D, :lost L', ['won' => $row['won'], 'drawn' => $row['drawn'], 'lost' => $row['lost']]) }}</div>
+                        <div class="text-xs text-lech-200">
+                            @if (isset($row['legends']))
+                                {{ __('Legend points') }}
+                            @else
+                                {{ __(':won W, :drawn D, :lost L', ['won' => $row['won'], 'drawn' => $row['drawn'], 'lost' => $row['lost']]) }}
+                            @endif
+                        </div>
                     </div>
                 @endif
             </div>
 
-            @if (count($row['matches']) > 0)
+            @if (isset($row['legends']))
+                {{-- Liga Legend: miejsce po każdej kolejce, punkty Legend z kolejki i suma z tabeli --}}
+                @if (count($row['legends']) > 0)
+                    <div class="grid grid-cols-2 gap-2 p-4 sm:grid-cols-3 lg:grid-cols-4">
+                        @foreach ($row['legends'] as $stage)
+                            <a href="{{ route('results', ['season_slug' => 'sezon-' . $this->season?->number, 'competition_slug' => 'liga-legend', 'round_slug' => 'kolejka-' . $stage['round']]) }}" wire:navigate
+                                class="{{ $stage['tip_points'] !== null ? $tipClasses[$stage['tip_points']] : 'border-zinc-200 dark:border-zinc-700' }} block space-y-1 rounded-xl border p-2.5 text-sm transition hover:shadow-md"
+                                wire:key="lg-{{ $stage['round'] }}">
+                                <div class="flex items-center justify-between gap-2 text-xs text-zinc-500">
+                                    <span>{{ __('Matchday :number', ['number' => $stage['round']]) }}</span>
+                                    @if ($stage['points'] !== null)
+                                        <span class="font-semibold">+{{ $stage['points'] }}</span>
+                                    @endif
+                                </div>
+                                <div class="flex items-baseline gap-1">
+                                    <span class="text-2xl font-black tabular-nums">{{ $stage['place'] ?? '–' }}.</span>
+                                    <span class="text-xs text-zinc-500">{{ __('of :count', ['count' => $stage['count']]) }}</span>
+                                </div>
+                                <div class="flex items-center justify-between gap-2">
+                                    <span class="{{ $stage['through'] ? 'bg-green-600' : 'bg-red-600' }} rounded px-1.5 py-0.5 text-[10px] font-bold text-white">
+                                        {{ $stage['through'] ? ($stage['round'] < \App\Support\LegendsRanking::ROUNDS ? __('Goes through') : __('Winner')) : __('Eliminated') }}
+                                    </span>
+                                    <span class="font-semibold tabular-nums">{{ __(':points pts', ['points' => $stage['total']]) }}</span>
+                                </div>
+                                @if ($stage['round'] < \App\Support\LegendsRanking::ROUNDS)
+                                    <div class="text-[10px] text-zinc-500">{{ __('Top :limit go through', ['limit' => $stage['limit']]) }}</div>
+                                @endif
+                            </a>
+                        @endforeach
+                    </div>
+                @else
+                    <div class="px-4 py-3">
+                        <flux:text size="sm">{{ __('No matchday settled yet.') }}</flux:text>
+                    </div>
+                @endif
+            @elseif (count($row['matches']) > 0)
                 <div class="grid grid-cols-2 gap-2 p-4 sm:grid-cols-3 lg:grid-cols-4">
                     @foreach ($row['matches'] as $match)
                         <div class="{{ $match['tip_points'] !== null ? $tipClasses[$match['tip_points']] : 'border-zinc-200 dark:border-zinc-700' }} space-y-1 rounded-xl border p-2.5 text-sm"
