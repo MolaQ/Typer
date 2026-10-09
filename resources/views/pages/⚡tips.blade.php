@@ -16,7 +16,6 @@ use Flux\Flux;
 use Illuminate\Contracts\View\View;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Layout;
-use Livewire\Attributes\Url;
 use Livewire\Component;
 
 /**
@@ -25,12 +24,16 @@ use Livewire\Component;
  * Uwaga: nie nazywaj własności "slots" ani "rows" – Livewire rezerwuje część nazw.
  */
 new #[Layout('layouts::public')] class extends Component {
-    #[Url(as: 'matchday', except: 0)]
     public int $number = 0;
 
     /** Zakładka: tip (typowanie), matchdays (kolejki), competitions (rozgrywki), stats (statystyki), history (historia), scalps (moje skalpy). */
-    #[Url(as: 'tab', except: 'tip')]
     public string $tab = 'tip';
+
+    /** Zakładki w adresie po polsku: /tips/kolejka-3/statystyki (typowanie bez części zakładki). */
+    private const TAB_SLUGS = [
+        'tip' => 'typ', 'matchdays' => 'kolejki', 'competitions' => 'rozgrywki',
+        'stats' => 'statystyki', 'history' => 'historia', 'scalps' => 'skalpy',
+    ];
 
     /** Wpisany wynik (teksty, bo pole formularza może być puste). */
     public string $lech = '';
@@ -42,8 +45,13 @@ new #[Layout('layouts::public')] class extends Component {
     /** Godzina ostatniego automatycznego zapisu (do napisu „Zapisano” w pasku na dole). */
     public string $savedTime = '';
 
-    public function mount(): void
+    /** Przyjazny adres albo stary z parametrami (?matchday=3&tab=stats), np. z zapisanych linków. */
+    public function mount(?string $matchday_slug = null, ?string $tab_slug = null): void
     {
+        $this->number = (int) str_replace('kolejka-', '', $matchday_slug ?? (string) request()->query('matchday', '0'));
+        $tab = $tab_slug !== null ? array_search($tab_slug, self::TAB_SLUGS, true) : request()->query('tab', 'tip');
+        $this->tab = is_string($tab) && isset(self::TAB_SLUGS[$tab]) ? $tab : 'tip';
+
         if ($this->number < 1 || !$this->matchdays->firstWhere('number', $this->number)) {
             // Domyślnie pierwsza kolejka, na którą można jeszcze typować; w razie braku pierwsza.
             $open = $this->matchdays->first(fn($m) => $m->isOpenForTips());
@@ -58,8 +66,33 @@ new #[Layout('layouts::public')] class extends Component {
         return $this->view()->title('LechTYPER');
     }
 
+    /** Adres bieżącej kolejki i zakładki. */
+    private function pageUrl(): string
+    {
+        $params = ['matchday_slug' => 'kolejka-'.$this->number];
+
+        if ($this->tab !== 'tip') {
+            $params['tab_slug'] = self::TAB_SLUGS[$this->tab] ?? 'typ';
+        }
+
+        return $this->number > 0 ? route('tips', $params) : route('tips');
+    }
+
+    /** Podmienia adres w pasku przeglądarki bez przeładowania strony. */
+    private function syncUrl(): void
+    {
+        $this->js('history.replaceState(history.state, "", '.json_encode($this->pageUrl()).')');
+    }
+
+    public function updatedTab(): void
+    {
+        $this->syncUrl();
+    }
+
     public function updatedNumber(): void
     {
+        $this->syncUrl();
+
         unset($this->matchday, $this->tip, $this->isOpen, $this->sets, $this->scores);
         $this->loadTip();
 

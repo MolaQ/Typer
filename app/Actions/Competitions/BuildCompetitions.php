@@ -23,7 +23,7 @@ use Illuminate\Support\Facades\DB;
  *  - Ligę podwórkową (miejsca od 101, system szwajcarski: pary losuje się rundami),
  *  - Ligę Legend (wszystkie zespoły ludzi),
  *  - ligi europejskie z tabel końcowych poprzedniego sezonu (gdy taki jest),
- *  - Złotą Ligę z wpłat z ostatnich 12 miesięcy (gdy ktoś z listy wspierał, GoldenLeague).
+ *  - Złotą Ligę tworzy admin z powiadomienia (propozycja składu z wpłat z 12 miesięcy, GoldenLeague).
  * Można wywołać wielokrotnie: rozgrywki, które już istnieją, są pomijane (przycisk
  * "Wygeneruj brakujące rozgrywki" na stronie Terminarz).
  *
@@ -148,8 +148,8 @@ class BuildCompetitions
             // --- Ligi europejskie z tabel końcowych poprzedniego sezonu ---
             $stats['european'] = $this->buildEuropean($season);
 
-            // --- Złota Liga z wpłat ---
-            $stats['golden'] = $this->buildGolden($season);
+            // --- Złota Liga z wpłat: nie automatycznie. Admin dostaje powiadomienie z propozycją składu
+            // (AdminAlerts::golden) i zatwierdza ją przyciskiem albo zmienia skład na stronie Rozgrywki. ---
 
             return $stats;
         });

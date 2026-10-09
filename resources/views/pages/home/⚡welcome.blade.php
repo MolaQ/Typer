@@ -139,7 +139,7 @@ new #[Layout('layouts::public')] class extends Component {
                             <flux:badge color="green">{{ __('Your tip: :score', ['score' => $this->myTip->score()]) }}</flux:badge>
                         @endif
                         <flux:button variant="primary" icon="pencil-square"
-                            :href="route('tips', ['matchday' => $matchday->number])" wire:navigate>
+                            :href="route('tips', ['matchday_slug' => 'kolejka-' . $matchday->number])" wire:navigate>
                             {{ $this->myTip ? __('Change tip') : __('Tip now') }}
                         </flux:button>
                     @else

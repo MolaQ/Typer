@@ -17,7 +17,6 @@ use Flux\Flux;
 use Illuminate\Contracts\View\View;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Layout;
-use Livewire\Attributes\Url;
 use Livewire\Component;
 use Livewire\WithPagination;
 
@@ -32,24 +31,68 @@ use Livewire\WithPagination;
 new #[Layout('layouts::public')] class extends Component {
     use WithPagination;
 
-    // Wybrane rozgrywki: league-1..league-10, cup, swiss albo c-ID (rozgrywki ręczne).
-    #[Url(as: 'c', except: '')]
+    // Wybrane rozgrywki: stały klucz Competition::slug() (ekstraklasa, i-liga, puchar-polski, liga-legend …).
     public string $key = '';
 
-    #[Url(as: 'round', except: 0)]
     public int $round = 0;
 
     // Numer oglądanego sezonu; 0 = domyślny (aktywny albo ostatnio zakończony).
-    #[Url(as: 's', except: 0)]
     public int $seasonNumber = 0;
 
     /** Zespół (season_teams.id) i mecz pokazywane w oknach. */
     public ?int $teamId = null;
     public ?int $fixtureId = null;
 
-    public function mount(): void
+    /**
+     * Przyjazny adres: /results/sezon-2/ekstraklasa/kolejka-9. Stare adresy z parametrami (?c=league-1&round=9&s=2,
+     * np. w informacjach systemowych) też działają, a po pierwszej zmianie w formularzu adres zmienia się na nowy.
+     */
+    public function mount(?string $season_slug = null, ?string $competition_slug = null, ?string $round_slug = null): void
     {
+        $this->seasonNumber = (int) str_replace('sezon-', '', $season_slug ?? (string) request()->query('s', '0'));
+        $this->round = (int) str_replace('kolejka-', '', $round_slug ?? (string) request()->query('round', '0'));
+        $this->key = $competition_slug ?? $this->legacyKey((string) request()->query('c', ''));
+
         $this->normalize();
+    }
+
+    /** Stare klucze z parametru c (league-N, cup, swiss, c-ID) na klucze z adresu. */
+    private function legacyKey(string $key): string
+    {
+        if ($key === '' || !$this->season) {
+            return '';
+        }
+
+        $competition = Competition::where('season_id', $this->season->id)->get()->first(fn(Competition $c) => match ($c->type) {
+            CompetitionType::League => $key === 'league-' . $c->tier,
+            CompetitionType::Cup => $key === 'cup',
+            CompetitionType::Swiss => $key === 'swiss',
+            default => $key === 'c-' . $c->id,
+        });
+
+        return $competition?->slug() ?? '';
+    }
+
+    /** Adres strony dla sezonu, rozgrywek i kolejki (domyślnie bieżący wybór). */
+    public function pageUrl(?int $round = null, ?int $seasonNumber = null): string
+    {
+        $number = $seasonNumber ?? $this->season?->number;
+
+        if (!$number || $this->key === '') {
+            return route('results');
+        }
+
+        return route('results', [
+            'season_slug' => 'sezon-' . $number,
+            'competition_slug' => $this->key,
+            'round_slug' => 'kolejka-' . ($round ?? $this->round),
+        ]);
+    }
+
+    /** Po zmianie wyboru podmieniamy adres w pasku przeglądarki bez przeładowania strony. */
+    private function syncUrl(): void
+    {
+        $this->js('history.replaceState(history.state, "", ' . json_encode($this->pageUrl()) . ')');
     }
 
     /** Poprawia wybór rozgrywek i kolejki po wejściu na stronę albo po zmianie sezonu. */
@@ -74,11 +117,13 @@ new #[Layout('layouts::public')] class extends Component {
     public function updatedKey(): void
     {
         $this->resetPage('matchesPage');
+        $this->syncUrl();
     }
 
     public function updatedRound(): void
     {
         $this->resetPage('matchesPage');
+        $this->syncUrl();
     }
 
     /* ==================================================================
@@ -125,7 +170,10 @@ new #[Layout('layouts::public')] class extends Component {
         return $index === false ? null : ($this->seasonNumbers[$index + $step] ?? null);
     }
 
-    /** Strzałki w banerze: przejście o jeden sezon. Rozgrywki zostają, jeśli istnieją w nowym sezonie. */
+    /**
+     * Strzałki w banerze: przejście o jeden sezon. Rozgrywki i kolejka zostają (klucz rozgrywek jest taki sam
+     * w każdym sezonie), więc można porównać ten sam etap w różnych sezonach.
+     */
     public function shiftSeason(int $step): void
     {
         $target = $this->neighbourSeason($step <=> 0);
@@ -134,17 +182,16 @@ new #[Layout('layouts::public')] class extends Component {
             return;
         }
 
-        // Sezon domyślny bez parametru w adresie.
-        $this->seasonNumber = $target === $this->defaultSeasonNumber ? 0 : $target;
-        $this->round = 0;
+        $this->seasonNumber = $target;
         $this->teamId = null;
         $this->fixtureId = null;
 
         unset($this->season, $this->options, $this->competition, $this->isCup, $this->hasTable, $this->table,
-            $this->isLegends, $this->legends, $this->matchday, $this->matches, $this->myTeamId);
+            $this->isLegends, $this->legends, $this->legendsHistory, $this->matchday, $this->matches, $this->myTeamId);
 
         $this->normalize();
         $this->resetPage('matchesPage');
+        $this->syncUrl();
     }
 
     /** klucz => nazwa rozgrywek sezonu */
@@ -202,6 +249,36 @@ new #[Layout('layouts::public')] class extends Component {
     public function legends()
     {
         return $this->isLegends ? LegendsRanking::for($this->competition, $this->round) : collect();
+    }
+
+    /**
+     * Liga Legend: miejsce zespołu po każdej kolejce 1..wybrana (wśród zespołów, które jeszcze grały).
+     * entry_id => [kolejka => miejsce]. Do kafelków przy nazwie zespołu.
+     *
+     * @return array<int, array<int, int>>
+     */
+    #[Computed]
+    public function legendsHistory(): array
+    {
+        if (!$this->isLegends) {
+            return [];
+        }
+
+        $played = min((int) Matchday::where('season_id', $this->season->id)->where('status', \App\Enums\MatchdayStatus::Played)->max('number'), $this->round);
+        $history = [];
+
+        if ($played < 1) {
+            return [];
+        }
+
+        foreach (range(1, $played) as $stage) {
+
+            foreach (LegendsRanking::for($this->competition, $stage, onlyAlive: true)->values() as $index => $row) {
+                $history[$row['entry_id']][$stage] = $index + 1;
+            }
+        }
+
+        return $history;
     }
 
     #[Computed]
@@ -326,12 +403,7 @@ new #[Layout('layouts::public')] class extends Component {
 
     private function keyOf(Competition $competition): string
     {
-        return match ($competition->type) {
-            CompetitionType::League => 'league-' . $competition->tier,
-            CompetitionType::Cup => 'cup',
-            CompetitionType::Swiss => 'swiss',
-            default => 'c-' . $competition->id,
-        };
+        return $competition->slug();
     }
 }; ?>
 
@@ -468,82 +540,106 @@ new #[Layout('layouts::public')] class extends Component {
             {{-- ============ Liga Legend: ranking z odcięciem ============ --}}
             @if ($this->isLegends)
                 @php
+                    $rounds = \App\Support\LegendsRanking::ROUNDS;
                     // Najpierw zespoły, które grają w tej rundzie (według punktów Legend), potem odpadnięci wcześniej.
                     [$alive, $gone] = $this->legends->partition(fn ($row) => $row['eliminated_round'] === null || $row['eliminated_round'] >= $round);
                     $legendRows = $alive->concat($gone->sortByDesc('eliminated_round'))->values();
-                    $limit = $round < \App\Support\LegendsRanking::ROUNDS ? \App\Support\LegendsRanking::limitAfter($round) : 1;
+                    $limit = $round < $rounds ? \App\Support\LegendsRanking::limitAfter($round) : 1;
+                    $history = $this->legendsHistory;
                 @endphp
-                <flux:card class="space-y-0 overflow-x-auto p-0">
-                    {{-- Pasek etapów: 512 → 256 → … → finał, aktualna runda wyróżniona --}}
-                    <div class="flex flex-wrap items-center gap-1 border-b border-zinc-200 px-3 py-3 text-xs dark:border-zinc-700">
-                        @foreach (range(1, \App\Support\LegendsRanking::ROUNDS) as $stage)
+                <div class="space-y-2">
+                    {{-- Pasek etapów: 512 → 256 → … → Finał, każdy etap to link do swojej kolejki --}}
+                    <nav class="flex flex-wrap items-center gap-1 text-xs" aria-label="{{ __('Rounds') }}">
+                        @foreach (range(1, $rounds) as $stage)
                             @php
                                 $stageClass = $stage === $round
                                     ? 'lech-bar font-semibold'
-                                    : ($stage < $round ? 'bg-lech-100 text-lech-800 dark:bg-lech-900/40 dark:text-lech-200' : 'bg-zinc-100 text-zinc-500 dark:bg-zinc-800');
+                                    : ($stage < $round ? 'bg-lech-100 text-lech-800 hover:bg-lech-200 dark:bg-lech-900/40 dark:text-lech-200' : 'bg-zinc-100 text-zinc-500 hover:bg-zinc-200 dark:bg-zinc-800');
                             @endphp
-                            <span class="{{ $stageClass }} rounded-full px-2.5 py-1 tabular-nums" title="{{ __('Matchday :number', ['number' => $stage]) }}">
-                                {{ $stage < \App\Support\LegendsRanking::ROUNDS ? \App\Support\LegendsRanking::limitAfter($stage - 1) : __('Final') }}
-                            </span>
-                            @if ($stage < \App\Support\LegendsRanking::ROUNDS)
+                            <a href="{{ $this->pageUrl($stage) }}" wire:navigate title="{{ __('Matchday :number', ['number' => $stage]) }}"
+                                class="{{ $stageClass }} rounded-full px-2.5 py-1 tabular-nums transition">
+                                {{ $stage < $rounds ? \App\Support\LegendsRanking::limitAfter($stage - 1) : __('Final') }}
+                            </a>
+                            @if ($stage < $rounds)
                                 <flux:icon.chevron-right variant="micro" class="text-zinc-400" />
                             @endif
                         @endforeach
-                    </div>
-                    <div class="px-3 py-2 text-xs text-zinc-500">
-                        @if ($round < \App\Support\LegendsRanking::ROUNDS)
-                            {{ __('After matchday :round the best :limit teams stay in the competition.', ['round' => $round, 'limit' => $limit]) }}
-                        @else
-                            {{ __('Final: the better total from matchday 1 wins.') }}
-                        @endif
-                        {{ __('Legend points per matchday: 12 each for the exact score, the outcome and the goal difference, and for each question set 2, 4, 8, 16 or 32 for 1-5 correct answers (up to 100).') }}
-                    </div>
-                    <table class="w-full text-sm">
-                        <thead class="text-xs text-zinc-500">
-                            <tr class="border-b border-zinc-200 dark:border-zinc-700">
-                                <th class="px-3 py-2 text-right">#</th>
-                                <th class="px-3 py-2 text-left">{{ __('Team') }}</th>
-                                <th class="px-2 py-2 text-right" title="{{ __('Points in matchday :round', ['round' => $round]) }}">{{ __('Matchday') }}</th>
-                                <th class="px-2 py-2 text-right" title="{{ __('Exact score, outcome and goal difference') }}">{{ __('Tip') }}</th>
-                                <th class="px-2 py-2 text-right" title="{{ __('Bonus questions') }}">{{ __('Bon.') }}</th>
-                                <th class="px-2 py-2 text-right" title="{{ __('Exact tips') }}">{{ __('Ex.') }}</th>
-                                <th class="px-3 py-2 text-right">{{ __('Pts') }}</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @foreach ($legendRows as $index => $row)
-                                @php
-                                    $out = $row['eliminated_round'] !== null && $row['eliminated_round'] < $round;
-                                    $cut = $row['eliminated_round'] === $round;
-                                    $zoneClass = $out ? 'border-l-4 border-l-transparent text-zinc-400' : ($index < $limit ? 'border-l-4 border-l-green-500' : 'border-l-4 border-l-red-500');
-                                @endphp
-                                {{-- Kreska odcięcia: pod ostatnim zespołem, który przechodzi dalej --}}
-                                @if ($index === $limit && !$out && $round < \App\Support\LegendsRanking::ROUNDS)
-                                    <tr wire:key="leg-cut">
-                                        <td colspan="7" class="bg-red-50 px-3 py-1 text-center text-[11px] font-semibold uppercase tracking-wide text-red-700 dark:bg-red-900/20 dark:text-red-300">
-                                            {{ __('Cut-off: :limit teams go through to round :next', ['limit' => $limit, 'next' => $round + 1]) }}
-                                        </td>
-                                    </tr>
-                                @endif
-                                <tr wire:key="leg-{{ $row['entry_id'] }}"
-                                    class="{{ $zoneClass }} border-b border-zinc-100 last:border-b-0 dark:border-zinc-700/50 {{ $row['team']->id == $this->myTeamId ? 'bg-amber-50 font-semibold dark:bg-amber-900/20' : '' }}">
-                                    <td class="px-3 py-1.5 text-right tabular-nums">{{ $index + 1 }}.</td>
-                                    <td class="max-w-56 truncate px-3 py-1.5">
-                                        <button type="button" wire:click="showTeam({{ $row['team']->id }})" class="truncate hover:text-lech-700 hover:underline dark:hover:text-lech-300">{{ $row['team']->name }}</button>
-                                        @if ($out || $cut)
-                                            <span class="ms-1 text-[11px] text-red-600 dark:text-red-400">{{ __('out after matchday :round', ['round' => $row['eliminated_round']]) }}</span>
-                                        @endif
-                                    </td>
-                                    <td class="px-2 py-1.5 text-right tabular-nums text-zinc-500">{{ $row['last_points'] ?? '–' }}</td>
-                                    <td class="px-2 py-1.5 text-right tabular-nums">{{ $row['hit_points'] }}</td>
-                                    <td class="px-2 py-1.5 text-right tabular-nums">{{ $row['bonus_points'] }}</td>
-                                    <td class="px-2 py-1.5 text-right tabular-nums">{{ $row['exact'] }}</td>
-                                    <td class="px-3 py-1.5 text-right font-semibold tabular-nums">{{ $row['points'] }}</td>
+                    </nav>
+
+                    <flux:card class="overflow-x-auto p-0">
+                        <table class="w-full text-sm">
+                            <thead class="text-xs text-zinc-500">
+                                <tr class="border-b border-zinc-200 dark:border-zinc-700">
+                                    <th class="px-3 py-2 text-right">#</th>
+                                    <th class="px-3 py-2 text-left">{{ __('Team') }}</th>
+                                    <th class="px-2 py-2 text-left" title="{{ __('Place after each matchday') }}">{{ __('Matchdays 1-9') }}</th>
+                                    <th class="px-2 py-2 text-right" title="{{ __('Points in matchday :round', ['round' => $round]) }}">{{ __('Matchday') }}</th>
+                                    <th class="px-2 py-2 text-right" title="{{ __('Exact score, outcome and goal difference') }}">{{ __('Tip') }}</th>
+                                    <th class="px-2 py-2 text-right" title="{{ __('Bonus questions') }}">{{ __('Bon.') }}</th>
+                                    <th class="px-2 py-2 text-right" title="{{ __('Exact tips') }}">{{ __('Ex.') }}</th>
+                                    <th class="px-3 py-2 text-right">{{ __('Pts') }}</th>
                                 </tr>
-                            @endforeach
-                        </tbody>
-                    </table>
-                </flux:card>
+                            </thead>
+                            <tbody>
+                                @foreach ($legendRows as $index => $row)
+                                    @php
+                                        $out = $row['eliminated_round'] !== null && $row['eliminated_round'] < $round;
+                                        $zoneClass = $out ? 'border-l-transparent text-zinc-400' : ($index < $limit ? 'border-l-green-500' : 'border-l-red-500');
+                                    @endphp
+                                    <tr wire:key="leg-{{ $row['entry_id'] }}"
+                                        class="{{ $zoneClass }} border-b border-l-4 border-b-zinc-100 last:border-b-0 dark:border-b-zinc-700/50 {{ $row['team']->id == $this->myTeamId ? 'bg-amber-50 font-semibold dark:bg-amber-900/20' : '' }}">
+                                        <td class="px-3 py-1.5 text-right tabular-nums">{{ $out ? '' : ($index + 1) . '.' }}</td>
+                                        <td class="max-w-56 truncate px-3 py-1.5">
+                                            <button type="button" wire:click="showTeam({{ $row['team']->id }})" class="truncate hover:text-lech-700 hover:underline dark:hover:text-lech-300">{{ $row['team']->name }}</button>
+                                        </td>
+                                        {{-- Kafelki: miejsce po kolejce; zielone = przeszedł dalej, czerwone = odpadł, szare „–” = już nie grał --}}
+                                        <td class="px-2 py-1.5">
+                                            <div class="flex gap-0.5">
+                                                @foreach (range(1, $rounds) as $stage)
+                                                    @php
+                                                        $place = $history[$row['entry_id']][$stage] ?? null;
+                                                        $absent = $row['eliminated_round'] !== null && $row['eliminated_round'] < $stage;
+                                                        $lost = $place !== null && ($row['eliminated_round'] === $stage || ($stage === $rounds && $place > 1));
+                                                        $tileClass = match (true) {
+                                                            $place === null && $absent => 'bg-zinc-100 text-zinc-400 dark:bg-zinc-800',
+                                                            $place === null => 'bg-zinc-50 text-transparent dark:bg-zinc-800/40',
+                                                            $lost => 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300',
+                                                            default => 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300',
+                                                        };
+                                                    @endphp
+                                                    <span class="{{ $tileClass }} flex h-5 w-8 shrink-0 items-center justify-center rounded text-[10px] font-semibold tabular-nums"
+                                                        title="{{ __('Matchday :number', ['number' => $stage]) }}">{{ $place ?? ($absent ? '–' : '·') }}</span>
+                                                @endforeach
+                                            </div>
+                                        </td>
+                                        <td class="px-2 py-1.5 text-right tabular-nums text-zinc-500">{{ $row['last_points'] ?? '–' }}</td>
+                                        <td class="px-2 py-1.5 text-right tabular-nums">{{ $row['hit_points'] }}</td>
+                                        <td class="px-2 py-1.5 text-right tabular-nums">{{ $row['bonus_points'] }}</td>
+                                        <td class="px-2 py-1.5 text-right tabular-nums">{{ $row['exact'] }}</td>
+                                        <td class="px-3 py-1.5 text-right font-semibold tabular-nums">{{ $row['points'] }}</td>
+                                    </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </flux:card>
+
+                    {{-- Objaśnienia kursywą pod tabelą i legenda kolorów --}}
+                    <div class="space-y-1 px-1 text-xs italic text-zinc-500">
+                        <p>
+                            @if ($round < $rounds)
+                                {{ __('After matchday :round the best :limit teams stay in the competition.', ['round' => $round, 'limit' => $limit]) }}
+                            @else
+                                {{ __('Final: the better total from matchday 1 wins.') }}
+                            @endif
+                            {{ __('Legend points per matchday: 12 each for the exact score, the outcome and the goal difference, and for each question set 2, 4, 8, 16 or 32 for 1-5 correct answers (up to 100).') }}
+                        </p>
+                        <p class="flex flex-wrap gap-4 not-italic">
+                            <span class="flex items-center gap-1"><span class="inline-block h-3 w-3 rounded bg-green-500"></span>{{ __('Goes through') }}</span>
+                            <span class="flex items-center gap-1"><span class="inline-block h-3 w-3 rounded bg-red-500"></span>{{ __('Eliminated') }}</span>
+                            <span class="flex items-center gap-1"><span class="inline-block h-3 w-3 rounded bg-zinc-300 dark:bg-zinc-600"></span>{{ __('No longer playing') }}</span>
+                        </p>
+                    </div>
+                </div>
             @endif
 
             {{-- ============ Mecze kolejki / rundy ============ --}}

@@ -1,6 +1,5 @@
 <?php
 
-use App\Enums\CompetitionType;
 use App\Models\Competition;
 use App\Models\Matchday;
 use App\Models\News;
@@ -93,13 +92,8 @@ new class extends Component {
             ->map(fn (Competition $c) => [
                 'title' => $c->name,
                 'sub' => $season->title,
-                // Klucze jak na stronie wyników (league-N, cup, swiss, c-ID).
-                'url' => route('results', ['c' => match ($c->type) {
-                    CompetitionType::League => 'league-' . $c->tier,
-                    CompetitionType::Cup => 'cup',
-                    CompetitionType::Swiss => 'swiss',
-                    default => 'c-' . $c->id,
-                }]),
+                // Przyjazny adres strony wyników: /results/sezon-N/ekstraklasa.
+                'url' => route('results', ['season_slug' => 'sezon-' . $season->number, 'competition_slug' => $c->slug()]),
             ])
             ->all();
     }

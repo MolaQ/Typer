@@ -15,8 +15,9 @@ use Illuminate\Support\Facades\Schema;
  * Wartości są konfigurowalne w panelu (tabela hall_of_fame_settings), tu są wartości domyślne.
  * Punkty ligowe mnożymy przez mnożnik poziomu. Wartości domyślne ułożone są tak, żeby tytuły dawały punkty
  * zgodnie z ważnością rozgrywek (pełny tytuł z meczami i awansem):
- *   Liga Legend 1000 (premie za rundy, do tego punkty Legend z kolejek) > Ekstraklasa 500 > MVP 400 > Złota Piłka 360 > Złote Rękawice 330 > Liga Mistrzów 300
- *   > Liga Europy 250 > Puchar Polski 220 > Liga Konferencji 180 > I liga 168 > II liga 144 … > podwórkowa 12.
+ *   Liga Legend 1000 (premie za rundy, do tego punkty Legend z kolejek) > Ekstraklasa 500 > Puchar Polski 450
+ *   > MVP 400 > Złota Piłka 360 > Złote Rękawice 330 > Liga Mistrzów 300 > Liga Europy 250 > Liga Konferencji 180
+ *   > I liga 168 > II liga 144 … > podwórkowa 12.
  * Złota Liga nie daje punktów, tylko unikalne trofeum (najniżej w gablocie).
  */
 final class HallOfFame
@@ -31,9 +32,9 @@ final class HallOfFame
         // Ligi i podwórkowa (× mnożnik poziomu): mistrz Ekstraklasy 500, I ligi 140 + awans 28, podwórkowej 10 + awans 2.
         'league_champion' => 50, 'league_second' => 25, 'league_third' => 15, 'league_promotion' => 10,
         'league_top_scorer' => 10, 'league_win' => 1, 'league_draw' => 0.5,
-        // Puchar Polski: za wygraną w każdej rundzie (razem 75), a zwycięzca finału osobno (145), łącznie 220.
+        // Puchar Polski (zaraz po Ekstraklasie): za wygraną w każdej rundzie (razem 75), zwycięzca finału osobno (375), łącznie 450.
         'cup_round_1' => 2, 'cup_round_2' => 2, 'cup_round_3' => 3, 'cup_round_4' => 5, 'cup_round_5' => 8,
-        'cup_round_6' => 12, 'cup_round_7' => 18, 'cup_round_8' => 25, 'cup_winner' => 145,
+        'cup_round_6' => 12, 'cup_round_7' => 18, 'cup_round_8' => 25, 'cup_winner' => 375,
         // Ligi europejskie: zwycięzca i wygrany mecz.
         'champions_winner' => 300, 'europa_winner' => 250, 'conference_winner' => 180,
         'champions_win' => 3, 'europa_win' => 2, 'conference_win' => 1,
@@ -44,7 +45,7 @@ final class HallOfFame
         'legends_round_1' => 0, 'legends_round_2' => 10, 'legends_round_3' => 20, 'legends_round_4' => 30,
         'legends_round_5' => 40, 'legends_round_6' => 50, 'legends_round_7' => 100, 'legends_round_8' => 250,
         'legends_winner' => 500,
-        // Nagrody indywidualne sezonu (tylko gracze, przy remisie wyższe miejsce w lidze).
+        // Nagrody indywidualne sezonu (gracze i boty, przy remisie wyższe miejsce w lidze).
         'mvp' => 400, 'golden_ball' => 360, 'golden_gloves' => 330,
     ];
 
@@ -151,7 +152,7 @@ final class HallOfFame
 
     /**
      * Trofea do gabloty: klucz => nazwa, w kolejności ważności (tak je pokazujemy):
-     * Liga Legend, Ekstraklasa, MVP, Złota Piłka, Złote Rękawice, Liga Mistrzów, Liga Europy, Puchar Polski,
+     * Liga Legend, Ekstraklasa, Puchar Polski, MVP, Złota Piłka, Złote Rękawice, Liga Mistrzów, Liga Europy,
      * Liga Konferencji, ligi od I ligi do podwórkowej, królowie strzelców lig (od Ekstraklasy), Złota Liga.
      *
      * @return array<string, string>
@@ -161,12 +162,12 @@ final class HallOfFame
         $out = [
             CompetitionType::Legends->value => CompetitionType::Legends->label(),
             'league_1' => __('Champion: :league', ['league' => League::Ekstraklasa->label()]),
+            CompetitionType::Cup->value => CompetitionType::Cup->label(),
             'mvp' => __('Season MVP'),
             'golden_ball' => __('Golden Ball'),
             'golden_gloves' => __('Golden Gloves'),
             CompetitionType::Champions->value => CompetitionType::Champions->label(),
             CompetitionType::Europa->value => CompetitionType::Europa->label(),
-            CompetitionType::Cup->value => CompetitionType::Cup->label(),
             CompetitionType::Conference->value => CompetitionType::Conference->label(),
         ];
         foreach (League::cases() as $league) {

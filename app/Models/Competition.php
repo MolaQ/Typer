@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Str;
 
 /**
  * Rozgrywki w ramach sezonu (na razie: jedna liga poziomów 1-10).
@@ -48,6 +49,18 @@ class Competition extends Model
             CompetitionType::Swiss => 'league_'.League::Podworkowa->value,
             default => $this->type->value,
         };
+    }
+
+    /**
+     * Stały, czytelny klucz rozgrywek w adresach (taki sam w każdym sezonie, więc da się porównać sezony):
+     * ligi po nazwie poziomu (ekstraklasa, i-liga …), pozostałe po nazwie typu (puchar-polski, liga-legend …).
+     * Każdy typ poza ligami występuje w sezonie raz, więc klucz jest unikalny w sezonie.
+     */
+    public function slug(): string
+    {
+        return $this->type === CompetitionType::League && $this->tier
+            ? Str::slug(League::from((int) $this->tier)->label())
+            : Str::slug($this->type->label());
     }
 
     /** Uczestnicy posortowani po rozstawieniu. */

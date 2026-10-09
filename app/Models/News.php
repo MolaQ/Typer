@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Str;
 
 /**
  * News na stronie głównej, pisany w panelu (uprawnienie news-create). Bez daty publikacji to szkic.
@@ -24,6 +25,18 @@ class News extends Model
     protected function casts(): array
     {
         return ['published_at' => 'datetime'];
+    }
+
+    /** Przyjazny adres newsa: /news/5-tytul-wiadomosci (id + tytuł). */
+    public function getRouteKey(): string
+    {
+        return $this->getKey().'-'.Str::slug($this->title);
+    }
+
+    /** Z adresu liczy się tylko id na początku (stare linki /news/5 też działają). */
+    public function resolveRouteBinding($value, $field = null): ?self
+    {
+        return $this->newQuery()->whereKey((int) $value)->first();
     }
 
     public function author(): BelongsTo

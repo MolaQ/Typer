@@ -60,6 +60,21 @@ class User extends Authenticatable implements MustVerifyEmail
     /**
      * Get the user's initials
      */
+    /**
+     * Przyjazny adres profilu zespołu: /teams/12-kolejorz-kaczory (id + nazwa zespołu albo gracza).
+     * Jedyna trasa z {user} to profil zespołu (team.show), więc zmiana dotyczy tylko jej.
+     */
+    public function getRouteKey(): string
+    {
+        return $this->getKey().'-'.Str::slug($this->team_name ?: $this->name);
+    }
+
+    /** Z adresu liczy się tylko id na początku, więc stare linki /teams/12 i linki po zmianie nazwy dalej działają. */
+    public function resolveRouteBinding($value, $field = null): ?self
+    {
+        return $this->newQuery()->whereKey((int) $value)->first();
+    }
+
     public function initials(): string
     {
         $initials = Str::initials($this->name, true);

@@ -9,10 +9,15 @@ Route::livewire('/', 'pages::home.welcome')->name('home');
 Route::livewire('/permission', 'pages::home.permissiontest')->name('permission'); // tymczasowy test
 
 // Strefa gracza na stronie głównej (bez panelu admina): typowanie i wyniki.
-Route::livewire('tips', 'pages::tips')
+// Typowanie z przyjaznym adresem: /tips/kolejka-3/statystyki (obie części opcjonalne).
+Route::livewire('tips/{matchday_slug?}/{tab_slug?}', 'pages::tips')
+    ->where(['matchday_slug' => 'kolejka-[0-9]+', 'tab_slug' => '[a-z]+'])
     ->middleware(['auth', 'verified'])
     ->name('tips');
-Route::livewire('results', 'pages::results')->name('results');
+// Wyniki z przyjaznym adresem: /results/sezon-2/ekstraklasa/kolejka-9 (wszystkie części opcjonalne).
+Route::livewire('results/{season_slug?}/{competition_slug?}/{round_slug?}', 'pages::results')
+    ->where(['season_slug' => 'sezon-[0-9]+', 'competition_slug' => '[a-z0-9-]+', 'round_slug' => 'kolejka-[0-9]+'])
+    ->name('results');
 Route::livewire('hall-of-fame', 'pages::hall-of-fame')->name('hall-of-fame');
 Route::livewire('teams/{user}', 'pages::team-profile')->name('team.show');
 

@@ -42,7 +42,7 @@ final class AdminAlerts
         $season = Season::current();
 
         if ($season) {
-            $alerts = array_merge($alerts, self::matchdays($season), self::swiss($season), self::european($season));
+            $alerts = array_merge($alerts, self::matchdays($season), self::swiss($season), self::european($season), self::golden($season));
         } else {
             $alerts = array_merge($alerts, self::lifecycle());
         }
@@ -212,6 +212,10 @@ final class AdminAlerts
             );
         }
 
+        if ($upcoming->status === SeasonStatus::Approved) {
+            $alerts = array_merge($alerts, self::golden($upcoming));
+        }
+
         $alerts[] = self::alert(self::INFO, 'clipboard-document-check', __('Season checklist'), __('Check what is still missing before the start.'), 'dashboard.checklist', $params);
 
         return $alerts;
@@ -245,6 +249,54 @@ final class AdminAlerts
             'globe-europe-africa',
             __('Missing competitions: :list', ['list' => $missing->implode(', ')]),
             __('The places 1-3 of the leagues from the previous season are known. Create them from history.'),
+            'dashboard.competitions',
+            ['season' => $season->id],
+        )];
+    }
+
+    /**
+     * Złota Liga: propozycja składu z wpłat (GoldenLeague::seats) do zatwierdzenia jednym przyciskiem
+     * albo do zmiany na stronie Rozgrywki. Gdy liga już jest, a przed pierwszą rozegraną kolejką wpłaty
+     * dają inny skład, admin dostaje informację o zmianie.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    private static function golden(Season $season): array
+    {
+        $proposal = GoldenLeague::seats($season);
+
+        if ($proposal === []) {
+            return [];
+        }
+
+        $existing = Competition::where('season_id', $season->id)->where('type', CompetitionType::Golden->value)->first();
+        $names = SeasonTeam::with(['user:id,name,team_name', 'bot:id,name'])->whereIn('id', $proposal)->get()->keyBy('id');
+        $list = collect($proposal)->map(fn (int $id) => $names->get($id)?->name)->filter()->implode(', ');
+
+        if (! $existing) {
+            return [self::alert(
+                self::WARNING,
+                'star',
+                __('Złota Liga: approve the proposed line-up'),
+                __('Proposal from the payments of the last 12 months: :list. You can approve it or change it on the Competitions page.', ['list' => $list]),
+                'dashboard.competitions',
+                ['season' => $season->id],
+                ['method' => 'buildGolden', 'arg' => $season->id, 'label' => __('Approve Złota Liga')],
+            )];
+        }
+
+        $current = $existing->entries()->orderBy('seed')->pluck('season_team_id')->map(fn ($id) => (int) $id)->all();
+        $started = Matchday::where('season_id', $season->id)->where('status', MatchdayStatus::Played->value)->exists();
+
+        if ($started || array_values($proposal) === $current) {
+            return [];
+        }
+
+        return [self::alert(
+            self::INFO,
+            'star',
+            __('Złota Liga: new payments change the line-up'),
+            __('By the payments the line-up would be: :list. Change it on the Competitions page if you want.', ['list' => $list]),
             'dashboard.competitions',
             ['season' => $season->id],
         )];
