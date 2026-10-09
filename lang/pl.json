@@ -1232,5 +1232,10 @@
     "Full settlement: tip, points for the tip and bonuses. Stars: green correct, red wrong, grey no answer.": "Pełne rozliczenie: typ, punkty za typ i bonusy. Gwiazdki: zielona trafiona, czerwona błędna, szara bez odpowiedzi.",
     "Team eliminated": "Drużyna wyeliminowana",
     "First qualifying round": "I runda eliminacji",
-    "Second qualifying round": "II runda eliminacji"
+    "Second qualifying round": "II runda eliminacji",
+    "Full time": "Koniec meczu",
+    "days": "dni",
+    "hours": "godz.",
+    "min": "min",
+    "sec": "sek."
 }
