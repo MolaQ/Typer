@@ -38,10 +38,10 @@ final class HallOfFame
         // Ligi europejskie: zwycięzca i wygrany mecz.
         'champions_winner' => 300, 'europa_winner' => 250, 'conference_winner' => 180,
         'champions_win' => 3, 'europa_win' => 2, 'conference_win' => 1,
-        // Liga Legend: punkty Legend z każdej kolejki (do 100) razy przelicznik, na bieżąco po kolejce,
+        // Liga Legend: punkty Legend z każdej kolejki (do 100) razy przelicznik (0,1, czyli do 10 HoF; panel), na bieżąco po kolejce,
         // oraz premia za przejście każdej rundy (narastająco): runda 1 = 0, 2 = 10 … 8 = 250 (awans do finału),
         // wygrana w finale 500. Zwycięzca dostaje z premii razem 1000.
-        'legends_point' => 1,
+        'legends_point' => 0.1,
         'legends_round_1' => 0, 'legends_round_2' => 10, 'legends_round_3' => 20, 'legends_round_4' => 30,
         'legends_round_5' => 40, 'legends_round_6' => 50, 'legends_round_7' => 100, 'legends_round_8' => 250,
         'legends_winner' => 500,

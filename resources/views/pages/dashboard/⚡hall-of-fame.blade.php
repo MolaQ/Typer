@@ -213,7 +213,7 @@ new class extends Component {
                 <flux:heading>{{ $group }}</flux:heading>
                 <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                     @foreach ($fields as $key => $label)
-                        <flux:input type="number" step="0.5" min="0" wire:model="values.{{ $key }}" :label="$label"
+                        <flux:input type="number" step="0.1" min="0" wire:model="values.{{ $key }}" :label="$label"
                             wire:key="value-{{ $key }}" />
                     @endforeach
                 </div>

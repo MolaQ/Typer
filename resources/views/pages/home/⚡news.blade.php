@@ -64,7 +64,14 @@ new class extends Component {
 }; ?>
 
 <section class="space-y-4">
-    <flux:heading size="lg">{{ __('News') }}</flux:heading>
+    {{-- Belka sekcji newsów: „Aktualności #LechTYPER” w gradiencie sidebara --}}
+    <header class="lech-bar lech-bar-shadow flex items-center justify-between gap-3 rounded-2xl px-5 py-3">
+        <h2 class="flex items-center gap-2 text-lg font-bold tracking-tight">
+            <flux:icon.newspaper class="size-5 text-lech-200" />
+            {{ __('News') }}
+        </h2>
+        <span class="text-sm font-semibold tracking-wide text-lech-200">#LechTYPER</span>
+    </header>
 
     @if (!$this->items || $this->items->isEmpty())
         <flux:card>
