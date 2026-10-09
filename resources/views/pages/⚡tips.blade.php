@@ -165,6 +165,48 @@ new #[Layout('layouts::public')] class extends Component {
             : collect();
     }
 
+    /**
+     * Kafelki kolejek: liczba typów graczy i odsetek trafionych rozstrzygnięć (po wyniku) dla każdej kolejki sezonu.
+     *
+     * @return array<int, array{tips: int, outcome: int|null}>
+     */
+    #[Computed]
+    public function matchdayTipStats(): array
+    {
+        if (!$this->season) {
+            return [];
+        }
+
+        $rows = Tip::query()
+            ->join('matchdays', 'matchdays.id', '=', 'tips.matchday_id')
+            ->where('matchdays.season_id', $this->season->id)
+            ->groupBy('tips.matchday_id')
+            ->selectRaw('tips.matchday_id, COUNT(*) AS tips_count, SUM(CASE
+                WHEN tips.lech_goals > tips.opponent_goals AND matchdays.lech_goals > matchdays.opponent_goals THEN 1
+                WHEN tips.lech_goals = tips.opponent_goals AND matchdays.lech_goals = matchdays.opponent_goals THEN 1
+                WHEN tips.lech_goals < tips.opponent_goals AND matchdays.lech_goals < matchdays.opponent_goals THEN 1
+                ELSE 0 END) AS outcome_hits')
+            ->toBase()
+            ->get();
+
+        $stats = [];
+        foreach ($rows as $row) {
+            $stats[(int) $row->matchday_id] = ['tips' => (int) $row->tips_count, 'hits' => (int) $row->outcome_hits];
+        }
+
+        $out = [];
+        foreach ($this->matchdays as $matchday) {
+            $count = $stats[$matchday->id]['tips'] ?? 0;
+            $played = $matchday->status === \App\Enums\MatchdayStatus::Played && $matchday->lech_goals !== null;
+            $out[$matchday->id] = [
+                'tips' => $count,
+                'outcome' => $played && $count > 0 ? (int) round(100 * ($stats[$matchday->id]['hits'] ?? 0) / $count) : null,
+            ];
+        }
+
+        return $out;
+    }
+
     #[Computed]
     public function matchday(): ?Matchday
     {
@@ -434,9 +476,9 @@ new #[Layout('layouts::public')] class extends Component {
                 $tileClass = !$hasResult
                     ? 'border-zinc-500 bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-200'
                     : match ($option->lech_goals <=> $option->opponent_goals) {
-                        1 => 'border-green-700 bg-green-500 text-white',
-                        0 => 'border-yellow-500 bg-yellow-300 text-yellow-950',
-                        default => 'border-red-700 bg-red-500 text-white',
+                        1 => 'border-green-600 bg-green-400 text-green-950',
+                        0 => 'border-yellow-500 bg-yellow-200 text-yellow-950',
+                        default => 'border-red-600 bg-red-400 text-red-950',
                     };
                 $selected = $option->number === $this->number;
             @endphp
@@ -456,6 +498,16 @@ new #[Layout('layouts::public')] class extends Component {
                 @else
                     <span class="text-xs opacity-80">–</span>
                 @endif
+                {{-- Liczba typów graczy i odsetek trafionych rozstrzygnięć --}}
+                @php
+                    $tipStat = $this->matchdayTipStats[$option->id] ?? ['tips' => 0, 'outcome' => null];
+                @endphp
+                <span class="flex w-full items-center justify-between gap-2 text-[11px] font-semibold opacity-80">
+                    <span class="flex items-center gap-1" title="{{ __('Tips') }}"><flux:icon.users variant="micro" />{{ $tipStat['tips'] }}</span>
+                    @if ($tipStat['outcome'] !== null)
+                        <span class="flex items-center gap-1" title="{{ __('Correct outcomes') }}"><flux:icon.check-circle variant="micro" />{{ $tipStat['outcome'] }}%</span>
+                    @endif
+                </span>
             </button>
         @endforeach
     </div>
