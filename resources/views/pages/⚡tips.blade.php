@@ -39,6 +39,9 @@ new #[Layout('layouts::public')] class extends Component {
     /** matchday_question_id => '1' | '0' | '' */
     public array $answers = [];
 
+    /** Godzina ostatniego automatycznego zapisu (do napisu „Zapisano” w pasku na dole). */
+    public string $savedTime = '';
+
     public function mount(): void
     {
         if ($this->number < 1 || !$this->matchdays->firstWhere('number', $this->number)) {
@@ -70,6 +73,7 @@ new #[Layout('layouts::public')] class extends Component {
         $this->lech = '';
         $this->opponent = '';
         $this->answers = [];
+        $this->savedTime = '';
 
         $matchday = $this->matchday;
 
@@ -266,26 +270,72 @@ new #[Layout('layouts::public')] class extends Component {
      | AKCJE
      * ================================================================*/
 
-    public function save(SaveTip $action): void
+    /*
+     * Zapis automatyczny (bez przycisku): Livewire woła metody updated<Własność>() po każdej zmianie pola
+     * powiązanego przez wire:model albo $set (przyciski Tak / Brak odpowiedzi / Nie w x-answer-toggle).
+     */
+
+    /** Zmiana liczby goli Lecha: poprawiamy wartość i zapisujemy typ. */
+    public function updatedLech(): void
+    {
+        $this->autosave();
+    }
+
+    /** Zmiana liczby goli rywala: poprawiamy wartość i zapisujemy typ. */
+    public function updatedOpponent(): void
+    {
+        $this->autosave();
+    }
+
+    /** Odpowiedź na pytanie bonusowe: zapis od razu (bez wpisanego wyniku typ dostaje 0:0). */
+    public function updatedAnswers(): void
+    {
+        $this->autosave();
+    }
+
+    /**
+     * Gole z formularza do zapisu: puste pole -> 0 (typ 0:0, gdy gracz odpowiada bez wyniku),
+     * liczba ujemna -> wartość bezwzględna (abs), wszystko, co dalej nie spełnia TipRules::goals()
+     * (tekst, ułamek, więcej niż TipRules::MAX_GOALS), -> 0.
+     */
+    private static function normalizeGoals(string $value): string
+    {
+        $value = trim($value);
+
+        if ($value === '') {
+            return '0';
+        }
+
+        if (preg_match('/^-\d+$/', $value)) {
+            $value = (string) abs((int) $value);
+        }
+
+        return (string) (\App\Support\TipRules::goals($value) ?? 0);
+    }
+
+    /** Zapisuje typ i odpowiedzi przez SaveTip (te same zasady co wcześniej przycisk „Zapisz typ”). */
+    private function autosave(): void
     {
         $matchday = $this->matchday;
 
-        if (!$matchday) {
+        if (!$matchday || !$this->isOpen) {
             return;
         }
 
+        $this->lech = self::normalizeGoals($this->lech);
+        $this->opponent = self::normalizeGoals($this->opponent);
+
         try {
-            $action->handle(auth()->user(), $matchday, $this->lech, $this->opponent, $this->answers);
+            app(SaveTip::class)->handle(auth()->user(), $matchday, $this->lech, $this->opponent, $this->answers);
         } catch (DomainException $e) {
             Flux::toast(variant: 'danger', text: $e->getMessage());
 
             return;
         }
 
+        // Odświeżamy wyliczone dane (typ, zestawy), ale nie pola formularza, żeby nie przeskakiwały pod kursorem.
         unset($this->tip, $this->sets);
-        $this->loadTip();
-
-        Flux::toast(variant: 'success', text: __('Tip saved.'));
+        $this->savedTime = now()->format('H:i:s');
     }
 }; ?>
 <div class="mx-auto flex w-full max-w-6xl flex-col gap-6">
@@ -389,14 +439,14 @@ new #[Layout('layouts::public')] class extends Component {
                 <div class="grid grid-cols-[1fr_auto_1fr] items-center gap-3 sm:gap-6">
                     <div class="flex flex-col items-end gap-2 text-right">
                         <span class="text-sm font-semibold sm:text-base">Lech Poznań</span>
-                        <input type="number" min="0" max="{{ \App\Support\TipRules::MAX_GOALS }}" wire:model="lech" @disabled(! $this->isOpen)
+                        <input type="number" min="0" max="{{ \App\Support\TipRules::MAX_GOALS }}" wire:model.live.debounce.500ms="lech" @disabled(! $this->isOpen)
                             aria-label="Lech Poznań"
                             class="h-16 w-20 rounded-xl border border-zinc-300 bg-zinc-50 text-center text-3xl font-bold tabular-nums shadow-inner focus:border-lech-500 focus:outline-none focus:ring-4 focus:ring-lech-500/20 disabled:opacity-60 dark:border-zinc-600 dark:bg-zinc-800">
                     </div>
                     <span class="pt-7 text-3xl font-bold text-zinc-400">:</span>
                     <div class="flex flex-col items-start gap-2">
                         <span class="truncate text-sm font-semibold sm:text-base">{{ $this->matchday->opponent }}</span>
-                        <input type="number" min="0" max="{{ \App\Support\TipRules::MAX_GOALS }}" wire:model="opponent" @disabled(! $this->isOpen)
+                        <input type="number" min="0" max="{{ \App\Support\TipRules::MAX_GOALS }}" wire:model.live.debounce.500ms="opponent" @disabled(! $this->isOpen)
                             aria-label="{{ $this->matchday->opponent }}"
                             class="h-16 w-20 rounded-xl border border-zinc-300 bg-zinc-50 text-center text-3xl font-bold tabular-nums shadow-inner focus:border-lech-500 focus:outline-none focus:ring-4 focus:ring-lech-500/20 disabled:opacity-60 dark:border-zinc-600 dark:bg-zinc-800">
                     </div>
@@ -501,7 +551,7 @@ new #[Layout('layouts::public')] class extends Component {
     </section>
     @endforeach
 
-    {{-- Pasek zapisu: postęp odpowiedzi i przycisk, przyklejony do dołu ekranu --}}
+    {{-- Pasek na dole ekranu: postęp odpowiedzi i stan zapisu automatycznego (bez przycisku) --}}
     <div class="sticky bottom-4 z-10 flex flex-wrap items-center gap-4 rounded-2xl border border-zinc-200 bg-white/90 px-5 py-3 shadow-lg backdrop-blur dark:border-zinc-700 dark:bg-zinc-900/90">
         <div class="min-w-48 flex-1 space-y-1">
             <div class="text-xs text-zinc-500">
@@ -512,10 +562,16 @@ new #[Layout('layouts::public')] class extends Component {
             </div>
         </div>
         @if ($this->isOpen)
-            <flux:button variant="primary" icon="check" wire:click="save" wire:loading.attr="disabled">
-                <span wire:loading.remove wire:target="save">{{ __('Save tip') }}</span>
-                <span wire:loading wire:target="save">{{ __('Saving...') }}</span>
-            </flux:button>
+            <div class="flex items-center gap-2 text-sm">
+                <span wire:loading class="text-zinc-500">{{ __('Saving...') }}</span>
+                <span wire:loading.remove class="flex items-center gap-1 font-medium text-green-700 dark:text-green-400">
+                    @if ($savedTime !== '')
+                        <flux:icon.check-circle variant="mini" /> {{ __('Saved at :time', ['time' => $savedTime]) }}
+                    @else
+                        <span class="text-zinc-500">{{ __('Changes are saved automatically.') }}</span>
+                    @endif
+                </span>
+            </div>
         @else
             <flux:text size="sm">{{ __('Tipping for this matchday is closed.') }}</flux:text>
         @endif
