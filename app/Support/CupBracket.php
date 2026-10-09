@@ -73,4 +73,15 @@ final class CupBracket
             default => __('Round of :count', ['count' => self::seatsInRound($round)]),
         };
     }
+
+    /** Nazwa rundy z liczbą zespołów (kafelki rund po odpadnięciu), np. „Ćwierćfinał – 8 zespołów”. */
+    public static function stageLabel(int $round): string
+    {
+        return match ($round) {
+            self::ROUNDS => __('Final'),
+            self::ROUNDS - 1 => __('Semi-final – :count teams', ['count' => self::seatsInRound($round)]),
+            self::ROUNDS - 2 => __('Quarter-final – :count teams', ['count' => self::seatsInRound($round)]),
+            default => self::roundName($round),
+        };
+    }
 }

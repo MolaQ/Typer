@@ -121,13 +121,20 @@
                                 @endif
                             </a>
                         @endforeach
-                        @if ($row['eliminated_round'])
-                            {{-- Kafelek końca przygody: zespół odpadł z tych rozgrywek --}}
-                            <div class="flex flex-col items-center justify-center gap-1 rounded-xl border border-red-300 bg-red-50 p-2.5 text-center text-sm dark:border-red-500/40 dark:bg-red-500/10">
-                                <flux:icon.x-circle class="size-6 text-red-500" />
-                                <div class="font-semibold text-red-700 dark:text-red-300">{{ __('Out of the competition') }}</div>
-                                <div class="text-xs text-zinc-500">{{ __('After matchday :number', ['number' => $row['eliminated_round']]) }}</div>
-                            </div>
+                        @if ($row['eliminated_round'] && $row['eliminated_round'] < \App\Support\LegendsRanking::ROUNDS)
+                            {{-- Szare kafelki rund, których zespół już nie zagra, bo odpadł z rozgrywek --}}
+                            @foreach (range($row['eliminated_round'] + 1, \App\Support\LegendsRanking::ROUNDS) as $round)
+                                <div class="block w-full space-y-1 rounded-xl border border-zinc-500 bg-zinc-100 p-2.5 text-sm dark:border-zinc-500 dark:bg-zinc-800" wire:key="out-{{ $loop->parent->index }}-{{ $round }}">
+                                    <div class="text-xs text-zinc-500">{{ __('Matchday :number', ['number' => $round]) }}</div>
+                                    <div class="flex items-center justify-center gap-1.5 text-zinc-600 dark:text-zinc-300">
+                                        <flux:icon.x-circle class="size-5 shrink-0" />
+                                        <span class="truncate font-medium">{{ __('Team eliminated') }}</span>
+                                    </div>
+                                    <div class="flex items-center gap-2">
+                                        <span class="flex size-5 items-center justify-center rounded bg-zinc-600 text-[10px] font-bold text-zinc-100">−</span>
+                                    </div>
+                                </div>
+                            @endforeach
                         @endif
                     </div>
                 @else
@@ -157,13 +164,20 @@
                             </div>
                         </button>
                     @endforeach
-                    @if ($row['eliminated_round'])
-                        {{-- Kafelek końca przygody: zespół odpadł z tych rozgrywek --}}
-                        <div class="flex flex-col items-center justify-center gap-1 rounded-xl border border-red-300 bg-red-50 p-2.5 text-center text-sm dark:border-red-500/40 dark:bg-red-500/10">
-                            <flux:icon.x-circle class="size-6 text-red-500" />
-                            <div class="font-semibold text-red-700 dark:text-red-300">{{ __('Out of the competition') }}</div>
-                            <div class="text-xs text-zinc-500">{{ $row['type'] === \App\Enums\CompetitionType::Cup ? \App\Support\CupBracket::roundName($row['eliminated_round']) : __('After matchday :number', ['number' => $row['eliminated_round']]) }}</div>
-                        </div>
+                    @if ($row['eliminated_round'] && $row['eliminated_round'] < ($row['type'] === \App\Enums\CompetitionType::Cup ? \App\Support\CupBracket::ROUNDS : \App\Support\LegendsRanking::ROUNDS))
+                        {{-- Szare kafelki rund, których zespół już nie zagra, bo odpadł z rozgrywek --}}
+                        @foreach (range($row['eliminated_round'] + 1, ($row['type'] === \App\Enums\CompetitionType::Cup ? \App\Support\CupBracket::ROUNDS : \App\Support\LegendsRanking::ROUNDS)) as $round)
+                            <div class="block w-full space-y-1 rounded-xl border border-zinc-500 bg-zinc-100 p-2.5 text-sm dark:border-zinc-500 dark:bg-zinc-800" wire:key="out-{{ $loop->parent->index }}-{{ $round }}">
+                                <div class="text-xs text-zinc-500">{{ $row['type'] === \App\Enums\CompetitionType::Cup ? \App\Support\CupBracket::stageLabel($round) : __('Matchday :number', ['number' => $round]) }}</div>
+                                <div class="flex items-center justify-center gap-1.5 text-zinc-600 dark:text-zinc-300">
+                                    <flux:icon.x-circle class="size-5 shrink-0" />
+                                    <span class="truncate font-medium">{{ __('Team eliminated') }}</span>
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <span class="flex size-5 items-center justify-center rounded bg-zinc-600 text-[10px] font-bold text-zinc-100">−</span>
+                                </div>
+                            </div>
+                        @endforeach
                     @endif
                 </div>
             @else
