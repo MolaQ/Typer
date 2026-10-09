@@ -168,12 +168,8 @@ new #[Layout('layouts::public')] class extends Component {
 }; ?>
 
 <div class="mx-auto flex w-full max-w-5xl flex-col gap-6">
-    <div class="space-y-1">
-        <flux:heading size="xl" level="1">{{ __('Premium and support') }}</flux:heading>
-        <flux:text>
-            {{ __('Tipping is always free. Premium gives extras, and every payment counts towards a place in Złota Liga.') }}
-        </flux:text>
-    </div>
+    <x-page-banner :title="__('Premium and support')"
+        :subtitle="__('Tipping is always free. Premium gives extras, and every payment counts towards a place in Złota Liga.')" />
 
     {{-- Powrót z Przelewy24 --}}
     @if ($this->returnedPayment)

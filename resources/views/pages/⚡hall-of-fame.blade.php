@@ -17,10 +17,8 @@ new #[Layout('layouts::public')] class extends Component {
 }; ?>
 
 <div class="mx-auto flex w-full max-w-5xl flex-col gap-6">
-    <div class="space-y-1">
-        <flux:heading size="xl" level="1">{{ __('Hall of Fame') }}</flux:heading>
-        <flux:text>{{ __('All-time ranking: points for won matches and cup rounds are added after every matchday, titles, promotions and trophies at the end of the season.') }}</flux:text>
-    </div>
+    <x-page-banner :title="__('Hall of Fame')"
+        :subtitle="__('All-time ranking: points for won matches and cup rounds are added after every matchday, titles, promotions and trophies at the end of the season.')" />
 
     <livewire:pages::home.hall-of-fame-ranking />
 </div>

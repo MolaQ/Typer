@@ -46,7 +46,7 @@ new #[Layout('layouts::public')] class extends Component {
     }
 }; ?>
 
-<div class="mx-auto w-full max-w-5xl space-y-6" x-data="{
+<div class="mx-auto flex w-full max-w-5xl flex-col gap-6" x-data="{
     all: @js(array_keys(\App\Support\SystemFeed::categories())),
     off: [],
     init() {
@@ -74,14 +74,7 @@ new #[Layout('layouts::public')] class extends Component {
         ];
     @endphp
 
-    <div class="lech-banner relative overflow-hidden rounded-2xl px-6 py-8 sm:px-8">
-        <flux:icon.bell-alert aria-hidden="true" class="pointer-events-none absolute -right-3 -top-3 size-32 text-white/10" />
-        <div class="relative space-y-1">
-            <p class="text-sm font-semibold uppercase tracking-[0.2em] text-lech-200">LechTYPER</p>
-            <h1 class="text-3xl font-black tracking-tight">{{ __('System information') }}</h1>
-            <p class="text-lech-100">{{ __('What is happening in the game, recorded automatically.') }}</p>
-        </div>
-    </div>
+    <x-page-banner :title="__('System information')" :subtitle="__('What is happening in the game, recorded automatically.')" />
 
     {{-- Przełączniki kategorii: klik włącza albo wyłącza, dwuklik zostawia tylko tę kategorię --}}
     <div class="flex flex-wrap items-center gap-2">
@@ -96,7 +89,7 @@ new #[Layout('layouts::public')] class extends Component {
         @endforeach
         <flux:button size="sm" variant="ghost" x-show="off.length > 0" x-cloak @click="showAll()">{{ __('Show all') }}</flux:button>
     </div>
-    <flux:text size="sm" class="-mt-3">{{ __('Click a category to hide or show it, double-click to show only that one.') }}</flux:text>
+    <flux:text size="sm" class="-mt-4">{{ __('Click a category to hide or show it, double-click to show only that one.') }}</flux:text>
 
     @if ($this->events->isEmpty())
         <flux:card>

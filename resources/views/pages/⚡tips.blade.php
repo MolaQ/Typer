@@ -288,19 +288,10 @@ new #[Layout('layouts::public')] class extends Component {
         Flux::toast(variant: 'success', text: __('Tip saved.'));
     }
 }; ?>
-<div class="mx-auto flex w-full max-w-4xl flex-col gap-6">
-    {{-- Nagłówek w barwach Lecha --}}
-    <div class="lech-banner relative overflow-hidden rounded-2xl px-6 py-6">
-        <div class="pointer-events-none absolute -end-10 -top-10 size-48 rounded-full bg-white/10 blur-2xl"></div>
-        <div class="pointer-events-none absolute -bottom-16 end-24 size-40 rounded-full bg-lech-400/20 blur-2xl"></div>
-        <div class="relative space-y-1">
-            <div class="text-xs font-semibold uppercase tracking-widest text-white/60">{{ $this->season?->title }}</div>
-            <h1 class="text-2xl font-bold tracking-tight sm:text-3xl">LechTYPER</h1>
-            <p class="max-w-2xl text-sm text-white/80">
-                {{ __('Tip the score of the Lech match and answer the bonus questions. You can change your tip until kickoff.') }}
-            </p>
-        </div>
-    </div>
+<div class="mx-auto flex w-full max-w-5xl flex-col gap-6">
+    {{-- Baner jak na stronie głównej --}}
+    <x-page-banner :eyebrow="$this->season?->title ?? 'LechTYPER'" title="LechTYPER"
+        :subtitle="__('Tip the score of the Lech match and answer the bonus questions. You can change your tip until kickoff.')" />
 
     @if (!$this->season)
         <flux:card>

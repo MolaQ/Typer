@@ -66,19 +66,9 @@ new #[Layout('layouts::public')] class extends Component {
             $season = $this->season;
         @endphp
 
-        {{-- Baner sezonu --}}
-        <section
-            class="lech-banner relative overflow-hidden rounded-2xl px-6 py-10 sm:px-10">
-
-            <div class="relative flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
-                <div class="space-y-3">
-                    <p class="text-sm font-semibold uppercase tracking-[0.2em] text-lech-200">LechTYPER</p>
-                    <h1 class="text-4xl font-black tracking-tight sm:text-5xl">{{ $season->title }}</h1>
-                    @if (filled($season->slogan))
-                        <p class="max-w-xl text-lg text-lech-100 sm:text-xl">{{ $season->slogan }}</p>
-                    @endif
-                </div>
-
+        {{-- Baner sezonu (wzór dla banerów innych stron: x-page-banner) --}}
+        <x-page-banner :title="$season->title" :subtitle="filled($season->slogan) ? $season->slogan : null">
+            <x-slot:aside>
                 @if ($season->sponsor_logo_url || filled($season->sponsor_name))
                     @php
                         $sponsorTag = filled($season->sponsor_url) ? 'a' : 'div';
@@ -96,8 +86,8 @@ new #[Layout('layouts::public')] class extends Component {
                         @endif
                     </{{ $sponsorTag }}>
                 @endif
-            </div>
-        </section>
+            </x-slot:aside>
+        </x-page-banner>
 
         {{-- Najbliższa kolejka --}}
         @if ($this->matchday)
@@ -161,14 +151,7 @@ new #[Layout('layouts::public')] class extends Component {
         @endif
     @elseif ($this->upcoming)
         {{-- Brak aktywnego sezonu, ale kolejny jest w przygotowaniu --}}
-        <section
-            class="lech-banner relative overflow-hidden rounded-2xl px-6 py-10 sm:px-10">
-            <div class="relative space-y-3">
-                <p class="text-sm font-semibold uppercase tracking-[0.2em] text-lech-200">LechTYPER</p>
-                <h1 class="text-4xl font-black tracking-tight sm:text-5xl">{{ $this->upcoming->title }}</h1>
-                <p class="text-lg text-lech-100">{{ __('Coming soon') }}</p>
-            </div>
-        </section>
+        <x-page-banner :title="$this->upcoming->title" :subtitle="__('Coming soon')" />
     @else
         <div class="py-16">
             <flux:heading size="xl" level="1">{{ __('Welcome') }}</flux:heading>

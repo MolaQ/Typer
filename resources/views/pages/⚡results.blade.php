@@ -268,12 +268,7 @@ new #[Layout('layouts::public')] class extends Component {
 }; ?>
 
 <div class="mx-auto flex w-full max-w-5xl flex-col gap-6">
-    <div class="space-y-1">
-        <flux:heading size="xl" level="1">{{ __('Results and tables') }}</flux:heading>
-        @if ($this->season)
-            <flux:text>{{ $this->season->title }}</flux:text>
-        @endif
-    </div>
+    <x-page-banner :title="__('Results and tables')" :subtitle="$this->season?->title" />
 
     @if (!$this->season || count($this->options) === 0)
         <flux:card>

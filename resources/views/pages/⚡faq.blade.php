@@ -12,11 +12,8 @@ new #[Layout('layouts::public')] class extends Component {
     }
 }; ?>
 
-<div class="mx-auto w-full max-w-3xl space-y-6">
-    <div class="space-y-1">
-        <flux:heading size="xl" level="1">{{ __('FAQ') }}</flux:heading>
-        <flux:subheading>{{ __('LechTYPER in a nutshell.') }}</flux:subheading>
-    </div>
+<div class="mx-auto flex w-full max-w-5xl flex-col gap-6">
+    <x-page-banner :title="__('FAQ')" :subtitle="__('LechTYPER in a nutshell.')" />
 
     <x-accordion anchor="faq" :items="\App\Support\Guide::faq()" />
 </div>

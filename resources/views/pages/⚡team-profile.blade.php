@@ -150,25 +150,24 @@ new #[Layout('layouts::public')] class extends Component {
 }; ?>
 
 <div class="mx-auto flex w-full max-w-5xl flex-col gap-6">
-    <div class="flex flex-wrap items-end justify-between gap-4">
-        <div class="space-y-1">
-            <flux:text size="sm">
-                <flux:link :href="route('hall-of-fame')" wire:navigate>{{ __('Hall of Fame') }}</flux:link>
-            </flux:text>
-            <flux:heading size="xl" level="1">{{ $user->team_name ?: $user->name }}</flux:heading>
-        </div>
+    <x-page-banner :eyebrow="__('Hall of Fame')" :title="$user->team_name ?: $user->name">
+        <a href="{{ route('hall-of-fame') }}" wire:navigate class="inline-flex items-center gap-1 text-sm font-semibold text-lech-100 hover:text-white hover:underline">
+            <flux:icon.arrow-left variant="micro" /> {{ __('Full ranking') }}
+        </a>
 
-        <div class="flex gap-6">
-            <div class="text-right">
-                <flux:text size="sm">{{ __('Hall of Fame points') }}</flux:text>
-                <p class="text-2xl font-bold tabular-nums">{{ \App\Support\HallOfFame::format($this->total) }}</p>
+        <x-slot:aside>
+            <div class="flex gap-6 rounded-xl bg-white/10 px-5 py-3">
+                <div class="text-right">
+                    <p class="text-xs uppercase tracking-widest text-lech-200">{{ __('Hall of Fame points') }}</p>
+                    <p class="text-2xl font-bold tabular-nums">{{ \App\Support\HallOfFame::format($this->total) }}</p>
+                </div>
+                <div class="text-right">
+                    <p class="text-xs uppercase tracking-widest text-lech-200">{{ __('All-time rank') }}</p>
+                    <p class="text-2xl font-bold tabular-nums">{{ $this->rank ? $this->rank . '.' : '—' }}</p>
+                </div>
             </div>
-            <div class="text-right">
-                <flux:text size="sm">{{ __('All-time rank') }}</flux:text>
-                <p class="text-2xl font-bold tabular-nums">{{ $this->rank ? $this->rank . '.' : '—' }}</p>
-            </div>
-        </div>
-    </div>
+        </x-slot:aside>
+    </x-page-banner>
 
     {{-- Gablota --}}
     <flux:card class="space-y-4">
