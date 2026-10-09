@@ -578,7 +578,7 @@ new #[Layout('layouts::public')] class extends Component {
                             @endphp
                             <a href="{{ $this->pageUrl($stage) }}" wire:navigate title="{{ __('Matchday :number', ['number' => $stage]) }}: {{ \App\Enums\KnockoutStage::labelFor($stage) }}"
                                 class="{{ $stageClass }} rounded-full px-2.5 py-1 tabular-nums transition">
-                                {{ $stage < $rounds ? \App\Support\LegendsRanking::limitAfter($stage - 1) : __('Final') }}
+                                {{ $stage >= \App\Enums\KnockoutStage::QuarterFinal->value ? \App\Enums\KnockoutStage::labelFor($stage) : \App\Support\LegendsRanking::limitAfter($stage - 1) }}
                             </a>
                             @if ($stage < $rounds)
                                 <flux:icon.chevron-right variant="micro" class="text-zinc-400" />
@@ -674,13 +674,10 @@ new #[Layout('layouts::public')] class extends Component {
                     $cupGrid = 'flex flex-wrap justify-center gap-2';
                     $cupCell = 'shrink-0 grow-0';
                     $cupCellStyle = 'width: calc((100% - 1.5rem) / 4); min-width: min(100%, 16rem);';
-                    // Etykieta etapu w pasku: liczba zespołów, potem ćwierćfinał, półfinał i finał.
-                    $stageLabel = fn (int $stage) => match ($stage) {
-                        $rounds => __('Final'),
-                        $rounds - 1 => '1/2',
-                        $rounds - 2 => '1/4',
-                        default => (string) \App\Support\CupBracket::seatsInRound($stage),
-                    };
+                    // Etykieta etapu w pasku: liczba zespołów, od ćwierćfinału nazwa etapu (KnockoutStage).
+                    $stageLabel = fn (int $stage) => $stage >= \App\Enums\KnockoutStage::QuarterFinal->value
+                        ? \App\Enums\KnockoutStage::labelFor($stage)
+                        : (string) \App\Support\CupBracket::seatsInRound($stage);
                 @endphp
                 <div class="space-y-3">
                     {{-- Pasek etapów: 512 → 256 → … → Finał, każdy etap to link do swojej rundy --}}
