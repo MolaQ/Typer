@@ -422,7 +422,7 @@ new #[Layout('layouts::public')] class extends Component {
 
         $matchday = Matchday::where('season_id', $this->season->id)->where('number', $fixture->round)->first();
 
-        return Rivals::fixture($fixture, $matchday, auth()->user()) + ['round' => $fixture->round];
+        return Rivals::fixture($fixture, $matchday, auth()->user()) + ['round' => $fixture->round, 'matchday' => $matchday];
     }
 
     /* ==================================================================

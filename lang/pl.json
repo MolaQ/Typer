@@ -1194,5 +1194,9 @@
     "All matches": "Wszystkie mecze",
     "The number next to the team is its seed in this round.": "Liczba przy zespole to jego miejsce w drabince tej rundy.",
     "Your match / not played yet": "Twój mecz / przed wynikiem",
-    "after penalties": "po karnych"
+    "after penalties": "po karnych",
+    "Lech match": "Mecz Lecha",
+    "Opponent not set yet.": "Rywal jeszcze nieustalony.",
+    "Played on :date": "Rozegrany: :date",
+    "Kick-off: :date": "Początek: :date"
 }
