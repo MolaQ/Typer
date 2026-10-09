@@ -142,11 +142,16 @@ new class extends Component {
                                 </div>
 
                                 {{-- Ryzyko w pytaniach --}}
-                                @if ($rival['offense'] !== null)
+                                @if ($rival['stars'] !== null)
+                                    {{-- Gwiazdka na pytanie 1-5, kolory według etapu i premium (Rivals::starsMode) --}}
                                     <div class="space-y-1">
                                         <div class="text-zinc-500">{{ __('Risk in the bonus questions') }}</div>
-                                        <x-risk-stars :count="$rival['offense']" :label="__('Offensive')" />
-                                        <x-risk-stars :count="$rival['defense']" :label="__('Defensive')" />
+                                        @foreach ([[__('Offensive'), \App\Enums\QuestionSide::Offensive->value], [__('Defensive'), \App\Enums\QuestionSide::Defensive->value]] as [$starLabel, $starSide])
+                                            <div class="flex items-center justify-between gap-2">
+                                                <span class="text-xs text-zinc-500">{{ $starLabel }}</span>
+                                                <x-answer-stars :states="$rival['stars'][$starSide] ?? []" :mode="$rival['stars_mode']" />
+                                            </div>
+                                        @endforeach
                                     </div>
                                 @elseif (!$isPremium)
                                     <div class="flex items-center gap-2 text-xs text-zinc-500">

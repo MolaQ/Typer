@@ -1219,5 +1219,15 @@
     "AWAY": "WYJAZD",
     "Answers given: :count/5": "Udzielone odpowiedzi: :count/5",
     "Correct answers: :count/5": "Poprawne odpowiedzi: :count/5",
-    "No answers": "Brak odpowiedzi"
+    "No answers": "Brak odpowiedzi",
+    "Answered": "Odpowiedział",
+    "Answered yes": "Odpowiedź: tak",
+    "Answered no": "Odpowiedź: nie",
+    "Correct answer": "Trafiona odpowiedź",
+    "Wrong answer": "Błędna odpowiedź",
+    "Question :number": "Pytanie :number",
+    "Rival": "Rywal",
+    "Everyone sees whether a tip is in and how many questions were answered (blue stars). Premium also sees the outcome of the tip and which questions were answered.": "Każdy widzi, czy typ jest oddany i na ile pytań padły odpowiedzi (niebieskie gwiazdki). Premium widzi też rozstrzygnięcie typu i na które pytania padły odpowiedzi.",
+    "Everyone sees the outcome of the tip and which questions were answered. Premium also sees the exact tip, when it was saved and the answers: green yes, red no.": "Każdy widzi rozstrzygnięcie typu i na które pytania padły odpowiedzi. Premium widzi też dokładny typ, czas jego zapisu i odpowiedzi: zielona tak, czerwona nie.",
+    "Full settlement: tip, points for the tip and bonuses. Stars: green correct, red wrong, grey no answer.": "Pełne rozliczenie: typ, punkty za typ i bonusy. Gwiazdki: zielona trafiona, czerwona błędna, szara bez odpowiedzi."
 }

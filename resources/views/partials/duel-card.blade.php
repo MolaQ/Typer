@@ -13,9 +13,9 @@
         default => ['blue', __('Settled')],
     };
     $phaseInfo = match ($phase) {
-        \App\Support\Rivals::OPEN => __('Everyone sees who has tipped. Premium also sees the outcome and the risk in the bonus questions.'),
-        \App\Support\Rivals::CLOSED => __('Everyone sees the risk in the bonus questions. Premium also sees the exact tip.'),
-        default => __('Full settlement: tip, points for the tip and bonuses.'),
+        \App\Support\Rivals::OPEN => __('Everyone sees whether a tip is in and how many questions were answered (blue stars). Premium also sees the outcome of the tip and which questions were answered.'),
+        \App\Support\Rivals::CLOSED => __('Everyone sees the outcome of the tip and which questions were answered. Premium also sees the exact tip, when it was saved and the answers: green yes, red no.'),
+        default => __('Full settlement: tip, points for the tip and bonuses. Stars: green correct, red wrong, grey no answer.'),
     };
     // Etykiety wierszy rozliczenia: jednolite tło.
     $labelClass = 'rounded-md bg-lech-50 px-2 py-0.5 text-xs font-medium text-lech-800 dark:bg-lech-900/40 dark:text-lech-200';
@@ -90,15 +90,21 @@
     @endif
 
     {{--
-        Rozliczenie obu stron w lustrzanym układzie: etykiety przy zewnętrznych krawędziach, kafelki stałej szerokości
-        w jednej pionowej linii przy środku okna. Kolor kafelka mówi wszystko (App\Support\Tone), bez znaków +/−.
+        Obie strony w lustrzanym układzie: etykiety przy zewnętrznych krawędziach, kafelki stałej szerokości w jednej
+        pionowej linii przy środku okna. Kolor kafelka mówi wszystko (App\Support\Tone), bez znaków +/−.
+        Gwiazdki (x-answer-stars): jedna na pytanie 1-5, kolory zależne od etapu i premium (App\Support\Rivals::starsMode).
     --}}
     <div class="grid gap-3 sm:grid-cols-2">
         @foreach ([[$home, $away], [$away, $home]] as [$side, $other])
             @php
-                $mirror = $loop->first ? '' : 'flex-row-reverse';
-                $inner = $loop->first ? 'justify-end' : 'justify-start';
+                $left = $loop->first;
+                $mirror = $left ? '' : 'flex-row-reverse';
+                $inner = $left ? 'justify-end' : 'justify-start';
                 $tileWidth = 'w-14';
+                $starSides = [
+                    [__('Offensive bonus'), $side['stars'][\App\Enums\QuestionSide::Offensive->value] ?? [], 'offense_bonus'],
+                    [__('Defensive bonus'), $side['stars'][\App\Enums\QuestionSide::Defensive->value] ?? [], 'defense_bonus'],
+                ];
             @endphp
             <div class="space-y-3 rounded-xl border border-lech-200 bg-lech-50/60 p-3 text-sm dark:border-lech-800 dark:bg-lech-950/40" wire:key="side-{{ $loop->index }}">
                 <div class="flex {{ $inner }}">
@@ -111,10 +117,11 @@
                 </div>
 
                 @if ($side['virtual'])
-                    <flux:text size="sm" class="{{ $loop->first ? 'text-right' : '' }}">{{ __('Scores as many as Lech in the real match, minus the player\'s defence.') }}</flux:text>
+                    <flux:text size="sm" class="{{ $left ? 'text-right' : '' }}">{{ __('Scores as many as Lech in the real match, minus the player\'s defence.') }}</flux:text>
                 @elseif ($side['bot'] && !$side['score'])
-                    <flux:text size="sm" class="{{ $loop->first ? 'text-right' : '' }}">{{ __('Bot: random tip at the kick-off.') }}</flux:text>
+                    <flux:text size="sm" class="{{ $left ? 'text-right' : '' }}">{{ __('Bot: random tip at the kick-off.') }}</flux:text>
                 @elseif ($side['score'])
+                    {{-- ============ Po wynikach: pełne rozliczenie ============ --}}
                     @php
                         $score = $side['score'];
                         $rivalDefense = (int) ($other['score']?->defense_bonus ?? 0);
@@ -141,46 +148,15 @@
                         @endforeach
                     </div>
 
-                    {{--
-                        Bonusy z pytań (tylko premium): gwiazdki udzielonych odpowiedzi i trafionych na pięć, kafelek z punktami.
-                        Czerwony „−” = brak odpowiedzi, czerwone „0” = zestaw wyzerowany przez złą odpowiedź.
-                    --}}
+                    {{-- Bonusy z pytań (premium): gwiazdka na pytanie (szara = bez odpowiedzi, zielona = trafiona, czerwona = błędna) i kafelek z punktami --}}
                     @if ($card['premium'])
-                        @php
-                            $answeredBySide = ['offense' => (int) ($side['offense'] ?? 0), 'defense' => (int) ($side['defense'] ?? 0)];
-                            $bonusRows = [
-                                [__('Offensive bonus'), $answeredBySide['offense'], (int) $score->offense_bonus, (bool) $score->offense_zeroed],
-                                [__('Defensive bonus'), $answeredBySide['defense'], (int) $score->defense_bonus, (bool) $score->defense_zeroed],
-                            ];
-                        @endphp
                         <div class="space-y-2 border-t border-lech-200/70 pt-3 dark:border-lech-800">
-                            @foreach ($bonusRows as [$bonusLabel, $answered, $correct, $zeroed])
+                            @foreach ($starSides as [$bonusLabel, $bonusStars, $bonusField])
                                 <div class="{{ $mirror }} flex items-center justify-between gap-2">
                                     <span class="{{ $labelClass }}">{{ $bonusLabel }}</span>
                                     <div class="{{ $mirror }} flex items-center gap-2">
-                                        @if ($answered > 0)
-                                            <div class="flex flex-col gap-0.5 {{ $loop->parent->first ? 'items-end' : 'items-start' }}">
-                                                <span class="inline-flex gap-0.5" title="{{ __('Answers given: :count/5', ['count' => $answered]) }}">
-                                                    @for ($i = 1; $i <= 5; $i++)
-                                                        <flux:icon.star variant="micro" class="{{ $i <= $answered ? 'text-amber-500' : 'text-zinc-300 dark:text-zinc-600' }}" />
-                                                    @endfor
-                                                </span>
-                                                @if (!$zeroed)
-                                                    <span class="inline-flex gap-0.5" title="{{ __('Correct answers: :count/5', ['count' => $correct]) }}">
-                                                        @for ($i = 1; $i <= 5; $i++)
-                                                            <flux:icon.star variant="micro" class="{{ $i <= $correct ? 'text-green-500' : 'text-zinc-300 dark:text-zinc-600' }}" />
-                                                        @endfor
-                                                    </span>
-                                                @endif
-                                            </div>
-                                        @endif
-                                        @if ($answered === 0)
-                                            <x-tone-tile tone="red" class="{{ $tileWidth }}" title="{{ __('No answers') }}">−</x-tone-tile>
-                                        @elseif ($zeroed)
-                                            <x-tone-tile tone="red" class="{{ $tileWidth }}" title="{{ __('bonus zeroed') }}">0</x-tone-tile>
-                                        @else
-                                            <x-tone-tile :tone="\App\Support\Tone::bonus($correct)" class="{{ $tileWidth }}">{{ $correct }}</x-tone-tile>
-                                        @endif
+                                        <x-answer-stars :states="$bonusStars" :mode="$side['stars_mode']" />
+                                        <x-tone-tile :tone="\App\Support\Tone::bonus((int) $score->{$bonusField})" class="{{ $tileWidth }}">{{ $score->{$bonusField} }}</x-tone-tile>
                                     </div>
                                 </div>
                             @endforeach
@@ -188,36 +164,40 @@
                     @endif
 
                     {{--
-                        Skąd wzięły się bramki: działanie z kafelków (regulamin: max(0, typ + bonus ofensywny − bonus defensywny rywala)).
-                        Bonus defensywny tej strony działa na rywala (widać go w działaniu rywala jako jego obronę).
+                        Skąd wzięły się bramki (regulamin: max(0, typ + bonus ofensywny − bonus defensywny rywala)).
+                        Lewa strona: Typ + Bonus − Obrona = Bramki, prawa: Bramki = Typ + Bonus − Obrona, więc bramki stoją przy środku.
                     --}}
                     @php
                         $terms = [
-                            [__('Tip'), $score->tip_points, \App\Support\Tone::tipPoints($score->tip_points), null],
-                            ['+', null, null, null],
-                            [__('Offensive bonus'), $score->offense_bonus, \App\Support\Tone::bonus($score->offense_bonus), $score->offense_zeroed],
+                            [__('Tip'), $score->tip_points, \App\Support\Tone::tipPoints($score->tip_points)],
+                            ['+', null, null],
+                            [__('Offensive bonus'), $score->offense_bonus, \App\Support\Tone::bonus($score->offense_bonus)],
                         ];
                         if (!$other['virtual']) {
-                            $terms[] = ['−', null, null, null];
-                            $terms[] = [__('Rival\'s defence'), $rivalDefense, \App\Support\Tone::rivalDefense($rivalDefense), null];
+                            $terms[] = ['−', null, null];
+                            $terms[] = [__('Rival\'s defence'), $rivalDefense, \App\Support\Tone::rivalDefense($rivalDefense)];
                         }
-                        $terms[] = ['=', null, null, null];
-                        $terms[] = [__('Goals'), $side['goals'], \App\Support\Tone::goals($side['goals']), null];
+                        $goalsTerm = [__('Goals'), $side['goals'], \App\Support\Tone::goals($side['goals']), true];
+                        $terms = $left
+                            ? [...$terms, ['=', null, null], $goalsTerm]
+                            : [$goalsTerm, ['=', null, null], ...$terms];
                     @endphp
-                    <div class="space-y-3 border-t border-lech-200/70 pt-3 dark:border-lech-800">
+                    <div class="border-t border-lech-200/70 pt-3 dark:border-lech-800">
                         <div class="flex items-start justify-center gap-1">
-                            @foreach ($terms as [$termLabel, $termValue, $termTone, $termZeroed])
-                                @if ($termTone === null)
-                                    <span class="flex h-7 items-center text-lg font-bold text-zinc-400">{{ $termLabel }}</span>
+                            @foreach ($terms as $term)
+                                @if ($term[2] === null)
+                                    <span class="flex h-7 items-center text-lg font-bold text-zinc-400">{{ $term[0] }}</span>
                                 @else
+                                    @php
+                                        $isGoals = $term[3] ?? false;
+                                    @endphp
                                     <div class="flex w-12 flex-col items-center gap-1 text-center">
-                                        <x-tone-tile :tone="$termTone" class="w-full {{ $loop->last ? 'text-base' : '' }}">{{ $termValue ?? '—' }}</x-tone-tile>
-                                        <span class="text-[10px] leading-tight {{ $loop->last ? 'font-bold text-lech-800 dark:text-lech-200' : 'text-zinc-500' }}">{{ $termLabel }}</span>
+                                        <x-tone-tile :tone="$term[2]" class="w-full {{ $isGoals ? 'text-base' : '' }}">{{ $term[1] ?? '—' }}</x-tone-tile>
+                                        <span class="text-[10px] leading-tight {{ $isGoals ? 'font-bold text-lech-800 dark:text-lech-200' : 'text-zinc-500' }}">{{ $term[0] }}</span>
                                     </div>
                                 @endif
                             @endforeach
                         </div>
-
                     </div>
 
                     @if ($side['tipped_at'] && $isCup)
@@ -227,21 +207,43 @@
                         </div>
                     @endif
                 @else
-                    <div class="flex flex-wrap items-center gap-2 {{ $inner }}">
-                        @if ($side['tip'])
-                            <flux:badge>{{ __('Tip: :score', ['score' => $side['tip']]) }}</flux:badge>
-                        @elseif ($side['outcome'])
-                            <flux:badge>{{ $side['outcome'] }}</flux:badge>
-                        @elseif ($side['tipped'])
-                            <flux:badge color="green" size="sm">{{ __('Tipped') }}</flux:badge>
-                        @elseif ($side['tipped'] === false)
-                            <flux:badge color="zinc" size="sm">{{ __('No tip') }}</flux:badge>
+                    {{--
+                        ============ Przed wynikami ============
+                        Typ: otwarte bez premium = czy typował; otwarte premium i zamknięte bez premium = rozstrzygnięcie
+                        (Lech / Remis / rywal); zamknięte premium = dokładny typ i czas zapisu. „−” = brak typu.
+                    --}}
+                    <dl class="space-y-1.5">
+                        <div class="{{ $mirror }} flex items-center justify-between gap-2">
+                            <dt class="{{ $labelClass }}">{{ __('Tip') }}</dt>
+                            <dd>
+                                @if ($side['tip'])
+                                    <x-tone-tile tone="neutral" class="{{ $tileWidth }}">{{ $side['tip'] }}</x-tone-tile>
+                                @elseif ($side['outcome'])
+                                    <x-tone-tile tone="neutral" class="min-w-14 max-w-40 truncate">{{ $side['outcome'] }}</x-tone-tile>
+                                @elseif ($side['tipped'])
+                                    <x-tone-tile tone="neutral" class="min-w-14 text-xs">{{ __('Tipped') }}</x-tone-tile>
+                                @else
+                                    <x-tone-tile tone="zinc" class="{{ $tileWidth }}">−</x-tone-tile>
+                                @endif
+                            </dd>
+                        </div>
+                        @if ($side['tip'] && $side['tipped_at'])
+                            <div class="{{ $mirror }} flex items-center justify-between gap-2 text-xs">
+                                <dt class="{{ $labelClass }}">{{ __('Tip saved') }}</dt>
+                                <dd class="tabular-nums text-zinc-500">{{ $side['tipped_at']->translatedFormat('j M, H:i:s') }}</dd>
+                            </div>
                         @endif
-                    </div>
-                    @if ($side['offense'] !== null)
-                        <div class="flex flex-col gap-1 {{ $loop->first ? 'items-end' : 'items-start' }}">
-                            <x-risk-stars :count="$side['offense']" :label="__('Offensive')" />
-                            <x-risk-stars :count="$side['defense']" :label="__('Defensive')" />
+                    </dl>
+
+                    {{-- Ryzyko w pytaniach: gwiazdki według etapu i premium --}}
+                    @if ($side['stars'] !== null)
+                        <div class="space-y-2 border-t border-lech-200/70 pt-3 dark:border-lech-800">
+                            @foreach ($starSides as [$bonusLabel, $bonusStars])
+                                <div class="{{ $mirror }} flex items-center justify-between gap-2">
+                                    <span class="{{ $labelClass }}">{{ $bonusLabel }}</span>
+                                    <x-answer-stars :states="$bonusStars" :mode="$side['stars_mode']" />
+                                </div>
+                            @endforeach
                         </div>
                     @endif
                 @endif
