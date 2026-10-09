@@ -1,6 +1,7 @@
 <?php
 
 use App\Enums\CompetitionType;
+use App\Enums\SeasonStatus;
 use App\Models\Competition;
 use App\Models\Fixture;
 use App\Models\Matchday;
@@ -21,7 +22,8 @@ use Livewire\Component;
 use Livewire\WithPagination;
 
 /**
- * Wyniki i tabele aktywnego sezonu na stronie głównej (dla wszystkich, także gości).
+ * Wyniki i tabele sezonu (dla wszystkich, także gości). Domyślnie sezon aktywny, a gdy go nie ma, ostatnio zakończony.
+ * Strzałki w banerze przesuwają o jeden sezon wstecz albo do przodu (archiwum: sezony aktywne i zakończone).
  * Ligi i Liga podwórkowa: tabela + mecze wybranej kolejki. Puchar Polski: mecze wybranej rundy.
  * Kliknięcie zespołu otwiera okno ze statystykami (podstawowe i premium), kliknięcie meczu okno ze szczegółami
  * (widoczność jak w podglądzie rywali: przed zamknięciem typowania, po zamknięciu i po wynikach).
@@ -37,11 +39,21 @@ new #[Layout('layouts::public')] class extends Component {
     #[Url(as: 'round', except: 0)]
     public int $round = 0;
 
+    // Numer oglądanego sezonu; 0 = domyślny (aktywny albo ostatnio zakończony).
+    #[Url(as: 's', except: 0)]
+    public int $seasonNumber = 0;
+
     /** Zespół (season_teams.id) i mecz pokazywane w oknach. */
     public ?int $teamId = null;
     public ?int $fixtureId = null;
 
     public function mount(): void
+    {
+        $this->normalize();
+    }
+
+    /** Poprawia wybór rozgrywek i kolejki po wejściu na stronę albo po zmianie sezonu. */
+    private function normalize(): void
     {
         // Domyślnie rozgrywki zalogowanego gracza (jego liga albo podwórkowa), inaczej Ekstraklasa.
         if (!array_key_exists($this->key, $this->options)) {
@@ -73,10 +85,66 @@ new #[Layout('layouts::public')] class extends Component {
      | DANE
      * ================================================================*/
 
+    /**
+     * Numery sezonów do przeglądania (aktywny i zakończone), rosnąco.
+     *
+     * @return array<int, int>
+     */
+    #[Computed]
+    public function seasonNumbers(): array
+    {
+        return Season::whereIn('status', [SeasonStatus::Active->value, SeasonStatus::Finished->value])
+            ->orderBy('number')
+            ->pluck('number')
+            ->map(fn ($number) => (int) $number)
+            ->all();
+    }
+
+    /** Sezon domyślny: aktywny, a gdy go nie ma, ostatnio zakończony. */
+    #[Computed]
+    public function defaultSeasonNumber(): int
+    {
+        $active = Season::current()?->number;
+
+        return (int) ($active ?? Season::where('status', SeasonStatus::Finished->value)->max('number'));
+    }
+
     #[Computed]
     public function season(): ?Season
     {
-        return Season::current();
+        $number = in_array($this->seasonNumber, $this->seasonNumbers, true) ? $this->seasonNumber : $this->defaultSeasonNumber;
+
+        return $number > 0 ? Season::where('number', $number)->first() : null;
+    }
+
+    /** Numer sezonu o $step dalej na liście archiwum (−1 starszy, 1 nowszy) albo null na krańcu. */
+    public function neighbourSeason(int $step): ?int
+    {
+        $index = array_search($this->season?->number, $this->seasonNumbers, true);
+
+        return $index === false ? null : ($this->seasonNumbers[$index + $step] ?? null);
+    }
+
+    /** Strzałki w banerze: przejście o jeden sezon. Rozgrywki zostają, jeśli istnieją w nowym sezonie. */
+    public function shiftSeason(int $step): void
+    {
+        $target = $this->neighbourSeason($step <=> 0);
+
+        if ($target === null) {
+            return;
+        }
+
+        // Sezon domyślny bez parametru w adresie.
+        $this->seasonNumber = $target === $this->defaultSeasonNumber ? 0 : $target;
+        $this->round = 0;
+        $this->teamId = null;
+        $this->fixtureId = null;
+
+        unset($this->season, $this->options, $this->competition, $this->isCup, $this->hasTable, $this->table,
+            $this->isLegends, $this->legends, $this->matchday, $this->matches, $this->myTeamId);
+
+        $this->normalize();
+        $this->resetPage('matchesPage');
     }
 
     /** klucz => nazwa rozgrywek sezonu */
@@ -268,11 +336,35 @@ new #[Layout('layouts::public')] class extends Component {
 }; ?>
 
 <div class="mx-auto flex w-full max-w-6xl flex-col gap-6">
-    <x-page-banner :title="__('Results and tables')" :subtitle="$this->season?->title" />
+    @php
+        $older = $this->neighbourSeason(-1);
+        $newer = $this->neighbourSeason(1);
+        $archived = $this->season && $this->season->status !== \App\Enums\SeasonStatus::Active;
+    @endphp
+    <x-page-banner :title="__('Results and tables')" :subtitle="$this->season?->title"
+        :eyebrow="$archived ? __('Season archive') : 'LechTYPER'">
+        {{-- Dyskretne strzałki archiwum: o jeden sezon wstecz albo do przodu --}}
+        @if ($older || $newer)
+            <x-slot:aside>
+                <div class="flex items-center gap-2">
+                    <button type="button" wire:click="shiftSeason(-1)" @disabled(!$older)
+                        title="{{ __('Previous season') }}" aria-label="{{ __('Previous season') }}"
+                        class="flex size-9 items-center justify-center rounded-full bg-white/10 text-white transition hover:bg-white/20 disabled:cursor-default disabled:opacity-30 disabled:hover:bg-white/10">
+                        <flux:icon.chevron-left variant="mini" />
+                    </button>
+                    <button type="button" wire:click="shiftSeason(1)" @disabled(!$newer)
+                        title="{{ __('Next season') }}" aria-label="{{ __('Next season') }}"
+                        class="flex size-9 items-center justify-center rounded-full bg-white/10 text-white transition hover:bg-white/20 disabled:cursor-default disabled:opacity-30 disabled:hover:bg-white/10">
+                        <flux:icon.chevron-right variant="mini" />
+                    </button>
+                </div>
+            </x-slot:aside>
+        @endif
+    </x-page-banner>
 
     @if (!$this->season || count($this->options) === 0)
         <flux:card>
-            <flux:text>{{ __('There is no active season right now.') }}</flux:text>
+            <flux:text>{{ __('There is no season to show yet.') }}</flux:text>
         </flux:card>
     @else
         <div class="flex flex-wrap items-end gap-3">
