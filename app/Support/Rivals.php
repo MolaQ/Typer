@@ -89,10 +89,12 @@ final class Rivals
             };
         }
 
+        // Gwiazdki w kolejności pytań 1-5.
         foreach ($out as $userId => $sets) {
             foreach ($sets as $set => $sides) {
-                foreach (array_keys($sides) as $side) {
-                    ksort($out[$userId][$set][$side]);
+                foreach ($sides as $side => $positions) {
+                    ksort($positions);
+                    $out[$userId][$set][$side] = $positions;
                 }
             }
         }
