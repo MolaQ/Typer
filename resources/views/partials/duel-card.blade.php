@@ -89,18 +89,22 @@
         </div>
     @endif
 
-    {{-- Rozliczenie obu stron: lustrzany układ, etykiety przy zewnętrznych krawędziach, kafelki z wartościami w środku --}}
+    {{--
+        Rozliczenie obu stron w lustrzanym układzie: etykiety przy zewnętrznych krawędziach, kafelki stałej szerokości
+        w jednej pionowej linii przy środku okna. Kolor kafelka mówi wszystko (App\Support\Tone), bez znaków +/−.
+    --}}
     <div class="grid gap-3 sm:grid-cols-2">
         @foreach ([[$home, $away], [$away, $home]] as [$side, $other])
             @php
                 $mirror = $loop->first ? '' : 'flex-row-reverse';
                 $inner = $loop->first ? 'justify-end' : 'justify-start';
+                $tileWidth = 'w-14';
             @endphp
-            <div class="space-y-2 rounded-lg border border-zinc-200 p-3 text-sm dark:border-zinc-700" wire:key="side-{{ $loop->index }}">
+            <div class="space-y-3 rounded-xl border border-lech-200 bg-lech-50/60 p-3 text-sm dark:border-lech-800 dark:bg-lech-950/40" wire:key="side-{{ $loop->index }}">
                 <div class="flex {{ $inner }}">
                     @if ($side['profile'] ?? null)
                         <a href="{{ $side['profile'] }}" wire:navigate
-                            class="max-w-full truncate rounded-md bg-lech-700 px-2.5 py-1 font-semibold text-white transition hover:bg-lech-800 dark:bg-lech-600 dark:hover:bg-lech-500">{{ $side['name'] }}</a>
+                            class="lech-bar max-w-full truncate rounded-md px-2.5 py-1 font-semibold transition hover:opacity-90">{{ $side['name'] }}</a>
                     @else
                         <span class="max-w-full truncate rounded-md bg-zinc-200 px-2.5 py-1 font-semibold text-zinc-700 dark:bg-zinc-700 dark:text-zinc-200 {{ $side['virtual'] ? 'italic' : '' }}">{{ $side['name'] }}</span>
                     @endif
@@ -113,69 +117,72 @@
                 @elseif ($side['score'])
                     @php
                         $score = $side['score'];
-                        $rivalDefense = $other['score']?->defense_bonus ?? 0;
+                        $rivalDefense = (int) ($other['score']?->defense_bonus ?? 0);
+                        $tipTone = $score->has_tip ? \App\Support\Tone::tipPoints($score->tip_points) : 'red';
                         $hits = [[__('Outcome'), $score->outcome_hit], [__('Goal difference'), $score->diff_hit], [__('Exact score'), $score->exact_hit]];
                     @endphp
+
+                    {{-- Typ i punkty za typ: ten sam kolor --}}
                     <dl class="space-y-1.5">
                         <div class="{{ $mirror }} flex items-center justify-between gap-2">
                             <dt class="{{ $labelClass }}">{{ __('Tip') }}</dt>
-                            <dd>
-                                @if ($score->has_tip)
-                                    <x-tone-tile tone="neutral">{{ $side['tip'] ?? '—' }}</x-tone-tile>
-                                @else
-                                    <x-tone-tile tone="red" class="text-xs font-semibold">{{ __('No tip') }}</x-tone-tile>
-                                @endif
-                            </dd>
+                            <dd><x-tone-tile :tone="$tipTone" class="{{ $tileWidth }}">{{ $score->has_tip ? ($side['tip'] ?? '—') : '—' }}</x-tone-tile></dd>
                         </div>
                         <div class="{{ $mirror }} flex items-center justify-between gap-2">
                             <dt class="{{ $labelClass }}">{{ __('Points for the tip') }}</dt>
-                            <dd><x-tone-tile :tone="\App\Support\Tone::tipPoints($score->tip_points)">{{ $score->tip_points }}/3</x-tone-tile></dd>
+                            <dd><x-tone-tile :tone="$tipTone" class="{{ $tileWidth }}">{{ $score->tip_points }}/3</x-tone-tile></dd>
                         </div>
-                        {{-- Za co były punkty w typie: niebieskie trafienia, szare pudła --}}
-                        <div class="flex flex-wrap gap-1 {{ $inner }}">
-                            @foreach ($hits as [$hitLabel, $hit])
-                                <x-tone-tile :tone="$hit ? 'blue' : 'zinc'" class="text-xs font-semibold">{{ $hit ? '✓' : '✗' }} {{ $hitLabel }}</x-tone-tile>
-                            @endforeach
-                        </div>
+                    </dl>
+
+                    {{-- Za co były punkty w typie: trzy kafelki jednakowej szerokości w jednej linii --}}
+                    <div class="grid grid-cols-3 gap-1">
+                        @foreach ($hits as [$hitLabel, $hit])
+                            <x-tone-tile :tone="$hit ? 'blue' : 'zinc'" class="w-full truncate px-1 text-[11px] font-semibold">{{ $hitLabel }}</x-tone-tile>
+                        @endforeach
+                    </div>
+
+                    {{-- Bonusy, atak, obrona rywala i bramki --}}
+                    <dl class="space-y-1.5 border-t border-lech-200/70 pt-3 dark:border-lech-800">
                         <div class="{{ $mirror }} flex items-center justify-between gap-2">
-                            <dt class="{{ $labelClass }}">{{ __('Offensive bonus') }}</dt>
-                            <dd class="{{ $mirror }} flex items-center gap-1.5">
-                                <x-tone-tile :tone="\App\Support\Tone::bonus($score->offense_bonus)">+{{ $score->offense_bonus }}</x-tone-tile>
+                            <dt class="{{ $labelClass }}">
+                                {{ __('Offensive bonus') }}
                                 @if ($score->offense_zeroed)
-                                    <span class="text-xs text-red-600">{{ __('bonus zeroed') }}</span>
+                                    <span class="text-red-600 dark:text-red-400">({{ __('bonus zeroed') }})</span>
                                 @endif
-                            </dd>
+                            </dt>
+                            <dd><x-tone-tile :tone="\App\Support\Tone::bonus($score->offense_bonus)" class="{{ $tileWidth }}">{{ $score->offense_bonus }}</x-tone-tile></dd>
                         </div>
                         <div class="{{ $mirror }} flex items-center justify-between gap-2">
-                            <dt class="{{ $labelClass }}">{{ __('Defensive bonus') }}</dt>
-                            <dd class="{{ $mirror }} flex items-center gap-1.5">
-                                <x-tone-tile :tone="\App\Support\Tone::bonus($score->defense_bonus)">{{ $score->defense_bonus }}</x-tone-tile>
+                            <dt class="{{ $labelClass }}">
+                                {{ __('Defensive bonus') }}
                                 @if ($score->defense_zeroed)
-                                    <span class="text-xs text-red-600">{{ __('bonus zeroed') }}</span>
+                                    <span class="text-red-600 dark:text-red-400">({{ __('bonus zeroed') }})</span>
                                 @endif
-                            </dd>
+                            </dt>
+                            <dd><x-tone-tile :tone="\App\Support\Tone::bonus($score->defense_bonus)" class="{{ $tileWidth }}">{{ $score->defense_bonus }}</x-tone-tile></dd>
                         </div>
-                        <div class="{{ $mirror }} flex items-center justify-between gap-2 border-t border-zinc-100 pt-1.5 dark:border-zinc-700">
+                        <div class="{{ $mirror }} flex items-center justify-between gap-2">
                             <dt class="{{ $labelClass }}">{{ __('Attack (tip + offensive bonus)') }}</dt>
-                            <dd><x-tone-tile :tone="\App\Support\Tone::attack($score->offense)">{{ $score->offense }}</x-tone-tile></dd>
+                            <dd><x-tone-tile :tone="\App\Support\Tone::attack($score->offense)" class="{{ $tileWidth }}">{{ $score->offense }}</x-tone-tile></dd>
                         </div>
                         @if (!$other['virtual'])
                             <div class="{{ $mirror }} flex items-center justify-between gap-2">
                                 <dt class="{{ $labelClass }}">{{ __('Rival\'s defence') }}</dt>
-                                <dd><x-tone-tile :tone="\App\Support\Tone::rivalDefense($rivalDefense)">−{{ $rivalDefense }}</x-tone-tile></dd>
+                                <dd><x-tone-tile :tone="\App\Support\Tone::rivalDefense($rivalDefense)" class="{{ $tileWidth }}">{{ $rivalDefense }}</x-tone-tile></dd>
                             </div>
                         @endif
                         <div class="{{ $mirror }} flex items-center justify-between gap-2">
                             <dt class="{{ $labelClass }} font-bold">{{ __('Goals') }}</dt>
-                            <dd><x-tone-tile :tone="\App\Support\Tone::goals($side['goals'])" class="text-base">{{ $side['goals'] ?? '—' }}</x-tone-tile></dd>
+                            <dd><x-tone-tile :tone="\App\Support\Tone::goals($side['goals'])" class="{{ $tileWidth }} text-base">{{ $side['goals'] ?? '—' }}</x-tone-tile></dd>
                         </div>
-                        @if ($side['tipped_at'] && $isCup)
-                            <div class="{{ $mirror }} flex items-center justify-between gap-2 text-xs">
-                                <dt class="{{ $labelClass }}">{{ __('Tip saved') }}</dt>
-                                <dd class="tabular-nums text-zinc-500">{{ $side['tipped_at']->translatedFormat('j M, H:i:s.v') }}</dd>
-                            </div>
-                        @endif
                     </dl>
+
+                    @if ($side['tipped_at'] && $isCup)
+                        <div class="{{ $mirror }} flex items-center justify-between gap-2 border-t border-lech-200/70 pt-2 text-xs dark:border-lech-800">
+                            <span class="{{ $labelClass }}">{{ __('Tip saved') }}</span>
+                            <span class="tabular-nums text-zinc-500">{{ $side['tipped_at']->translatedFormat('j M, H:i:s.v') }}</span>
+                        </div>
+                    @endif
                 @else
                     <div class="flex flex-wrap items-center gap-2 {{ $inner }}">
                         @if ($side['tip'])
