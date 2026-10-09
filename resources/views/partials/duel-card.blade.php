@@ -142,8 +142,54 @@
                     </div>
 
                     {{--
+                        Bonusy z pytań (tylko premium): gwiazdki udzielonych odpowiedzi i trafionych na pięć, kafelek z punktami.
+                        Czerwony „−” = brak odpowiedzi, czerwone „0” = zestaw wyzerowany przez złą odpowiedź.
+                    --}}
+                    @if ($card['premium'])
+                        @php
+                            $answeredBySide = ['offense' => (int) ($side['offense'] ?? 0), 'defense' => (int) ($side['defense'] ?? 0)];
+                            $bonusRows = [
+                                [__('Offensive bonus'), $answeredBySide['offense'], (int) $score->offense_bonus, (bool) $score->offense_zeroed],
+                                [__('Defensive bonus'), $answeredBySide['defense'], (int) $score->defense_bonus, (bool) $score->defense_zeroed],
+                            ];
+                        @endphp
+                        <div class="space-y-2 border-t border-lech-200/70 pt-3 dark:border-lech-800">
+                            @foreach ($bonusRows as [$bonusLabel, $answered, $correct, $zeroed])
+                                <div class="{{ $mirror }} flex items-center justify-between gap-2">
+                                    <span class="{{ $labelClass }}">{{ $bonusLabel }}</span>
+                                    <div class="{{ $mirror }} flex items-center gap-2">
+                                        @if ($answered > 0)
+                                            <div class="flex flex-col gap-0.5 {{ $loop->parent->first ? 'items-end' : 'items-start' }}">
+                                                <span class="inline-flex gap-0.5" title="{{ __('Answers given: :count/5', ['count' => $answered]) }}">
+                                                    @for ($i = 1; $i <= 5; $i++)
+                                                        <flux:icon.star variant="micro" class="{{ $i <= $answered ? 'text-amber-500' : 'text-zinc-300 dark:text-zinc-600' }}" />
+                                                    @endfor
+                                                </span>
+                                                @if (!$zeroed)
+                                                    <span class="inline-flex gap-0.5" title="{{ __('Correct answers: :count/5', ['count' => $correct]) }}">
+                                                        @for ($i = 1; $i <= 5; $i++)
+                                                            <flux:icon.star variant="micro" class="{{ $i <= $correct ? 'text-green-500' : 'text-zinc-300 dark:text-zinc-600' }}" />
+                                                        @endfor
+                                                    </span>
+                                                @endif
+                                            </div>
+                                        @endif
+                                        @if ($answered === 0)
+                                            <x-tone-tile tone="red" class="{{ $tileWidth }}" title="{{ __('No answers') }}">−</x-tone-tile>
+                                        @elseif ($zeroed)
+                                            <x-tone-tile tone="red" class="{{ $tileWidth }}" title="{{ __('bonus zeroed') }}">0</x-tone-tile>
+                                        @else
+                                            <x-tone-tile :tone="\App\Support\Tone::bonus($correct)" class="{{ $tileWidth }}">{{ $correct }}</x-tone-tile>
+                                        @endif
+                                    </div>
+                                </div>
+                            @endforeach
+                        </div>
+                    @endif
+
+                    {{--
                         Skąd wzięły się bramki: działanie z kafelków (regulamin: max(0, typ + bonus ofensywny − bonus defensywny rywala)).
-                        Bonus defensywny tej strony działa na rywala, więc stoi osobno pod spodem.
+                        Bonus defensywny tej strony działa na rywala (widać go w działaniu rywala jako jego obronę).
                     --}}
                     @php
                         $terms = [
@@ -167,23 +213,11 @@
                                     <div class="flex w-12 flex-col items-center gap-1 text-center">
                                         <x-tone-tile :tone="$termTone" class="w-full {{ $loop->last ? 'text-base' : '' }}">{{ $termValue ?? '—' }}</x-tone-tile>
                                         <span class="text-[10px] leading-tight {{ $loop->last ? 'font-bold text-lech-800 dark:text-lech-200' : 'text-zinc-500' }}">{{ $termLabel }}</span>
-                                        @if ($termZeroed)
-                                            <span class="text-[10px] leading-tight text-red-600 dark:text-red-400">{{ __('bonus zeroed') }}</span>
-                                        @endif
                                     </div>
                                 @endif
                             @endforeach
                         </div>
 
-                        <div class="{{ $mirror }} flex items-center justify-between gap-2">
-                            <span class="{{ $labelClass }}">
-                                {{ __('Defensive bonus') }}
-                                @if ($score->defense_zeroed)
-                                    <span class="text-red-600 dark:text-red-400">({{ __('bonus zeroed') }})</span>
-                                @endif
-                            </span>
-                            <x-tone-tile :tone="\App\Support\Tone::bonus($score->defense_bonus)" class="{{ $tileWidth }}">{{ $score->defense_bonus }}</x-tone-tile>
-                        </div>
                     </div>
 
                     @if ($side['tipped_at'] && $isCup)

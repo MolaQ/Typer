@@ -1216,5 +1216,8 @@
     "Out of the competition": "Odpadnięcie z rozgrywek",
     "After matchday :number": "Po kolejce :number",
     "HOME": "DOM",
-    "AWAY": "WYJAZD"
+    "AWAY": "WYJAZD",
+    "Answers given: :count/5": "Udzielone odpowiedzi: :count/5",
+    "Correct answers: :count/5": "Poprawne odpowiedzi: :count/5",
+    "No answers": "Brak odpowiedzi"
 }
