@@ -141,41 +141,50 @@
                         @endforeach
                     </div>
 
-                    {{-- Bonusy, atak, obrona rywala i bramki --}}
-                    <dl class="space-y-1.5 border-t border-lech-200/70 pt-3 dark:border-lech-800">
-                        <div class="{{ $mirror }} flex items-center justify-between gap-2">
-                            <dt class="{{ $labelClass }}">
-                                {{ __('Offensive bonus') }}
-                                @if ($score->offense_zeroed)
-                                    <span class="text-red-600 dark:text-red-400">({{ __('bonus zeroed') }})</span>
+                    {{--
+                        Skąd wzięły się bramki: działanie z kafelków (regulamin: max(0, typ + bonus ofensywny − bonus defensywny rywala)).
+                        Bonus defensywny tej strony działa na rywala, więc stoi osobno pod spodem.
+                    --}}
+                    @php
+                        $terms = [
+                            [__('Tip'), $score->tip_points, \App\Support\Tone::tipPoints($score->tip_points), null],
+                            ['+', null, null, null],
+                            [__('Offensive bonus'), $score->offense_bonus, \App\Support\Tone::bonus($score->offense_bonus), $score->offense_zeroed],
+                        ];
+                        if (!$other['virtual']) {
+                            $terms[] = ['−', null, null, null];
+                            $terms[] = [__('Rival\'s defence'), $rivalDefense, \App\Support\Tone::rivalDefense($rivalDefense), null];
+                        }
+                        $terms[] = ['=', null, null, null];
+                        $terms[] = [__('Goals'), $side['goals'], \App\Support\Tone::goals($side['goals']), null];
+                    @endphp
+                    <div class="space-y-3 border-t border-lech-200/70 pt-3 dark:border-lech-800">
+                        <div class="flex items-start justify-center gap-1">
+                            @foreach ($terms as [$termLabel, $termValue, $termTone, $termZeroed])
+                                @if ($termTone === null)
+                                    <span class="flex h-7 items-center text-lg font-bold text-zinc-400">{{ $termLabel }}</span>
+                                @else
+                                    <div class="flex w-12 flex-col items-center gap-1 text-center">
+                                        <x-tone-tile :tone="$termTone" class="w-full {{ $loop->last ? 'text-base' : '' }}">{{ $termValue ?? '—' }}</x-tone-tile>
+                                        <span class="text-[10px] leading-tight {{ $loop->last ? 'font-bold text-lech-800 dark:text-lech-200' : 'text-zinc-500' }}">{{ $termLabel }}</span>
+                                        @if ($termZeroed)
+                                            <span class="text-[10px] leading-tight text-red-600 dark:text-red-400">{{ __('bonus zeroed') }}</span>
+                                        @endif
+                                    </div>
                                 @endif
-                            </dt>
-                            <dd><x-tone-tile :tone="\App\Support\Tone::bonus($score->offense_bonus)" class="{{ $tileWidth }}">{{ $score->offense_bonus }}</x-tone-tile></dd>
+                            @endforeach
                         </div>
+
                         <div class="{{ $mirror }} flex items-center justify-between gap-2">
-                            <dt class="{{ $labelClass }}">
+                            <span class="{{ $labelClass }}">
                                 {{ __('Defensive bonus') }}
                                 @if ($score->defense_zeroed)
                                     <span class="text-red-600 dark:text-red-400">({{ __('bonus zeroed') }})</span>
                                 @endif
-                            </dt>
-                            <dd><x-tone-tile :tone="\App\Support\Tone::bonus($score->defense_bonus)" class="{{ $tileWidth }}">{{ $score->defense_bonus }}</x-tone-tile></dd>
+                            </span>
+                            <x-tone-tile :tone="\App\Support\Tone::bonus($score->defense_bonus)" class="{{ $tileWidth }}">{{ $score->defense_bonus }}</x-tone-tile>
                         </div>
-                        <div class="{{ $mirror }} flex items-center justify-between gap-2">
-                            <dt class="{{ $labelClass }}">{{ __('Attack (tip + offensive bonus)') }}</dt>
-                            <dd><x-tone-tile :tone="\App\Support\Tone::attack($score->offense)" class="{{ $tileWidth }}">{{ $score->offense }}</x-tone-tile></dd>
-                        </div>
-                        @if (!$other['virtual'])
-                            <div class="{{ $mirror }} flex items-center justify-between gap-2">
-                                <dt class="{{ $labelClass }}">{{ __('Rival\'s defence') }}</dt>
-                                <dd><x-tone-tile :tone="\App\Support\Tone::rivalDefense($rivalDefense)" class="{{ $tileWidth }}">{{ $rivalDefense }}</x-tone-tile></dd>
-                            </div>
-                        @endif
-                        <div class="{{ $mirror }} flex items-center justify-between gap-2">
-                            <dt class="{{ $labelClass }} font-bold">{{ __('Goals') }}</dt>
-                            <dd><x-tone-tile :tone="\App\Support\Tone::goals($side['goals'])" class="{{ $tileWidth }} text-base">{{ $side['goals'] ?? '—' }}</x-tone-tile></dd>
-                        </div>
-                    </dl>
+                    </div>
 
                     @if ($side['tipped_at'] && $isCup)
                         <div class="{{ $mirror }} flex items-center justify-between gap-2 border-t border-lech-200/70 pt-2 text-xs dark:border-lech-800">
