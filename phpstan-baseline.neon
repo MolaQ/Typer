@@ -1,0 +1,1429 @@
+parameters:
+	ignoreErrors:
+		-
+			message: '#^Call to function in_array\(\) with arguments int\<0, max\>, array\{\} and true will always evaluate to false\.$#'
+			identifier: function.impossibleType
+			count: 1
+			path: app/Actions/Competitions/BuildCompetitions.php
+
+		-
+			message: '#^Method App\\Actions\\Competitions\\BuildCompetitions\:\:fixtureRow\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: app/Actions/Competitions/BuildCompetitions.php
+
+		-
+			message: '#^Method App\\Actions\\Competitions\\BuildCompetitions\:\:handle\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: app/Actions/Competitions/BuildCompetitions.php
+
+		-
+			message: '#^Method App\\Actions\\Competitions\\BuildCompetitions\:\:insertFixtures\(\) has parameter \$rows with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: app/Actions/Competitions/BuildCompetitions.php
+
+		-
+			message: '#^Parameter \#1 \$season of method App\\Actions\\Competitions\\BuildCompetitions\:\:historySeats\(\) expects App\\Models\\Season, Illuminate\\Database\\Eloquent\\Model\|null given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Actions/Competitions/BuildCompetitions.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$title\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Actions/Competitions/DrawSwissRound.php
+
+		-
+			message: '#^Parameter \#3 \$hadBye of static method App\\Support\\SwissPairing\:\:pair\(\) expects array\<int, bool\>, array\<int\|string, true\> given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Actions/Competitions/DrawSwissRound.php
+
+		-
+			message: '#^Parameter \#1 \$user of static method App\\Support\\Premium\:\:extend\(\) expects App\\Models\\User, Illuminate\\Database\\Eloquent\\Model given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Actions/Payments/CompletePayment.php
+
+		-
+			message: '#^Parameter \#2 \$target of static method App\\Support\\Audit\:\:log\(\) expects App\\Models\\User\|null, Illuminate\\Database\\Eloquent\\Model\|null given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Actions/Payments/CompletePayment.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$title\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Actions/Questions/DrawQuestions.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Matchday\:\:\$fixture\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Actions/Results/SaveMatchdayResult.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$status\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Actions/Results/SaveMatchdayResult.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$title\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Actions/Results/SaveMatchdayResult.php
+
+		-
+			message: '#^Parameter \#1 \$season of method App\\Actions\\Seasons\\AwardHallOfFame\:\:handle\(\) expects App\\Models\\Season, Illuminate\\Database\\Eloquent\\Model\|null given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Actions/Results/SaveMatchdayResult.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Builder\<App\\Models\\User\>\|Illuminate\\Database\\Query\\Builder\:\:whereHas\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Actions/Results/ScoreMatchday.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Season\:\:\$title\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Actions/Seasons/ApproveSeason.php
+
+		-
+			message: '#^Method App\\Actions\\Seasons\\AwardHallOfFame\:\:add\(\) has parameter \$meta with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: app/Actions/Seasons/AwardHallOfFame.php
+
+		-
+			message: '#^Method App\\Actions\\Seasons\\AwardHallOfFame\:\:addTeam\(\) has parameter \$meta with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: app/Actions/Seasons/AwardHallOfFame.php
+
+		-
+			message: '#^Method App\\Actions\\Seasons\\AwardHallOfFame\:\:european\(\) has parameter \$final with generic class Illuminate\\Support\\Collection but does not specify its types\: TKey, TValue$#'
+			identifier: missingType.generics
+			count: 1
+			path: app/Actions/Seasons/AwardHallOfFame.php
+
+		-
+			message: '#^Method App\\Actions\\Seasons\\AwardHallOfFame\:\:golden\(\) has parameter \$final with generic class Illuminate\\Support\\Collection but does not specify its types\: TKey, TValue$#'
+			identifier: missingType.generics
+			count: 1
+			path: app/Actions/Seasons/AwardHallOfFame.php
+
+		-
+			message: '#^Method App\\Actions\\Seasons\\AwardHallOfFame\:\:league\(\) has parameter \$final with generic class Illuminate\\Support\\Collection but does not specify its types\: TKey, TValue$#'
+			identifier: missingType.generics
+			count: 1
+			path: app/Actions/Seasons/AwardHallOfFame.php
+
+		-
+			message: '#^Method App\\Actions\\Seasons\\AwardHallOfFame\:\:legends\(\) has parameter \$final with generic class Illuminate\\Support\\Collection but does not specify its types\: TKey, TValue$#'
+			identifier: missingType.generics
+			count: 1
+			path: app/Actions/Seasons/AwardHallOfFame.php
+
+		-
+			message: '#^Method App\\Actions\\Seasons\\AwardHallOfFame\:\:push\(\) has parameter \$meta with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: app/Actions/Seasons/AwardHallOfFame.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Season\:\:\$title\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Actions/Seasons/BuildListFromPrevious.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 3
+			path: app/Actions/Seasons/BuildListFromPrevious.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$user_id\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Actions/Seasons/BuildListFromPrevious.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Season\:\:\$title\.$#'
+			identifier: property.notFound
+			count: 3
+			path: app/Actions/Seasons/FinishSeason.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$name\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Actions/Seasons/FinishSeason.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$seasonTeam\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Actions/Seasons/FinishSeason.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$team_name\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Actions/Seasons/FinishSeason.php
+
+		-
+			message: '#^Method App\\Actions\\Seasons\\FinishSeason\:\:cupPlaces\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: app/Actions/Seasons/FinishSeason.php
+
+		-
+			message: '#^Method App\\Actions\\Seasons\\FinishSeason\:\:legendsPlaces\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: app/Actions/Seasons/FinishSeason.php
+
+		-
+			message: '#^Parameter \#1 \$value of function collect contains unresolvable type\.$#'
+			identifier: argument.unresolvableType
+			count: 1
+			path: app/Actions/Seasons/FinishSeason.php
+
+		-
+			message: '#^Return type of call to function collect contains unresolvable type\.$#'
+			identifier: function.unresolvableReturnType
+			count: 1
+			path: app/Actions/Seasons/FinishSeason.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Actions/Seasons/FinishSeason.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Season\:\:\$title\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Actions/Seasons/RevertApproval.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Actions/Tips/SaveTip.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$status\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Actions/Tips/SaveTip.php
+
+		-
+			message: '#^Trait App\\Concerns\\ProfileValidationRules is used zero times and is not analysed\.$#'
+			identifier: trait.unused
+			count: 1
+			path: app/Concerns/ProfileValidationRules.php
+
+		-
+			message: '#^Method App\\Enums\\CompetitionType\:\:automatic\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: app/Enums/Competitiontype.php
+
+		-
+			message: '#^Method App\\Enums\\Permission\:\:values\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: app/Enums/Permission.php
+
+		-
+			message: '#^Method App\\Enums\\RoleName\:\:values\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: app/Enums/RoleName.php
+
+		-
+			message: '#^Method App\\Models\\AuditLog\:\:actor\(\) return type with generic class Illuminate\\Database\\Eloquent\\Relations\\BelongsTo does not specify its types\: TRelatedModel, TDeclaringModel$#'
+			identifier: missingType.generics
+			count: 1
+			path: app/Models/AuditLog.php
+
+		-
+			message: '#^Method App\\Models\\AuditLog\:\:target\(\) return type with generic class Illuminate\\Database\\Eloquent\\Relations\\BelongsTo does not specify its types\: TRelatedModel, TDeclaringModel$#'
+			identifier: missingType.generics
+			count: 1
+			path: app/Models/AuditLog.php
+
+		-
+			message: '#^Method App\\Models\\BotTip\:\:matchday\(\) return type with generic class Illuminate\\Database\\Eloquent\\Relations\\BelongsTo does not specify its types\: TRelatedModel, TDeclaringModel$#'
+			identifier: missingType.generics
+			count: 1
+			path: app/Models/BotTip.php
+
+		-
+			message: '#^Method App\\Models\\BotTip\:\:seasonTeam\(\) return type with generic class Illuminate\\Database\\Eloquent\\Relations\\BelongsTo does not specify its types\: TRelatedModel, TDeclaringModel$#'
+			identifier: missingType.generics
+			count: 1
+			path: app/Models/BotTip.php
+
+		-
+			message: '#^Method App\\Models\\Competition\:\:entries\(\) return type with generic class Illuminate\\Database\\Eloquent\\Relations\\HasMany does not specify its types\: TRelatedModel, TDeclaringModel$#'
+			identifier: missingType.generics
+			count: 1
+			path: app/Models/Competition.php
+
+		-
+			message: '#^Method App\\Models\\Competition\:\:fixtures\(\) return type with generic class Illuminate\\Database\\Eloquent\\Relations\\HasMany does not specify its types\: TRelatedModel, TDeclaringModel$#'
+			identifier: missingType.generics
+			count: 1
+			path: app/Models/Competition.php
+
+		-
+			message: '#^Method App\\Models\\Competition\:\:league\(\) return type with generic class Illuminate\\Database\\Eloquent\\Casts\\Attribute does not specify its types\: TGet, TSet$#'
+			identifier: missingType.generics
+			count: 1
+			path: app/Models/Competition.php
+
+		-
+			message: '#^Method App\\Models\\Competition\:\:season\(\) return type with generic class Illuminate\\Database\\Eloquent\\Relations\\BelongsTo does not specify its types\: TRelatedModel, TDeclaringModel$#'
+			identifier: missingType.generics
+			count: 1
+			path: app/Models/Competition.php
+
+		-
+			message: '#^Method App\\Models\\Competition\:\:sponsor\(\) return type with generic class Illuminate\\Database\\Eloquent\\Relations\\BelongsTo does not specify its types\: TRelatedModel, TDeclaringModel$#'
+			identifier: missingType.generics
+			count: 1
+			path: app/Models/Competition.php
+
+		-
+			message: '#^Method App\\Models\\CompetitionEntry\:\:competition\(\) return type with generic class Illuminate\\Database\\Eloquent\\Relations\\BelongsTo does not specify its types\: TRelatedModel, TDeclaringModel$#'
+			identifier: missingType.generics
+			count: 1
+			path: app/Models/CompetitionEntry.php
+
+		-
+			message: '#^Method App\\Models\\CompetitionEntry\:\:seasonTeam\(\) return type with generic class Illuminate\\Database\\Eloquent\\Relations\\BelongsTo does not specify its types\: TRelatedModel, TDeclaringModel$#'
+			identifier: missingType.generics
+			count: 1
+			path: app/Models/CompetitionEntry.php
+
+		-
+			message: '#^Class App\\Models\\FinalStanding has PHPDoc tag @property for property \$stats with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: app/Models/FinalStanding.php
+
+		-
+			message: '#^Method App\\Models\\FinalStanding\:\:competition\(\) return type with generic class Illuminate\\Database\\Eloquent\\Relations\\BelongsTo does not specify its types\: TRelatedModel, TDeclaringModel$#'
+			identifier: missingType.generics
+			count: 1
+			path: app/Models/FinalStanding.php
+
+		-
+			message: '#^Method App\\Models\\FinalStanding\:\:season\(\) return type with generic class Illuminate\\Database\\Eloquent\\Relations\\BelongsTo does not specify its types\: TRelatedModel, TDeclaringModel$#'
+			identifier: missingType.generics
+			count: 1
+			path: app/Models/FinalStanding.php
+
+		-
+			message: '#^Method App\\Models\\FinalStanding\:\:seasonTeam\(\) return type with generic class Illuminate\\Database\\Eloquent\\Relations\\BelongsTo does not specify its types\: TRelatedModel, TDeclaringModel$#'
+			identifier: missingType.generics
+			count: 1
+			path: app/Models/FinalStanding.php
+
+		-
+			message: '#^Method App\\Models\\Fixture\:\:away\(\) return type with generic class Illuminate\\Database\\Eloquent\\Relations\\BelongsTo does not specify its types\: TRelatedModel, TDeclaringModel$#'
+			identifier: missingType.generics
+			count: 1
+			path: app/Models/Fixture.php
+
+		-
+			message: '#^Method App\\Models\\Fixture\:\:competition\(\) return type with generic class Illuminate\\Database\\Eloquent\\Relations\\BelongsTo does not specify its types\: TRelatedModel, TDeclaringModel$#'
+			identifier: missingType.generics
+			count: 1
+			path: app/Models/Fixture.php
+
+		-
+			message: '#^Method App\\Models\\Fixture\:\:home\(\) return type with generic class Illuminate\\Database\\Eloquent\\Relations\\BelongsTo does not specify its types\: TRelatedModel, TDeclaringModel$#'
+			identifier: missingType.generics
+			count: 1
+			path: app/Models/Fixture.php
+
+		-
+			message: '#^Method App\\Models\\Fixture\:\:winner\(\) return type with generic class Illuminate\\Database\\Eloquent\\Relations\\BelongsTo does not specify its types\: TRelatedModel, TDeclaringModel$#'
+			identifier: missingType.generics
+			count: 1
+			path: app/Models/Fixture.php
+
+		-
+			message: '#^Class App\\Models\\HallOfFameAward has PHPDoc tag @property for property \$meta with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: app/Models/HallOfFameAward.php
+
+		-
+			message: '#^Method App\\Models\\HallOfFameAward\:\:competition\(\) return type with generic class Illuminate\\Database\\Eloquent\\Relations\\BelongsTo does not specify its types\: TRelatedModel, TDeclaringModel$#'
+			identifier: missingType.generics
+			count: 1
+			path: app/Models/HallOfFameAward.php
+
+		-
+			message: '#^Method App\\Models\\HallOfFameAward\:\:season\(\) return type with generic class Illuminate\\Database\\Eloquent\\Relations\\BelongsTo does not specify its types\: TRelatedModel, TDeclaringModel$#'
+			identifier: missingType.generics
+			count: 1
+			path: app/Models/HallOfFameAward.php
+
+		-
+			message: '#^Method App\\Models\\HallOfFameAward\:\:user\(\) return type with generic class Illuminate\\Database\\Eloquent\\Relations\\BelongsTo does not specify its types\: TRelatedModel, TDeclaringModel$#'
+			identifier: missingType.generics
+			count: 1
+			path: app/Models/HallOfFameAward.php
+
+		-
+			message: '#^Method App\\Models\\Matchday\:\:fixture\(\) return type with generic class Illuminate\\Database\\Eloquent\\Casts\\Attribute does not specify its types\: TGet, TSet$#'
+			identifier: missingType.generics
+			count: 1
+			path: app/Models/Matchday.php
+
+		-
+			message: '#^Method App\\Models\\Matchday\:\:questions\(\) return type with generic class Illuminate\\Database\\Eloquent\\Relations\\HasMany does not specify its types\: TRelatedModel, TDeclaringModel$#'
+			identifier: missingType.generics
+			count: 1
+			path: app/Models/Matchday.php
+
+		-
+			message: '#^Method App\\Models\\Matchday\:\:season\(\) return type with generic class Illuminate\\Database\\Eloquent\\Relations\\BelongsTo does not specify its types\: TRelatedModel, TDeclaringModel$#'
+			identifier: missingType.generics
+			count: 1
+			path: app/Models/Matchday.php
+
+		-
+			message: '#^Method App\\Models\\MatchdayQuestion\:\:matchday\(\) return type with generic class Illuminate\\Database\\Eloquent\\Relations\\BelongsTo does not specify its types\: TRelatedModel, TDeclaringModel$#'
+			identifier: missingType.generics
+			count: 1
+			path: app/Models/MatchdayQuestion.php
+
+		-
+			message: '#^Method App\\Models\\MatchdayQuestion\:\:question\(\) return type with generic class Illuminate\\Database\\Eloquent\\Relations\\BelongsTo does not specify its types\: TRelatedModel, TDeclaringModel$#'
+			identifier: missingType.generics
+			count: 1
+			path: app/Models/MatchdayQuestion.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$value\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Models/News.php
+
+		-
+			message: '#^Method App\\Models\\News\:\:author\(\) return type with generic class Illuminate\\Database\\Eloquent\\Relations\\BelongsTo does not specify its types\: TRelatedModel, TDeclaringModel$#'
+			identifier: missingType.generics
+			count: 1
+			path: app/Models/News.php
+
+		-
+			message: '#^Method App\\Models\\News\:\:scopePublished\(\) has parameter \$query with generic class Illuminate\\Database\\Eloquent\\Builder but does not specify its types\: TModel$#'
+			identifier: missingType.generics
+			count: 1
+			path: app/Models/News.php
+
+		-
+			message: '#^Method App\\Models\\News\:\:scopePublished\(\) return type with generic class Illuminate\\Database\\Eloquent\\Builder does not specify its types\: TModel$#'
+			identifier: missingType.generics
+			count: 1
+			path: app/Models/News.php
+
+		-
+			message: '#^Method App\\Models\\News\:\:scopeWithVoteCounts\(\) has parameter \$query with generic class Illuminate\\Database\\Eloquent\\Builder but does not specify its types\: TModel$#'
+			identifier: missingType.generics
+			count: 1
+			path: app/Models/News.php
+
+		-
+			message: '#^Method App\\Models\\News\:\:scopeWithVoteCounts\(\) return type with generic class Illuminate\\Database\\Eloquent\\Builder does not specify its types\: TModel$#'
+			identifier: missingType.generics
+			count: 1
+			path: app/Models/News.php
+
+		-
+			message: '#^Method App\\Models\\News\:\:votes\(\) return type with generic class Illuminate\\Database\\Eloquent\\Relations\\HasMany does not specify its types\: TRelatedModel, TDeclaringModel$#'
+			identifier: missingType.generics
+			count: 1
+			path: app/Models/News.php
+
+		-
+			message: '#^Method App\\Models\\Payment\:\:creator\(\) return type with generic class Illuminate\\Database\\Eloquent\\Relations\\BelongsTo does not specify its types\: TRelatedModel, TDeclaringModel$#'
+			identifier: missingType.generics
+			count: 1
+			path: app/Models/Payment.php
+
+		-
+			message: '#^Method App\\Models\\Payment\:\:scopePaid\(\) has parameter \$query with generic class Illuminate\\Database\\Eloquent\\Builder but does not specify its types\: TModel$#'
+			identifier: missingType.generics
+			count: 1
+			path: app/Models/Payment.php
+
+		-
+			message: '#^Method App\\Models\\Payment\:\:user\(\) return type with generic class Illuminate\\Database\\Eloquent\\Relations\\BelongsTo does not specify its types\: TRelatedModel, TDeclaringModel$#'
+			identifier: missingType.generics
+			count: 1
+			path: app/Models/Payment.php
+
+		-
+			message: '#^Method App\\Models\\Question\:\:assignments\(\) return type with generic class Illuminate\\Database\\Eloquent\\Relations\\HasMany does not specify its types\: TRelatedModel, TDeclaringModel$#'
+			identifier: missingType.generics
+			count: 1
+			path: app/Models/Question.php
+
+		-
+			message: '#^Method App\\Models\\QuestionProposal\:\:question\(\) return type with generic class Illuminate\\Database\\Eloquent\\Relations\\BelongsTo does not specify its types\: TRelatedModel, TDeclaringModel$#'
+			identifier: missingType.generics
+			count: 1
+			path: app/Models/QuestionProposal.php
+
+		-
+			message: '#^Method App\\Models\\QuestionProposal\:\:reviewer\(\) return type with generic class Illuminate\\Database\\Eloquent\\Relations\\BelongsTo does not specify its types\: TRelatedModel, TDeclaringModel$#'
+			identifier: missingType.generics
+			count: 1
+			path: app/Models/QuestionProposal.php
+
+		-
+			message: '#^Method App\\Models\\QuestionProposal\:\:scopePending\(\) has parameter \$query with generic class Illuminate\\Database\\Eloquent\\Builder but does not specify its types\: TModel$#'
+			identifier: missingType.generics
+			count: 1
+			path: app/Models/QuestionProposal.php
+
+		-
+			message: '#^Method App\\Models\\QuestionProposal\:\:scopePending\(\) return type with generic class Illuminate\\Database\\Eloquent\\Builder does not specify its types\: TModel$#'
+			identifier: missingType.generics
+			count: 1
+			path: app/Models/QuestionProposal.php
+
+		-
+			message: '#^Method App\\Models\\QuestionProposal\:\:user\(\) return type with generic class Illuminate\\Database\\Eloquent\\Relations\\BelongsTo does not specify its types\: TRelatedModel, TDeclaringModel$#'
+			identifier: missingType.generics
+			count: 1
+			path: app/Models/QuestionProposal.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Season\:\:\$roman_number\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Models/Season.php
+
+		-
+			message: '#^Method App\\Models\\Season\:\:competitions\(\) return type with generic class Illuminate\\Database\\Eloquent\\Relations\\HasMany does not specify its types\: TRelatedModel, TDeclaringModel$#'
+			identifier: missingType.generics
+			count: 1
+			path: app/Models/Season.php
+
+		-
+			message: '#^Method App\\Models\\Season\:\:matchdays\(\) return type with generic class Illuminate\\Database\\Eloquent\\Relations\\HasMany does not specify its types\: TRelatedModel, TDeclaringModel$#'
+			identifier: missingType.generics
+			count: 1
+			path: app/Models/Season.php
+
+		-
+			message: '#^Method App\\Models\\Season\:\:romanNumber\(\) return type with generic class Illuminate\\Database\\Eloquent\\Casts\\Attribute does not specify its types\: TGet, TSet$#'
+			identifier: missingType.generics
+			count: 1
+			path: app/Models/Season.php
+
+		-
+			message: '#^Method App\\Models\\Season\:\:scopeActive\(\) has parameter \$query with generic class Illuminate\\Database\\Eloquent\\Builder but does not specify its types\: TModel$#'
+			identifier: missingType.generics
+			count: 1
+			path: app/Models/Season.php
+
+		-
+			message: '#^Method App\\Models\\Season\:\:scopeActive\(\) return type with generic class Illuminate\\Database\\Eloquent\\Builder does not specify its types\: TModel$#'
+			identifier: missingType.generics
+			count: 1
+			path: app/Models/Season.php
+
+		-
+			message: '#^Method App\\Models\\Season\:\:sponsorLogoUrl\(\) return type with generic class Illuminate\\Database\\Eloquent\\Casts\\Attribute does not specify its types\: TGet, TSet$#'
+			identifier: missingType.generics
+			count: 1
+			path: app/Models/Season.php
+
+		-
+			message: '#^Method App\\Models\\Season\:\:teams\(\) return type with generic class Illuminate\\Database\\Eloquent\\Relations\\HasMany does not specify its types\: TRelatedModel, TDeclaringModel$#'
+			identifier: missingType.generics
+			count: 1
+			path: app/Models/Season.php
+
+		-
+			message: '#^Method App\\Models\\Season\:\:title\(\) return type with generic class Illuminate\\Database\\Eloquent\\Casts\\Attribute does not specify its types\: TGet, TSet$#'
+			identifier: missingType.generics
+			count: 1
+			path: app/Models/Season.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$name\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Models/Seasonteam.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$team_name\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Models/Seasonteam.php
+
+		-
+			message: '#^Method App\\Models\\SeasonTeam\:\:bot\(\) return type with generic class Illuminate\\Database\\Eloquent\\Relations\\BelongsTo does not specify its types\: TRelatedModel, TDeclaringModel$#'
+			identifier: missingType.generics
+			count: 1
+			path: app/Models/Seasonteam.php
+
+		-
+			message: '#^Method App\\Models\\SeasonTeam\:\:isBot\(\) return type with generic class Illuminate\\Database\\Eloquent\\Casts\\Attribute does not specify its types\: TGet, TSet$#'
+			identifier: missingType.generics
+			count: 1
+			path: app/Models/Seasonteam.php
+
+		-
+			message: '#^Method App\\Models\\SeasonTeam\:\:league\(\) return type with generic class Illuminate\\Database\\Eloquent\\Casts\\Attribute does not specify its types\: TGet, TSet$#'
+			identifier: missingType.generics
+			count: 1
+			path: app/Models/Seasonteam.php
+
+		-
+			message: '#^Method App\\Models\\SeasonTeam\:\:name\(\) return type with generic class Illuminate\\Database\\Eloquent\\Casts\\Attribute does not specify its types\: TGet, TSet$#'
+			identifier: missingType.generics
+			count: 1
+			path: app/Models/Seasonteam.php
+
+		-
+			message: '#^Method App\\Models\\SeasonTeam\:\:scopeInLeague\(\) has parameter \$query with generic class Illuminate\\Database\\Eloquent\\Builder but does not specify its types\: TModel$#'
+			identifier: missingType.generics
+			count: 1
+			path: app/Models/Seasonteam.php
+
+		-
+			message: '#^Method App\\Models\\SeasonTeam\:\:scopeInLeague\(\) return type with generic class Illuminate\\Database\\Eloquent\\Builder does not specify its types\: TModel$#'
+			identifier: missingType.generics
+			count: 1
+			path: app/Models/Seasonteam.php
+
+		-
+			message: '#^Method App\\Models\\SeasonTeam\:\:season\(\) return type with generic class Illuminate\\Database\\Eloquent\\Relations\\BelongsTo does not specify its types\: TRelatedModel, TDeclaringModel$#'
+			identifier: missingType.generics
+			count: 1
+			path: app/Models/Seasonteam.php
+
+		-
+			message: '#^Method App\\Models\\SeasonTeam\:\:user\(\) return type with generic class Illuminate\\Database\\Eloquent\\Relations\\BelongsTo does not specify its types\: TRelatedModel, TDeclaringModel$#'
+			identifier: missingType.generics
+			count: 1
+			path: app/Models/Seasonteam.php
+
+		-
+			message: '#^Unable to resolve the template type T in call to static method Illuminate\\Database\\Eloquent\\Casts\\Attribute\<mixed,mixed\>\:\:get\(\)$#'
+			identifier: argument.templateType
+			count: 1
+			path: app/Models/Seasonteam.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Models/Seasonteam.php
+
+		-
+			message: '#^Method App\\Models\\Sponsor\:\:competitions\(\) return type with generic class Illuminate\\Database\\Eloquent\\Relations\\HasMany does not specify its types\: TRelatedModel, TDeclaringModel$#'
+			identifier: missingType.generics
+			count: 1
+			path: app/Models/Sponsor.php
+
+		-
+			message: '#^Class App\\Models\\SystemEvent has PHPDoc tag @property for property \$params with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: app/Models/SystemEvent.php
+
+		-
+			message: '#^Class App\\Models\\SystemEvent has PHPDoc tag @property for property \$route_params with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: app/Models/SystemEvent.php
+
+		-
+			message: '#^Method App\\Models\\TeamNameChangeRequest\:\:reviewer\(\) return type with generic class Illuminate\\Database\\Eloquent\\Relations\\BelongsTo does not specify its types\: TRelatedModel, TDeclaringModel$#'
+			identifier: missingType.generics
+			count: 1
+			path: app/Models/TeamNameChangeRequest.php
+
+		-
+			message: '#^Method App\\Models\\TeamNameChangeRequest\:\:scopePending\(\) has parameter \$query with generic class Illuminate\\Database\\Eloquent\\Builder but does not specify its types\: TModel$#'
+			identifier: missingType.generics
+			count: 1
+			path: app/Models/TeamNameChangeRequest.php
+
+		-
+			message: '#^Method App\\Models\\TeamNameChangeRequest\:\:scopePending\(\) return type with generic class Illuminate\\Database\\Eloquent\\Builder does not specify its types\: TModel$#'
+			identifier: missingType.generics
+			count: 1
+			path: app/Models/TeamNameChangeRequest.php
+
+		-
+			message: '#^Method App\\Models\\TeamNameChangeRequest\:\:user\(\) return type with generic class Illuminate\\Database\\Eloquent\\Relations\\BelongsTo does not specify its types\: TRelatedModel, TDeclaringModel$#'
+			identifier: missingType.generics
+			count: 1
+			path: app/Models/TeamNameChangeRequest.php
+
+		-
+			message: '#^Method App\\Models\\TeamScore\:\:matchday\(\) return type with generic class Illuminate\\Database\\Eloquent\\Relations\\BelongsTo does not specify its types\: TRelatedModel, TDeclaringModel$#'
+			identifier: missingType.generics
+			count: 1
+			path: app/Models/TeamScore.php
+
+		-
+			message: '#^Method App\\Models\\TeamScore\:\:seasonTeam\(\) return type with generic class Illuminate\\Database\\Eloquent\\Relations\\BelongsTo does not specify its types\: TRelatedModel, TDeclaringModel$#'
+			identifier: missingType.generics
+			count: 1
+			path: app/Models/TeamScore.php
+
+		-
+			message: '#^Method App\\Models\\Tip\:\:matchday\(\) return type with generic class Illuminate\\Database\\Eloquent\\Relations\\BelongsTo does not specify its types\: TRelatedModel, TDeclaringModel$#'
+			identifier: missingType.generics
+			count: 1
+			path: app/Models/Tip.php
+
+		-
+			message: '#^Method App\\Models\\Tip\:\:user\(\) return type with generic class Illuminate\\Database\\Eloquent\\Relations\\BelongsTo does not specify its types\: TRelatedModel, TDeclaringModel$#'
+			identifier: missingType.generics
+			count: 1
+			path: app/Models/Tip.php
+
+		-
+			message: '#^Method App\\Models\\TipAnswer\:\:matchdayQuestion\(\) return type with generic class Illuminate\\Database\\Eloquent\\Relations\\BelongsTo does not specify its types\: TRelatedModel, TDeclaringModel$#'
+			identifier: missingType.generics
+			count: 1
+			path: app/Models/TipAnswer.php
+
+		-
+			message: '#^Method App\\Models\\TipAnswer\:\:user\(\) return type with generic class Illuminate\\Database\\Eloquent\\Relations\\BelongsTo does not specify its types\: TRelatedModel, TDeclaringModel$#'
+			identifier: missingType.generics
+			count: 1
+			path: app/Models/TipAnswer.php
+
+		-
+			message: '#^Method App\\Models\\User\:\:payments\(\) return type with generic class Illuminate\\Database\\Eloquent\\Relations\\HasMany does not specify its types\: TRelatedModel, TDeclaringModel$#'
+			identifier: missingType.generics
+			count: 1
+			path: app/Models/User.php
+
+		-
+			message: '#^Parameter \#1 \$sql of method Illuminate\\Database\\Query\\Builder\:\:whereRaw\(\) expects Illuminate\\Contracts\\Database\\Query\\Expression\|literal\-string, non\-falsy\-string given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Rules/UniqueTeamValue.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Matchday\:\:\$fixture\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Support/AdminAlerts.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Season\:\:\$title\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Support/AdminAlerts.php
+
+		-
+			message: '#^Method App\\Support\\AdminAlerts\:\:alert\(\) has parameter \$action with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: app/Support/AdminAlerts.php
+
+		-
+			message: '#^Method App\\Support\\AdminAlerts\:\:alert\(\) has parameter \$params with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: app/Support/AdminAlerts.php
+
+		-
+			message: '#^Method App\\Support\\AdminAlerts\:\:alert\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: app/Support/AdminAlerts.php
+
+		-
+			message: '#^Method App\\Support\\AdminAlerts\:\:matchdays\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: app/Support/AdminAlerts.php
+
+		-
+			message: '#^Method App\\Support\\AdminAlerts\:\:swiss\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: app/Support/AdminAlerts.php
+
+		-
+			message: '#^Method App\\Support\\Audit\:\:events\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: app/Support/Audit.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Payment\:\:\$last_paid_at\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Support/GoldenLeague.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Payment\:\:\$total\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Support/GoldenLeague.php
+
+		-
+			message: '#^Comparison operation "\>\=" between 0 and 10 is always false\.$#'
+			identifier: greaterOrEqual.alwaysFalse
+			count: 1
+			path: app/Support/GoldenLeague.php
+
+		-
+			message: '#^Strict comparison using \=\=\= between array\{\} and array\{\} will always evaluate to true\.$#'
+			identifier: identical.alwaysTrue
+			count: 1
+			path: app/Support/GoldenLeague.php
+
+		-
+			message: '#^Unreachable statement \- code above always terminates\.$#'
+			identifier: deadCode.unreachable
+			count: 1
+			path: app/Support/GoldenLeague.php
+
+		-
+			message: '#^Method App\\Support\\Guide\:\:faq\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: app/Support/Guide.php
+
+		-
+			message: '#^Method App\\Support\\Guide\:\:rules\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: app/Support/Guide.php
+
+		-
+			message: '#^PHPDoc tag @var for constant App\\Support\\HallOfFame\:\:DEFAULTS with type array\<string, float\> is not subtype of value array\{multiplier_1\: 10, multiplier_2\: 9, multiplier_3\: 8, multiplier_4\: 7, multiplier_5\: 6, multiplier_6\: 5, multiplier_7\: 4, multiplier_8\: 3, \.\.\.\}\.$#'
+			identifier: classConstant.phpDocType
+			count: 1
+			path: app/Support/HallOfFame.php
+
+		-
+			message: '#^Parameter \#1 \$expression of method Illuminate\\Database\\Eloquent\\Builder\<App\\Models\\HallOfFameAward\>\:\:selectRaw\(\) expects literal\-string, non\-falsy\-string given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Support/HallOfFame.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$eliminated_round\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Support/LegendsRanking.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Support/LegendsRanking.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$seasonTeam\.$#'
+			identifier: property.notFound
+			count: 3
+			path: app/Support/LegendsRanking.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$season_team_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Support/LegendsRanking.php
+
+		-
+			message: '#^Method App\\Support\\LegendsRanking\:\:for\(\) should return Illuminate\\Support\\Collection\<int, array\{entry_id\: int, team\: App\\Models\\SeasonTeam, eliminated_round\: int\|null, tip_points\: int, bonus\: int, exact\: int, diff_hits\: int, outcome_hits\: int, \.\.\.\}\> but returns Illuminate\\Support\\Collection\<int, array\{entry_id\: mixed, team\: mixed, eliminated_round\: mixed, tip_points\: int, bonus\: int, exact\: int\<0, max\>, diff_hits\: int\<0, max\>, outcome_hits\: int\<0, max\>, \.\.\.\}\>\.$#'
+			identifier: return.type
+			count: 1
+			path: app/Support/LegendsRanking.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Database\\Eloquent\\Collection\<int,Illuminate\\Database\\Eloquent\\Model\>\:\:map\(\) contains unresolvable type\.$#'
+			identifier: argument.unresolvableType
+			count: 1
+			path: app/Support/LegendsRanking.php
+
+		-
+			message: '#^Parameter \#1 \$season of static method App\\Support\\HallOfFame\:\:teamPointsBefore\(\) expects App\\Models\\Season, Illuminate\\Database\\Eloquent\\Model given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Support/LegendsRanking.php
+
+		-
+			message: '#^Return type of call to method Illuminate\\Database\\Eloquent\\Collection\<int,Illuminate\\Database\\Eloquent\\Model\>\:\:map\(\) contains unresolvable type\.$#'
+			identifier: method.unresolvableReturnType
+			count: 1
+			path: app/Support/LegendsRanking.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\CompetitionEntry\:\:\$bot_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Support/PlayerStats.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\CompetitionEntry\:\:\$entry_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Support/PlayerStats.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\CompetitionEntry\:\:\$user_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Support/PlayerStats.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\TeamScore\:\:\$number\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Support/PlayerStats.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Tip\:\:\$kickoff_at\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Support/PlayerStats.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Tip\:\:\$lech\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Support/PlayerStats.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Tip\:\:\$opponent\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Support/PlayerStats.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Tip\:\:\$tips_count\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Support/PlayerStats.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\TipAnswer\:\:\$answers\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Support/PlayerStats.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\TipAnswer\:\:\$correct\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Support/PlayerStats.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\TipAnswer\:\:\$side\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Support/PlayerStats.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$name\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Support/PlayerStats.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$seasonTeam\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Support/PlayerStats.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$tier\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Support/PlayerStats.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$type\.$#'
+			identifier: property.notFound
+			count: 6
+			path: app/Support/PlayerStats.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:trophyKey\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Support/PlayerStats.php
+
+		-
+			message: '#^Method App\\Support\\PlayerStats\:\:bestMatchday\(\) has parameter \$rows with generic class Illuminate\\Support\\Collection but does not specify its types\: TKey, TValue$#'
+			identifier: missingType.generics
+			count: 1
+			path: app/Support/PlayerStats.php
+
+		-
+			message: '#^Method App\\Support\\PlayerStats\:\:empty\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: app/Support/PlayerStats.php
+
+		-
+			message: '#^Method App\\Support\\PlayerStats\:\:favourites\(\) should return array\{mine\: array\{score\: string, count\: int, total\: int\}\|null, all\: array\{score\: string, count\: int, total\: int\}\|null\} but returns array\{mine\: array\|null, all\: array\|null\}\.$#'
+			identifier: return.type
+			count: 1
+			path: app/Support/PlayerStats.php
+
+		-
+			message: '#^Method App\\Support\\PlayerStats\:\:matchSummary\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: app/Support/PlayerStats.php
+
+		-
+			message: '#^Method App\\Support\\PlayerStats\:\:result\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: app/Support/PlayerStats.php
+
+		-
+			message: '#^Method App\\Support\\PlayerStats\:\:streak\(\) has parameter \$values with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: app/Support/PlayerStats.php
+
+		-
+			message: '#^Method App\\Support\\PlayerStats\:\:streak\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: app/Support/PlayerStats.php
+
+		-
+			message: '#^Method App\\Support\\PlayerStats\:\:tipRows\(\) return type with generic class Illuminate\\Support\\Collection does not specify its types\: TKey, TValue$#'
+			identifier: missingType.generics
+			count: 1
+			path: app/Support/PlayerStats.php
+
+		-
+			message: '#^Method App\\Support\\PlayerStats\:\:topScore\(\) has parameter \$query with no type specified\.$#'
+			identifier: missingType.parameter
+			count: 1
+			path: app/Support/PlayerStats.php
+
+		-
+			message: '#^Method App\\Support\\PlayerStats\:\:topScore\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: app/Support/PlayerStats.php
+
+		-
+			message: '#^Parameter \#1 \$array of function usort contains unresolvable type\.$#'
+			identifier: argument.unresolvableType
+			count: 1
+			path: app/Support/PlayerStats.php
+
+		-
+			message: '#^Parameter \#1 \$competition of static method App\\Support\\Standings\:\:for\(\) expects App\\Models\\Competition, Illuminate\\Database\\Eloquent\\Model\|null given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Support/PlayerStats.php
+
+		-
+			message: '#^Parameter \#1 \$results of static method App\\Support\\PlayerStats\:\:matchSummary\(\) expects array\<int, array\{string, int, int\}\>, list\<array\> given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Support/PlayerStats.php
+
+		-
+			message: '#^Parameter \#1 \$results of static method App\\Support\\PlayerStats\:\:matchSummary\(\) expects array\<int, array\{string, int, int\}\>, non\-empty\-list\<array\> given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Support/PlayerStats.php
+
+		-
+			message: '#^Parameter \#2 \$callback of function usort contains unresolvable type\.$#'
+			identifier: argument.unresolvableType
+			count: 1
+			path: app/Support/PlayerStats.php
+
+		-
+			message: '#^Parameter \#2 \$teamIds of static method App\\Support\\PlayerStats\:\:seasonMatches\(\) expects Illuminate\\Support\\Collection\<int, int\>, Illuminate\\Support\\Collection\<int, int\<0, max\>\> given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Support/PlayerStats.php
+
+		-
+			message: '#^Property App\\Support\\PlayerStats\:\:\$teams type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: app/Support/PlayerStats.php
+
+		-
+			message: '#^Unable to resolve the template type TGroupKey in call to method Illuminate\\Support\\Collection\<int,App\\Models\\TeamScore\>\:\:groupBy\(\)$#'
+			identifier: argument.templateType
+			count: 1
+			path: app/Support/PlayerStats.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Support/PlayerStats.php
+
+		-
+			message: '#^Method App\\Support\\Players\:\:eligible\(\) return type with generic class Illuminate\\Database\\Eloquent\\Builder does not specify its types\: TModel$#'
+			identifier: missingType.generics
+			count: 1
+			path: app/Support/Players.php
+
+		-
+			message: '#^Method App\\Support\\Players\:\:unlisted\(\) return type with generic class Illuminate\\Database\\Eloquent\\Builder does not specify its types\: TModel$#'
+			identifier: missingType.generics
+			count: 1
+			path: app/Support/Players.php
+
+		-
+			message: '#^Method App\\Support\\Players\:\:withoutRole\(\) return type with generic class Illuminate\\Database\\Eloquent\\Builder does not specify its types\: TModel$#'
+			identifier: missingType.generics
+			count: 1
+			path: app/Support/Players.php
+
+		-
+			message: '#^Method App\\Support\\Premium\:\:defaultTip\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: app/Support/Premium.php
+
+		-
+			message: '#^Method App\\Support\\Promotion\:\:inTableOrder\(\) has parameter \$table with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: app/Support/Promotion.php
+
+		-
+			message: '#^Method App\\Support\\Promotion\:\:inTableOrder\(\) has parameter \$teams with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: app/Support/Promotion.php
+
+		-
+			message: '#^Method App\\Support\\Promotion\:\:inTableOrder\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: app/Support/Promotion.php
+
+		-
+			message: '#^Parameter \#1 \.\.\.\$arg1 of function max expects non\-empty\-array, list\<int\> given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Support/Promotion.php
+
+		-
+			message: '#^Function league\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: app/Support/PromotionTest.php
+
+		-
+			message: '#^Method App\\Support\\Przelewy24\:\:http\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: app/Support/Przelewy24.php
+
+		-
+			message: '#^Method App\\Support\\Przelewy24\:\:sign\(\) has parameter \$fields with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: app/Support/Przelewy24.php
+
+		-
+			message: '#^Method App\\Support\\Przelewy24\:\:validNotification\(\) has parameter \$data with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: app/Support/Przelewy24.php
+
+		-
+			message: '#^Parameter \#2 \$data of function hash expects string, string\|false given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Support/Przelewy24.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\TipAnswer\:\:\$answers\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Support/QuestionDifficulty.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\TipAnswer\:\:\$correct\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Support/QuestionDifficulty.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\TipAnswer\:\:\$question_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Support/QuestionDifficulty.php
+
+		-
+			message: '#^Method App\\Support\\QuestionDifficulty\:\:hardest\(\) should return Illuminate\\Support\\Collection\<int, array\{question\: App\\Models\\Question, answers\: int, correct\: int, rate\: float\}\> but returns Illuminate\\Support\\Collection\<int, array\{answers\: int, correct\: int, rate\: float, question\: App\\Models\\Question\|null\}\>\.$#'
+			identifier: return.type
+			count: 1
+			path: app/Support/QuestionDifficulty.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$name\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Support/Rivals.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$season\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Support/Rivals.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$seasonTeam\.$#'
+			identifier: property.notFound
+			count: 4
+			path: app/Support/Rivals.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$type\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Support/Rivals.php
+
+		-
+			message: '#^Method App\\Support\\Rivals\:\:forUser\(\) should return array\<int, array\{competition\: string, rival\: string, bot\: bool, virtual\: bool, tipped\: bool\|null, outcome\: string\|null, tip\: string\|null, offense\: int\|null, \.\.\.\}\> but returns list\<array\{competition\: string, type\: App\\Enums\\CompetitionType, trophy\: string, fixture_id\: int\<0, max\>, rival\: mixed, bot\: bool, virtual\: bool, tipped\: mixed, \.\.\.\}\>\.$#'
+			identifier: return.type
+			count: 1
+			path: app/Support/Rivals.php
+
+		-
+			message: '#^Unable to resolve the template type TValue in call to function collect$#'
+			identifier: argument.templateType
+			count: 2
+			path: app/Support/Rivals.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 2
+			path: app/Support/Rivals.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Season\:\:\$title\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Support/Roster.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\SeasonTeam\:\:\$name\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Support/Roster.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Season\:\:\$title\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Support/SeasonChecklist.php
+
+		-
+			message: '#^Method App\\Support\\SeasonChecklist\:\:for\(\) should return array\<int, array\{group\: string, title\: string, ok\: bool, detail\: string, route\: string\|null, hint\: string\|null\}\> but returns array\{array, array, array, array, array, array, array, array, \.\.\.\}\.$#'
+			identifier: return.type
+			count: 1
+			path: app/Support/SeasonChecklist.php
+
+		-
+			message: '#^Method App\\Support\\SeasonChecklist\:\:for\(\) should return array\<int, array\{group\: string, title\: string, ok\: bool, detail\: string, route\: string\|null, hint\: string\|null\}\> but returns array\{array, array, array, array\}\.$#'
+			identifier: return.type
+			count: 1
+			path: app/Support/SeasonChecklist.php
+
+		-
+			message: '#^Method App\\Support\\SeasonChecklist\:\:item\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: app/Support/SeasonChecklist.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Support/Standings.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$seasonTeam\.$#'
+			identifier: property.notFound
+			count: 3
+			path: app/Support/Standings.php
+
+		-
+			message: '#^Method App\\Support\\Standings\:\:sort\(\) has parameter \$rows with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: app/Support/Standings.php
+
+		-
+			message: '#^Method App\\Support\\Standings\:\:sort\(\) return type with generic class Illuminate\\Support\\Collection does not specify its types\: TKey, TValue$#'
+			identifier: missingType.generics
+			count: 1
+			path: app/Support/Standings.php
+
+		-
+			message: '#^Parameter \#1 \$season of static method App\\Support\\HallOfFame\:\:teamPointsBefore\(\) expects App\\Models\\Season, Illuminate\\Database\\Eloquent\\Model given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Support/Standings.php
+
+		-
+			message: '#^Method App\\Support\\TeamRules\:\:abbr\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: app/Support/TeamRules.php
+
+		-
+			message: '#^Method App\\Support\\TeamRules\:\:name\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: app/Support/TeamRules.php
+
+		-
+			message: '#^Method App\\Support\\TeamRules\:\:normalize\(\) has parameter \$input with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: app/Support/TeamRules.php
+
+		-
+			message: '#^Method App\\Support\\TeamRules\:\:normalize\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: app/Support/TeamRules.php
+
+		-
+			message: '#^Method App\\Support\\TeamRules\:\:shortName\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: app/Support/TeamRules.php
+
+		-
+			message: '#^Using nullsafe method call on non\-nullable type Illuminate\\Console\\Command\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: database/seeders/BotsSeeder.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Matchday\:\:\$fixture\.$#'
+			identifier: property.notFound
+			count: 1
+			path: database/seeders/DemoSeasonSeeder.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Season\:\:\$title\.$#'
+			identifier: property.notFound
+			count: 5
+			path: database/seeders/DemoSeasonSeeder.php
+
+		-
+			message: '#^Offset ''bots'' on array\{bots\: int, leagues\: int, fixtures\: int\} on left side of \?\? always exists and is not nullable\.$#'
+			identifier: nullCoalesce.offset
+			count: 1
+			path: database/seeders/DemoSeasonSeeder.php
+
+		-
+			message: '#^Offset ''fixtures'' on array\{bots\: int, leagues\: int, fixtures\: int\} on left side of \?\? always exists and is not nullable\.$#'
+			identifier: nullCoalesce.offset
+			count: 1
+			path: database/seeders/DemoSeasonSeeder.php
+
+		-
+			message: '#^Offset ''leagues'' on array\{bots\: int, leagues\: int, fixtures\: int\} on left side of \?\? always exists and is not nullable\.$#'
+			identifier: nullCoalesce.offset
+			count: 1
+			path: database/seeders/DemoSeasonSeeder.php
+
+		-
+			message: '#^Using nullsafe method call on non\-nullable type Illuminate\\Console\\Command\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 5
+			path: database/seeders/DemoSeasonSeeder.php
+
+		-
+			message: '#^Using nullsafe method call on non\-nullable type Illuminate\\Console\\Command\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: database/seeders/NewsSeeder.php
+
+		-
+			message: '#^Method Database\\Seeders\\PlayersSeeder\:\:placeInLeagues\(\) has parameter \$userIds with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: database/seeders/PlayersSeeder.php
+
+		-
+			message: '#^Parameter \#1 \$array \(array\{App\\Enums\\League\:\:Ekstraklasa, App\\Enums\\League\:\:ILiga, App\\Enums\\League\:\:IILiga, App\\Enums\\League\:\:IIILiga, App\\Enums\\League\:\:IVLiga, App\\Enums\\League\:\:VLiga, App\\Enums\\League\:\:Okregowa, App\\Enums\\League\:\:AKlasa, \.\.\.\}\) of array_values is already a list, call has no effect\.$#'
+			identifier: arrayValues.list
+			count: 1
+			path: database/seeders/PlayersSeeder.php
+
+		-
+			message: '#^Using nullsafe method call on non\-nullable type Illuminate\\Console\\Command\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: database/seeders/PlayersSeeder.php
+
+		-
+			message: '#^Offset ''swiss'' does not exist on array\{teams\: int, fixtures\: int, eliminated\: int\}\.$#'
+			identifier: offsetAccess.notFound
+			count: 1
+			path: database/seeders/ResultMatchSeeder.php
+
+		-
+			message: '#^Using nullsafe method call on non\-nullable type Illuminate\\Console\\Command\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 3
+			path: database/seeders/ResultMatchSeeder.php
+
+		-
+			message: '#^Using nullsafe method call on non\-nullable type Illuminate\\Console\\Command\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 2
+			path: database/seeders/TestTipSeeder.php
+
+		-
+			message: '#^Parameter \#2 \$contents of method Illuminate\\Filesystem\\FilesystemAdapter\:\:put\(\) expects Illuminate\\Http\\File\|Illuminate\\Http\\UploadedFile\|Psr\\Http\\Message\\StreamInterface\|resource\|string, string\|false given\.$#'
+			identifier: argument.type
+			count: 1
+			path: database/seeders/TrophyIconsSeeder.php
+
+		-
+			message: '#^Using nullsafe method call on non\-nullable type Illuminate\\Console\\Command\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: database/seeders/TrophyIconsSeeder.php
