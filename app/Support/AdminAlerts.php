@@ -11,6 +11,7 @@ use App\Models\Competition;
 use App\Models\Fixture;
 use App\Models\Matchday;
 use App\Models\MatchdayQuestion;
+use App\Models\QuestionProposal;
 use App\Models\Season;
 use App\Models\TeamNameChangeRequest;
 use App\Models\User;
@@ -24,7 +25,9 @@ use App\Models\User;
 final class AdminAlerts
 {
     public const DANGER = 'danger';
+
     public const WARNING = 'warning';
+
     public const INFO = 'info';
 
     /**
@@ -59,7 +62,7 @@ final class AdminAlerts
             $alerts[] = self::alert(self::INFO, 'identification', trans_choice(':count team name request|:count team name requests', $requests, ['count' => $requests]), __('Approve or reject the new names.'), 'dashboard.team-requests');
         }
 
-        $proposals = \App\Models\QuestionProposal::pending()->count();
+        $proposals = QuestionProposal::pending()->count();
         if ($proposals > 0) {
             $alerts[] = self::alert(self::INFO, 'light-bulb', trans_choice(':count question proposal waits for review|:count question proposals wait for review', $proposals, ['count' => $proposals]), __('Accept them into the question bank or reject them.'), 'dashboard.question-proposals');
         }
@@ -71,7 +74,7 @@ final class AdminAlerts
 
         // Najpierw pilne, potem ostrzeżenia i informacje.
         $order = [self::DANGER => 0, self::WARNING => 1, self::INFO => 2];
-        usort($alerts, fn($a, $b) => $order[$a['level']] <=> $order[$b['level']]);
+        usort($alerts, fn ($a, $b) => $order[$a['level']] <=> $order[$b['level']]);
 
         return $alerts;
     }
@@ -79,7 +82,7 @@ final class AdminAlerts
     /** Liczba powiadomień pilnych i ostrzeżeń (do plakietki w menu). */
     public static function count(): int
     {
-        return count(array_filter(self::all(), fn($a) => $a['level'] !== self::INFO));
+        return count(array_filter(self::all(), fn ($a) => $a['level'] !== self::INFO));
     }
 
     /** Kolejki aktywnego sezonu: mecz, pytania, wynik, przeliczenie, koniec sezonu. */
@@ -97,8 +100,8 @@ final class AdminAlerts
             $started = $matchday->kickoff_at && now()->gte($matchday->kickoff_at);
 
             // Najbliższa kolejka bez meczu (tylko pierwsza, dalsze mogą poczekać).
-            if (!$matchday->isFilled() && !$played) {
-                if ($matchdays->first(fn($m) => !$m->isFilled() && $m->status !== MatchdayStatus::Played)?->is($matchday)) {
+            if (! $matchday->isFilled() && ! $played) {
+                if ($matchdays->first(fn ($m) => ! $m->isFilled() && $m->status !== MatchdayStatus::Played)?->is($matchday)) {
                     $alerts[] = self::alert(self::WARNING, 'calendar', __(':matchday: add the Lech match', ['matchday' => $label]), __('Opponent and kick-off time are missing.'), 'dashboard.matchdays', ['season' => $season->id]);
                 }
 
@@ -119,7 +122,7 @@ final class AdminAlerts
                 );
             }
 
-            if ($started && !$played && $matchday->status !== MatchdayStatus::Postponed) {
+            if ($started && ! $played && $matchday->status !== MatchdayStatus::Postponed) {
                 $hasScore = $matchday->lech_goals !== null && $matchday->opponent_goals !== null;
                 $alerts[] = self::alert(
                     self::DANGER,
@@ -134,7 +137,7 @@ final class AdminAlerts
             }
         }
 
-        if ($matchdays->count() >= Matchday::PER_SEASON && $matchdays->every(fn($m) => $m->status === MatchdayStatus::Played)) {
+        if ($matchdays->count() >= Matchday::PER_SEASON && $matchdays->every(fn ($m) => $m->status === MatchdayStatus::Played)) {
             $alerts[] = self::alert(self::WARNING, 'flag', __('All matchdays are played: finish the season'), __('Finishing saves the final tables and Hall of Fame points.'), 'dashboard.seasons');
         }
 

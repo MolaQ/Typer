@@ -100,7 +100,7 @@ new #[Layout('layouts::public')] class extends Component {
                     <flux:text size="sm">
                         {{ $played ? __('Last matchday') : __('Next matchday') }}:
                         {{ __('Matchday :number', ['number' => $matchday->number]) }}
-                        @if ($matchday->competition) · {{ $matchday->competition }} @endif
+                        @if ($matchday->competitionLabel()) · {{ $matchday->competitionLabel() }} @endif
                     </flux:text>
                     <flux:heading size="lg">
                         {{ $matchday->fixture }}

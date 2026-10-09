@@ -32,7 +32,7 @@ final class QuestionDifficulty
             ->groupBy('matchday_questions.question_id')
             ->selectRaw('matchday_questions.question_id as question_id, count(*) as answers, sum(case when tip_answers.answer = matchday_questions.correct_answer then 1 else 0 end) as correct')
             ->get()
-            ->mapWithKeys(fn($row) => [(int) $row->question_id => [
+            ->mapWithKeys(fn ($row) => [(int) $row->question_id => [
                 'answers' => (int) $row->answers,
                 'correct' => (int) $row->correct,
                 'rate' => $row->answers > 0 ? round($row->correct / $row->answers * 100, 1) : 0.0,
@@ -46,7 +46,7 @@ final class QuestionDifficulty
      */
     public static function hardest(int $limit, ?string $side = null): Collection
     {
-        $rates = self::rates()->filter(fn($r) => $r['answers'] >= self::MIN_ANSWERS);
+        $rates = self::rates()->filter(fn ($r) => $r['answers'] >= self::MIN_ANSWERS);
 
         if ($rates->isEmpty()) {
             return collect();
@@ -54,14 +54,14 @@ final class QuestionDifficulty
 
         $questions = Question::whereIn('id', $rates->keys())
             ->where('is_active', true)
-            ->when($side, fn($q) => $q->where('side', $side))
+            ->when($side, fn ($q) => $q->where('side', $side))
             ->get()
             ->keyBy('id');
 
         return $rates->only($questions->keys()->all())
             ->sortBy([['rate', 'asc'], ['answers', 'desc']])
             ->take($limit)
-            ->map(fn($r, $id) => ['question' => $questions[$id]] + $r)
+            ->map(fn ($r, $id) => ['question' => $questions[$id]] + $r)
             ->values();
     }
 }

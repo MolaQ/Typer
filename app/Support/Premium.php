@@ -59,7 +59,7 @@ final class Premium
      */
     public static function isActive(?User $user, ?CarbonInterface $at = null): bool
     {
-        if (!$user) {
+        if (! $user) {
             return false;
         }
 

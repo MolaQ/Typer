@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -12,7 +13,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  *
  * @property string $title
  * @property string $body
- * @property \Carbon\CarbonInterface|null $published_at
+ * @property CarbonInterface|null $published_at
  */
 class News extends Model
 {

@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Carbon;
 
 /**
  * Wpłata (etap 15): premium albo wsparcie (cegiełka). Kwota w groszach.
@@ -18,15 +19,18 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property string|null $session_id
  * @property int|null $p24_order_id
  * @property int $premium_days
- * @property \Illuminate\Support\Carbon|null $paid_at
+ * @property Carbon|null $paid_at
  */
 class Payment extends Model
 {
     public const PENDING = 'pending';
+
     public const PAID = 'paid';
+
     public const FAILED = 'failed';
 
     public const KIND_PREMIUM = 'premium';
+
     public const KIND_SUPPORT = 'support';
 
     protected $fillable = [
@@ -67,7 +71,7 @@ class Payment extends Model
 
     public static function money(int $grosze): string
     {
-        return ($grosze % 100 === 0 ? number_format($grosze / 100, 0, ',', ' ') : number_format($grosze / 100, 2, ',', ' ')) . ' zł';
+        return ($grosze % 100 === 0 ? number_format($grosze / 100, 0, ',', ' ') : number_format($grosze / 100, 2, ',', ' ')).' zł';
     }
 
     public function statusColor(): string

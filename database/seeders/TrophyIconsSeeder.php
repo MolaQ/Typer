@@ -20,9 +20,9 @@ class TrophyIconsSeeder extends Seeder
         $added = 0;
 
         foreach (array_keys(HallOfFame::trophies()) as $key) {
-            $source = database_path('seeders/trophies/' . $key . '.png');
+            $source = database_path('seeders/trophies/'.$key.'.png');
 
-            if (!is_file($source)) {
+            if (! is_file($source)) {
                 continue;
             }
 
@@ -30,7 +30,7 @@ class TrophyIconsSeeder extends Seeder
                 continue;
             }
 
-            $path = 'trophies/default-' . $key . '.png';
+            $path = 'trophies/default-'.$key.'.png';
             $disk->put($path, file_get_contents($source));
 
             TrophyIcon::create(['key' => $key, 'path' => $path]);

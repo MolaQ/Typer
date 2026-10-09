@@ -19,7 +19,7 @@ class Przelewy24Controller extends Controller
     {
         $data = $request->all();
 
-        if (!Przelewy24::configured() || !$p24->validNotification($data)) {
+        if (! Przelewy24::configured() || ! $p24->validNotification($data)) {
             Log::warning('Przelewy24 notification rejected', ['session' => $data['sessionId'] ?? null]);
 
             return response('invalid', 400);
@@ -27,14 +27,14 @@ class Przelewy24Controller extends Controller
 
         $payment = Payment::where('session_id', (string) $data['sessionId'])->first();
 
-        if (!$payment || (int) $data['amount'] !== $payment->amount || ($data['currency'] ?? '') !== $payment->currency) {
+        if (! $payment || (int) $data['amount'] !== $payment->amount || ($data['currency'] ?? '') !== $payment->currency) {
             Log::warning('Przelewy24 notification does not match a payment', ['session' => $data['sessionId']]);
 
             return response('unknown', 400);
         }
 
         if ($payment->status !== Payment::PAID) {
-            if (!$p24->verify($payment, (int) $data['orderId'])) {
+            if (! $p24->verify($payment, (int) $data['orderId'])) {
                 $payment->update(['status' => Payment::FAILED, 'p24_order_id' => (int) $data['orderId']]);
 
                 return response('not verified', 400);

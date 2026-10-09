@@ -33,7 +33,7 @@ class DrawNextSwissRound
         foreach (Competition::where('season_id', $matchday->season_id)->where('type', CompetitionType::Swiss->value)->get() as $competition) {
             $fixtures = Fixture::where('competition_id', $competition->id);
 
-            if (!(clone $fixtures)->where('round', $matchday->number)->exists()) {
+            if (! (clone $fixtures)->where('round', $matchday->number)->exists()) {
                 continue;
             }
 

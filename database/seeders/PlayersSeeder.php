@@ -58,21 +58,21 @@ class PlayersSeeder extends Seeder
         $created = [];
 
         foreach (self::PLAYERS as $index => [$first, $last, $domain, $team, $short, $abbr]) {
-            $email = self::slug($first) . '.' . self::slug($last) . ($index % 3 === 0 ? '' : ($index + 71)) . '@' . $domain;
+            $email = self::slug($first).'.'.self::slug($last).($index % 3 === 0 ? '' : ($index + 71)).'@'.$domain;
 
             $user = User::firstOrCreate(['email' => $email], [
-                'name' => $first . ' ' . $last,
+                'name' => $first.' '.$last,
                 'password' => Hash::make('password'),
                 'team_name' => User::where('team_name', $team)->exists() ? null : $team,
                 'team_short_name' => User::where('team_short_name', $short)->exists() ? null : $short,
                 'team_abbr' => User::where('team_abbr', $abbr)->exists() ? null : $abbr,
             ]);
 
-            if (!$user->email_verified_at) {
+            if (! $user->email_verified_at) {
                 $user->forceFill(['email_verified_at' => now()])->save();
             }
 
-            if (!$user->roles()->exists()) {
+            if (! $user->roles()->exists()) {
                 $user->assignRole(RoleName::User->value);
             }
 
@@ -81,7 +81,7 @@ class PlayersSeeder extends Seeder
 
         $placed = $this->placeInLeagues($created);
 
-        $this->command?->info('Gracze testowi: ' . count($created) . ', dodani do lig: ' . $placed . '.');
+        $this->command?->info('Gracze testowi: '.count($created).', dodani do lig: '.$placed.'.');
     }
 
     /**
@@ -93,12 +93,12 @@ class PlayersSeeder extends Seeder
     {
         $season = Season::where('status', '!=', SeasonStatus::Finished->value)->orderByDesc('number')->first();
 
-        if (!$season) {
+        if (! $season) {
             return 0;
         }
 
         $listed = SeasonTeam::where('season_id', $season->id)->whereNotNull('user_id')->pluck('user_id')->all();
-        $leagues = array_values(array_filter(League::cases(), fn(League $l) => $l !== League::Podworkowa));
+        $leagues = array_values(array_filter(League::cases(), fn (League $l) => $l !== League::Podworkowa));
         $placed = 0;
 
         foreach (array_diff($userIds, $listed) as $userId) {

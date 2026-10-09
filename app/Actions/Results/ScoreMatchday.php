@@ -4,6 +4,7 @@ namespace App\Actions\Results;
 
 use App\Enums\CompetitionType;
 use App\Enums\QuestionSide;
+use App\Enums\RoleName;
 use App\Models\BotTip;
 use App\Models\Competition;
 use App\Models\CompetitionEntry;
@@ -19,6 +20,7 @@ use App\Support\LegendsRanking;
 use App\Support\Premium;
 use App\Support\Scoring;
 use DomainException;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -56,8 +58,8 @@ class ScoreMatchday
             // Rozgrywki sezonu i to, w których zestawach pytań gra każdy zespół.
             $competitions = Competition::where('season_id', $matchday->season_id)->get()->keyBy('id');
             // Puchar i Liga Legend: przeliczenie kolejki cofa odpadnięcia z tej kolejki (liczymy je od nowa niżej).
-            $legends = $competitions->first(fn($c) => $c->type === CompetitionType::Legends);
-            $knockout = $competitions->filter(fn($c) => in_array($c->type, [CompetitionType::Cup, CompetitionType::Legends], true));
+            $legends = $competitions->first(fn ($c) => $c->type === CompetitionType::Legends);
+            $knockout = $competitions->filter(fn ($c) => in_array($c->type, [CompetitionType::Cup, CompetitionType::Legends], true));
             CompetitionEntry::whereIn('competition_id', $knockout->keys())
                 ->where('eliminated_round', '>=', $matchday->number)
                 ->update(['eliminated_round' => null]);
@@ -220,7 +222,7 @@ class ScoreMatchday
         $rows = [];
 
         foreach ($botTeamIds as $teamId) {
-            if (!$existing->has($teamId)) {
+            if (! $existing->has($teamId)) {
                 $rows[] = [
                     'matchday_id' => $matchday->id,
                     'season_team_id' => $teamId,
@@ -243,7 +245,7 @@ class ScoreMatchday
      * Kto odpadł z pucharu albo Ligi Legend, nie gra już w tych rozgrywkach: jego odpowiedzi na ich pytania
      * w kolejnych kolejkach są usuwane i nie liczą się do niczego.
      *
-     * @param  \Illuminate\Support\Collection<int, Competition>  $knockout
+     * @param  Collection<int, Competition>  $knockout
      */
     private function dropAnswersOfEliminated(Matchday $matchday, $knockout): void
     {
@@ -276,10 +278,10 @@ class ScoreMatchday
 
         $next = Fixture::where('competition_id', $fixture->competition_id)
             ->where('round', $fixture->round + 1)
-            ->where(fn($q) => $q->where('home_seat', $seat)->orWhere('away_seat', $seat))
+            ->where(fn ($q) => $q->where('home_seat', $seat)->orWhere('away_seat', $seat))
             ->first();
 
-        if (!$next) {
+        if (! $next) {
             return; // finał
         }
 
@@ -299,8 +301,8 @@ class ScoreMatchday
 
         $users = User::whereIn('id', array_diff($userIds, $tipped))
             // Premium z datą ważną w chwili meczu albo bezterminowe (rola Premium bez daty).
-            ->where(fn($q) => $q->where('premium_until', '>', $kickoff)
-                ->orWhere(fn($w) => $w->whereNull('premium_until')->whereHas('roles', fn($r) => $r->where('name', \App\Enums\RoleName::Premium->value))))
+            ->where(fn ($q) => $q->where('premium_until', '>', $kickoff)
+                ->orWhere(fn ($w) => $w->whereNull('premium_until')->whereHas('roles', fn ($r) => $r->where('name', RoleName::Premium->value))))
             ->get(['id', 'premium_until', 'default_tip_lech', 'default_tip_opponent']);
 
         foreach ($users as $user) {

@@ -22,7 +22,7 @@ class VerificationCode extends Notification
             ->subject(__('Your LechTYPER code: :code', ['code' => $this->code]))
             ->greeting(__('Hello!'))
             ->line(__('Enter this code to confirm your email address:'))
-            ->line('**' . $this->code . '**')
+            ->line('**'.$this->code.'**')
             ->line(__('The code is valid for :minutes minutes.', ['minutes' => $this->minutes]))
             ->action(__('Enter the code'), route('verification.notice'))
             ->line(__('If you did not create an account, ignore this message.'));

@@ -15,7 +15,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property int $position
  * @property int|null $user_id
  * @property int|null $bot_id
- * @property int|null $previous_id  miejsce z poprzedniego sezonu, z którego powstał ten wpis
+ * @property int|null $previous_id miejsce z poprzedniego sezonu, z którego powstał ten wpis
  */
 class SeasonTeam extends Model
 {
@@ -53,7 +53,7 @@ class SeasonTeam extends Model
     /** Zespół bez właściciela to bot. */
     protected function isBot(): Attribute
     {
-        return Attribute::get(fn() => $this->user_id === null);
+        return Attribute::get(fn () => $this->user_id === null);
     }
 
     /** Nazwa do wyświetlenia: nazwa zespołu gracza albo nazwa bota z tabeli bots. */
@@ -71,7 +71,7 @@ class SeasonTeam extends Model
     /** Liga wynika wyłącznie z pozycji na liście (bez cache, bo pozycja się zmienia). */
     protected function league(): Attribute
     {
-        return Attribute::get(fn() => League::forPosition($this->position))->withoutObjectCaching();
+        return Attribute::get(fn () => League::forPosition($this->position))->withoutObjectCaching();
     }
 
     /* ------------------------------------------------------------------

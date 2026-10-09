@@ -14,8 +14,8 @@ use App\Models\TipAnswer;
 use App\Models\User;
 use App\Support\PlayerCompetitions;
 use App\Support\Players;
-use Illuminate\Database\Seeder;
 use Carbon\CarbonInterface;
+use Illuminate\Database\Seeder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 
@@ -34,12 +34,12 @@ class TestTipSeeder extends Seeder
 
     public function run(): void
     {
-        $matchdays = Matchday::whereHas('season', fn($q) => $q->where('status', SeasonStatus::Active->value))
+        $matchdays = Matchday::whereHas('season', fn ($q) => $q->where('status', SeasonStatus::Active->value))
             ->orderBy('number')
             ->get()
             // Otwarte do typowania i zamknięte, ale jeszcze nierozliczone (po gwizdku, przed wpisaniem wyniku),
             // żeby po ResultMatchSeederze było co liczyć. Rozliczonych nie ruszamy.
-            ->filter(fn(Matchday $m) => $m->kickoff_at !== null && $m->status === MatchdayStatus::Planned && $m->isFilled());
+            ->filter(fn (Matchday $m) => $m->kickoff_at !== null && $m->status === MatchdayStatus::Planned && $m->isFilled());
 
         if ($matchdays->isEmpty()) {
             $this->command?->warn('Brak nierozliczonych kolejek z rywalem i godziną meczu.');
@@ -51,12 +51,12 @@ class TestTipSeeder extends Seeder
             $users = User::query()
                 ->whereIn('id', SeasonTeam::where('season_id', $matchday->season_id)->whereNotNull('user_id')->select('user_id'))
                 ->whereHas('roles')
-                ->whereDoesntHave('roles', fn($q) => $q->whereIn('name', [...Players::BLOCKING_ROLES, RoleName::Admin->value]))
+                ->whereDoesntHave('roles', fn ($q) => $q->whereIn('name', [...Players::BLOCKING_ROLES, RoleName::Admin->value]))
                 ->inRandomOrder()
                 ->limit(self::PLAYERS)
                 ->get();
 
-            $slots = MatchdayQuestion::where('matchday_id', $matchday->id)->get()->groupBy(fn($s) => $s->competition_type->value);
+            $slots = MatchdayQuestion::where('matchday_id', $matchday->id)->get()->groupBy(fn ($s) => $s->competition_type->value);
 
             DB::transaction(function () use ($matchday, $users, $slots) {
                 foreach ($users as $user) {
@@ -89,7 +89,7 @@ class TestTipSeeder extends Seeder
                 }
             });
 
-            $this->command?->info("Kolejka {$matchday->number}: typy dla {$users->count()} graczy" . ($slots->isEmpty() ? ' (bez pytań: kolejka nie ma jeszcze zestawów).' : '.'));
+            $this->command?->info("Kolejka {$matchday->number}: typy dla {$users->count()} graczy".($slots->isEmpty() ? ' (bez pytań: kolejka nie ma jeszcze zestawów).' : '.'));
         }
     }
 

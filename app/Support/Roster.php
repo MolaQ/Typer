@@ -2,9 +2,9 @@
 
 namespace App\Support;
 
+use App\Enums\CompetitionType;
 use App\Enums\League;
 use App\Enums\SeasonStatus;
-use App\Enums\CompetitionType;
 use App\Models\Bot;
 use App\Models\Competition;
 use App\Models\CompetitionEntry;
@@ -32,7 +32,7 @@ class Roster
         $placed = self::placeTeam($seasonId, $userId, $league);
 
         // Informacje systemowe: gracz trafił do ligi.
-        if ($placed && ($user = \App\Models\User::find($userId))) {
+        if ($placed && ($user = User::find($userId))) {
             SystemFeed::record('leagues', ':team joined :league', ['team' => $user->team_name ?: $user->name, 'league' => $league->label()], 'team.show', ['user' => $user->id], $user->id);
         }
 

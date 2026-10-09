@@ -21,7 +21,7 @@ class ResultMatchSeeder extends Seeder
 {
     public function run(SaveMatchdayResult $results): void
     {
-        $matchdays = Matchday::whereHas('season', fn($q) => $q->where('status', SeasonStatus::Active->value))
+        $matchdays = Matchday::whereHas('season', fn ($q) => $q->where('status', SeasonStatus::Active->value))
             ->where('status', MatchdayStatus::Planned->value)
             ->whereNotNull('kickoff_at')
             ->where('kickoff_at', '<=', now())
@@ -40,7 +40,7 @@ class ResultMatchSeeder extends Seeder
             $opponent = random_int(0, $lech - 1);
 
             $correct = MatchdayQuestion::where('matchday_id', $matchday->id)->pluck('id')
-                ->mapWithKeys(fn($id) => [$id => (string) random_int(0, 1)])
+                ->mapWithKeys(fn ($id) => [$id => (string) random_int(0, 1)])
                 ->all();
 
             try {
@@ -52,7 +52,7 @@ class ResultMatchSeeder extends Seeder
                 return;
             }
 
-            $this->command?->info("Kolejka {$matchday->number}: {$lech}:{$opponent}, pytania: " . count($correct) . ", mecze: {$stats['fixtures']}, podwórkowa: {$stats['swiss']}.");
+            $this->command?->info("Kolejka {$matchday->number}: {$lech}:{$opponent}, pytania: ".count($correct).", mecze: {$stats['fixtures']}, podwórkowa: {$stats['swiss']}.");
         }
     }
 }

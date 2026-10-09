@@ -44,8 +44,8 @@ class Competition extends Model
     public function trophyKey(): string
     {
         return match ($this->type) {
-            CompetitionType::League => 'league_' . $this->tier,
-            CompetitionType::Swiss => 'league_' . League::Podworkowa->value,
+            CompetitionType::League => 'league_'.$this->tier,
+            CompetitionType::Swiss => 'league_'.League::Podworkowa->value,
             default => $this->type->value,
         };
     }

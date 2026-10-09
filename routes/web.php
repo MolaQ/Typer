@@ -25,21 +25,21 @@ Route::livewire('news/{news}', 'pages::news-show')->name('news.show');
 Route::post('payments/przelewy24/status', [Przelewy24Controller::class, 'status'])->name('przelewy24.status');
 
 // Panel: wejście tylko z uprawnieniem dashboard-access (Admin ma je zawsze)
-Route::middleware(['auth', 'verified', 'permission:' . Permission::DashboardAccess->value])->group(function () {
+Route::middleware(['auth', 'verified', 'permission:'.Permission::DashboardAccess->value])->group(function () {
     Route::livewire('dashboard', 'pages::dashboard.stats')
         ->name('dashboard');
-    //Zarządzanie rozgrywkami
+    // Zarządzanie rozgrywkami
     Route::livewire('dashboard/seasons', 'pages::dashboard.seasons')
-        ->middleware('permission:' . Permission::SeasonList->value)
+        ->middleware('permission:'.Permission::SeasonList->value)
         ->name('dashboard.seasons');
     Route::livewire('dashboard/matchdays', 'pages::dashboard.matchdays')
-        ->middleware('permission:' . Permission::SeasonList->value)
+        ->middleware('permission:'.Permission::SeasonList->value)
         ->name('dashboard.matchdays');
     Route::livewire('dashboard/season-teams', 'pages::dashboard.season-teams')
-        ->middleware('permission:' . Permission::SeasonList->value)
+        ->middleware('permission:'.Permission::SeasonList->value)
         ->name('dashboard.season-teams');
     Route::livewire('dashboard/bots', 'pages::dashboard.bots')
-        ->middleware('permission:' . Permission::SeasonList->value)
+        ->middleware('permission:'.Permission::SeasonList->value)
         ->name('dashboard.bots');
     Route::livewire('dashboard/fixtures', 'pages::dashboard.fixtures')
         ->middleware('permission:season-list')
@@ -72,7 +72,7 @@ Route::middleware(['auth', 'verified', 'permission:' . Permission::DashboardAcce
         ->middleware('permission:season-list')
         ->name('dashboard.hall-of-fame');
     Route::livewire('dashboard/news', 'pages::dashboard.news')
-        ->middleware('permission:' . Permission::NewsCreate->value)
+        ->middleware('permission:'.Permission::NewsCreate->value)
         ->name('dashboard.news');
     // Zarządzanie rolami i użytkownikami: nadal tylko Admin
     Route::livewire('dashboard/roles', 'pages::dashboard.roles')
@@ -88,12 +88,12 @@ Route::middleware(['auth', 'verified', 'permission:' . Permission::DashboardAcce
         ->name('dashboard.payments');
 
     Route::livewire('dashboard/team-requests', 'pages::dashboard.team-requests')
-        ->middleware('permission:' . Permission::TeamChangeName->value)
+        ->middleware('permission:'.Permission::TeamChangeName->value)
         ->name('dashboard.team-requests');
 
     Route::livewire('dashboard/logs', 'pages::dashboard.logs')
-        ->middleware('permission:' . Permission::LogView->value)
+        ->middleware('permission:'.Permission::LogView->value)
         ->name('dashboard.logs');
 });
 
-require __DIR__ . '/settings.php';
+require __DIR__.'/settings.php';

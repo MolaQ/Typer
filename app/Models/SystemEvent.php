@@ -38,7 +38,7 @@ class SystemEvent extends Model
     /** Adres linku albo null (np. gdy trasa zniknęła). */
     public function url(): ?string
     {
-        if (!$this->route || !Route::has($this->route)) {
+        if (! $this->route || ! Route::has($this->route)) {
             return null;
         }
 

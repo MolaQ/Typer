@@ -114,7 +114,7 @@ class Season extends Model
     protected function sponsorLogoUrl(): Attribute
     {
         return Attribute::get(fn () => $this->sponsor_logo_path
-            ? asset('storage/' . $this->sponsor_logo_path)
+            ? asset('storage/'.$this->sponsor_logo_path)
             : null);
     }
 

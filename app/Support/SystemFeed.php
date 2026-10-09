@@ -39,7 +39,7 @@ final class SystemFeed
     public static function record(string $category, string $message, array $params = [], ?string $route = null, array $routeParams = [], ?int $userId = null): void
     {
         // Przed migracją (np. w seederach na starej bazie) po prostu nic nie zapisujemy.
-        if (!(self::$ready ??= Schema::hasTable('system_events'))) {
+        if (! (self::$ready ??= Schema::hasTable('system_events'))) {
             return;
         }
 

@@ -48,7 +48,7 @@ final class Scoring
         $points = 0;
 
         foreach ($correct as $slotId => $right) {
-            if ($right === null || !array_key_exists($slotId, $answers)) {
+            if ($right === null || ! array_key_exists($slotId, $answers)) {
                 continue;
             }
 

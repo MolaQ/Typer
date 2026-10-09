@@ -8,8 +8,8 @@ use App\Enums\RoleName;
 use App\Enums\SeasonStatus;
 use App\Models\Competition;
 use App\Models\FinalStanding;
-use App\Models\HallOfFameAward;
 use App\Models\Fixture;
+use App\Models\HallOfFameAward;
 use App\Models\Matchday;
 use App\Models\Season;
 use App\Models\SeasonTeam;
@@ -64,7 +64,7 @@ class FinishSeason
                 null,
                 ['status' => SeasonStatus::Active->label()],
                 ['status' => SeasonStatus::Finished->label(), 'inactive' => count($inactive)],
-                $season->title . ($note ? ' (' . $note . ')' : ''),
+                $season->title.($note ? ' ('.$note.')' : ''),
             );
 
             return ['standings' => $standings, 'inactive' => $inactive];
@@ -98,7 +98,7 @@ class FinishSeason
             ->get();
 
         foreach ($awards as $award) {
-            if (!$award->user) {
+            if (! $award->user) {
                 continue;
             }
 

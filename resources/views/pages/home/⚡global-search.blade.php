@@ -112,9 +112,16 @@ new class extends Component {
             return [];
         }
 
+        // Rozgrywki meczu są zapisane jako wartość enuma, więc szukamy po przetłumaczonych etykietach.
+        $competitions = collect(\App\Enums\MatchCompetition::options())
+            ->filter(fn ($label) => mb_stripos($label, $q) !== false)
+            ->keys()
+            ->all();
+
         return Matchday::where('season_id', $season->id)
             ->where(fn ($w) => $w->where('opponent', 'like', $this->like($q))
-                ->orWhere('competition', 'like', $this->like($q)))
+                ->orWhere('competition', 'like', $this->like($q))
+                ->orWhereIn('competition', $competitions))
             ->orderBy('number')
             ->limit(self::LIMIT)
             ->get()

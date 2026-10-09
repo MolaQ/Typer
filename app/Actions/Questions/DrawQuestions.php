@@ -31,7 +31,7 @@ class DrawQuestions
      */
     public function handle(Matchday $matchday, ?CompetitionType $type = null): int
     {
-        if (!$matchday->questionsEditable()) {
+        if (! $matchday->questionsEditable()) {
             throw new DomainException(__('The questions of this matchday can no longer be changed.'));
         }
 
@@ -39,7 +39,7 @@ class DrawQuestions
             $types = $type ? [$type] : self::typesOfSeason($matchday->season_id);
 
             // Liga Legend losuje pierwsza, żeby najtrudniejsze pytania nie trafiły wcześniej do innych zestawów.
-            usort($types, fn($a, $b) => ($b === CompetitionType::Legends) <=> ($a === CompetitionType::Legends));
+            usort($types, fn ($a, $b) => ($b === CompetitionType::Legends) <=> ($a === CompetitionType::Legends));
 
             if ($types === []) {
                 throw new DomainException(__('Approve the season first: the competitions are created on approval.'));
@@ -70,7 +70,7 @@ class DrawQuestions
                     // z puli dwa razy większej niż zestaw, żeby zestawy nie były co kolejkę identyczne.
                     if ($competitionType === CompetitionType::Legends) {
                         $hard = QuestionDifficulty::hardest(MatchdayQuestion::PER_SIDE * 2, $side->value)
-                            ->map(fn($row) => $row['question']->id)->all();
+                            ->map(fn ($row) => $row['question']->id)->all();
                         $picked = QuestionPicker::pick($hard, $used, count($missing));
                     }
 
@@ -106,7 +106,7 @@ class DrawQuestions
                     null,
                     [],
                     ['slots' => $filled, 'type' => $type?->label() ?? __('All competitions')],
-                    __('Matchday :number', ['number' => $matchday->number]) . ' (' . $matchday->season->title . ')',
+                    __('Matchday :number', ['number' => $matchday->number]).' ('.$matchday->season->title.')',
                 );
             }
 
@@ -123,8 +123,8 @@ class DrawQuestions
     public static function typesOfSeason(int $seasonId): array
     {
         $present = Competition::where('season_id', $seasonId)->pluck('type')->unique()
-            ->map(fn($t) => ($t instanceof CompetitionType ? $t : CompetitionType::from($t))->questionSet())->all();
+            ->map(fn ($t) => ($t instanceof CompetitionType ? $t : CompetitionType::from($t))->questionSet())->all();
 
-        return array_values(array_filter(CompetitionType::cases(), fn($t) => in_array($t, $present, true)));
+        return array_values(array_filter(CompetitionType::cases(), fn ($t) => in_array($t, $present, true)));
     }
 }

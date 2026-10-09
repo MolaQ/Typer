@@ -16,7 +16,7 @@ class UniqueTeamValue implements ValidationRule
         private ?int $ignoreUserId = null,
     ) {
         // Nazwa kolumny trafia do SQL, więc dopuszczamy tylko znane wartości.
-        if (!in_array($column, self::COLUMNS, true)) {
+        if (! in_array($column, self::COLUMNS, true)) {
             throw new InvalidArgumentException("Unsupported column: {$column}");
         }
     }
@@ -25,7 +25,7 @@ class UniqueTeamValue implements ValidationRule
     {
         $taken = DB::table('users')
             ->whereRaw("LOWER({$this->column}) = ?", [mb_strtolower(trim((string) $value))])
-            ->when($this->ignoreUserId, fn($query) => $query->where('id', '!=', $this->ignoreUserId))
+            ->when($this->ignoreUserId, fn ($query) => $query->where('id', '!=', $this->ignoreUserId))
             ->exists();
 
         if ($taken) {

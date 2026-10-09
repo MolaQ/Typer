@@ -2,11 +2,13 @@
 
 namespace App\Models;
 
+use App\Enums\MatchCompetition;
 use App\Enums\MatchdayStatus;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Carbon;
 
 /**
  * Kolejka sezonu z jednym rzeczywistym meczem Lecha.
@@ -16,7 +18,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property string|null $opponent
  * @property bool $is_home
  * @property string|null $competition
- * @property \Illuminate\Support\Carbon|null $kickoff_at
+ * @property Carbon|null $kickoff_at
  * @property MatchdayStatus $status
  */
 class Matchday extends Model
@@ -92,17 +94,30 @@ class Matchday extends Model
             && ($this->kickoff_at === null || now()->lt($this->kickoff_at));
     }
 
+    /**
+     * Nazwa rozgrywek meczu do wyświetlenia: etykieta enuma MatchCompetition (np. „Liga Mistrzów”),
+     * a dla starszych wpisów z dowolnym tekstem ten tekst bez zmian. Pusta wartość -> null.
+     */
+    public function competitionLabel(): ?string
+    {
+        if (blank($this->competition)) {
+            return null;
+        }
+
+        return MatchCompetition::tryFrom($this->competition)?->label() ?? $this->competition;
+    }
+
     /** $matchday->fixture -> "Lech Poznań – Legia" albo "Legia – Lech Poznań". */
     protected function fixture(): Attribute
     {
         return Attribute::get(function () {
-            if (!filled($this->opponent)) {
+            if (! filled($this->opponent)) {
                 return '—';
             }
 
             return $this->is_home
-                ? 'Lech Poznań – ' . $this->opponent
-                : $this->opponent . ' – Lech Poznań';
+                ? 'Lech Poznań – '.$this->opponent
+                : $this->opponent.' – Lech Poznań';
         });
     }
 }

@@ -30,7 +30,7 @@ new class extends Component {
     public ?int $matchdayId = null;
     public string $opponent = '';
     public bool $isHome = true;
-    public string $competition = '';
+    public string $competition = 'league'; // App\Enums\MatchCompetition::DEFAULT
     public string $kickoffAt = ''; // format pola datetime-local: 2026-10-18T17:30
     public string $status = 'planned';
 
@@ -178,7 +178,9 @@ new class extends Component {
         $this->matchdayId = $matchday->id;
         $this->opponent = (string) $matchday->opponent;
         $this->isHome = $matchday->is_home;
-        $this->competition = (string) $matchday->competition;
+        // Starszy wpis z dowolnym tekstem (spoza enuma) zamieniamy na domyślne „Rozgrywki ligowe”.
+        $this->competition = \App\Enums\MatchCompetition::tryFrom((string) $matchday->competition)?->value
+            ?? \App\Enums\MatchCompetition::DEFAULT->value;
         $this->kickoffAt = $matchday->kickoff_at?->format('Y-m-d\TH:i') ?? '';
         $this->status = $matchday->status->value;
         $this->resetValidation();
@@ -191,7 +193,7 @@ new class extends Component {
         return [
             'opponent' => ['required', 'string', 'max:80'],
             'isHome' => ['boolean'],
-            'competition' => ['nullable', 'string', 'max:60'],
+            'competition' => ['required', \Illuminate\Validation\Rule::enum(\App\Enums\MatchCompetition::class)],
             // Termin jest wymagany dla kolejki zaplanowanej. Przełożona może być bez daty.
             'kickoffAt' => [Rule::requiredIf(fn() => $this->status === MatchdayStatus::Planned->value), 'nullable', 'date_format:Y-m-d\TH:i'],
             'status' => ['required', Rule::in([MatchdayStatus::Planned->value, MatchdayStatus::Postponed->value])],
@@ -223,7 +225,6 @@ new class extends Component {
         }
 
         $this->opponent = Str::squish($this->opponent);
-        $this->competition = Str::squish($this->competition);
 
         $this->validate();
 
@@ -239,7 +240,7 @@ new class extends Component {
             ->fill([
                 'opponent' => $this->opponent,
                 'is_home' => $this->isHome,
-                'competition' => $this->competition !== '' ? $this->competition : null,
+                'competition' => $this->competition,
                 'kickoff_at' => $kickoff,
                 'status' => $this->status,
             ])
@@ -348,7 +349,7 @@ new class extends Component {
         return [
             'opponent' => $matchday->opponent,
             'home_away' => $matchday->is_home ? __('Home') : __('Away'),
-            'competition' => $matchday->competition,
+            'competition' => $matchday->competitionLabel(),
             'kickoff_at' => $matchday->kickoff_at?->format('Y-m-d H:i'),
             'status' => $matchday->status->label(),
         ];
@@ -476,7 +477,7 @@ new class extends Component {
                                 @endif
                             </flux:table.cell>
 
-                            <flux:table.cell class="text-zinc-500">{{ $matchday->competition ?: '—' }}
+                            <flux:table.cell class="text-zinc-500">{{ $matchday->competitionLabel() ?? '—' }}
                             </flux:table.cell>
 
                             <flux:table.cell>
@@ -570,7 +571,12 @@ new class extends Component {
 
             <flux:switch wire:model="isHome" :label="__('Home match')" />
 
-            <flux:input wire:model="competition" :label="__('Competition')" placeholder="Ekstraklasa" />
+            {{-- Rozgrywki meczu z enuma App\Enums\MatchCompetition (domyślnie rozgrywki ligowe) --}}
+            <flux:select wire:model="competition" :label="__('Competition')">
+                @foreach (\App\Enums\MatchCompetition::options() as $value => $label)
+                    <flux:select.option :value="$value">{{ $label }}</flux:select.option>
+                @endforeach
+            </flux:select>
 
             <flux:input wire:model="kickoffAt" type="datetime-local" :label="__('Kickoff')"
                 :description="__('Tips close at this time.')" />

@@ -34,23 +34,23 @@ class SaveTip
      */
     public function handle(User $user, Matchday $matchday, mixed $lechGoals, mixed $opponentGoals, array $answers): Tip
     {
-        if (!Players::canPlay($user)) {
+        if (! Players::canPlay($user)) {
             throw new DomainException(__('Your account cannot take part in the game.'));
         }
 
         $season = $matchday->season;
 
-        if (!$season || $season->status !== SeasonStatus::Active) {
+        if (! $season || $season->status !== SeasonStatus::Active) {
             throw new DomainException(__('Tipping is possible only in the active season.'));
         }
 
-        if (!$matchday->isOpenForTips()) {
+        if (! $matchday->isOpenForTips()) {
             throw new DomainException(__('Tipping for this matchday is closed.'));
         }
 
         $onList = SeasonTeam::where('season_id', $season->id)->where('user_id', $user->id)->exists();
 
-        if (!$onList) {
+        if (! $onList) {
             throw new DomainException(__('You are not on the team list of this season.'));
         }
 
@@ -62,7 +62,7 @@ class SaveTip
         }
 
         // Miejsca, na które ten gracz może odpowiadać (zestawy jego typów rozgrywek).
-        $types = array_map(fn($t) => $t->value, PlayerCompetitions::types($user->id, $season->id, $matchday->number));
+        $types = array_map(fn ($t) => $t->value, PlayerCompetitions::types($user->id, $season->id, $matchday->number));
         $allowedIds = MatchdayQuestion::where('matchday_id', $matchday->id)
             ->whereIn('competition_type', $types)
             ->pluck('id')
@@ -81,15 +81,15 @@ class SaveTip
 
             $old = TipAnswer::where('matchday_id', $matchday->id)->where('user_id', $user->id)
                 ->pluck('answer', 'matchday_question_id')
-                ->map(fn($a) => (bool) $a)
+                ->map(fn ($a) => (bool) $a)
                 ->all();
 
-            $changed = !$tip
+            $changed = ! $tip
                 || $tip->lech_goals !== $lech
                 || $tip->opponent_goals !== $opponent
                 || $old != $new;
 
-            if (!$changed) {
+            if (! $changed) {
                 return $tip;
             }
 

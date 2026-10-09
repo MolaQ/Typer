@@ -370,7 +370,7 @@ new #[Layout('layouts::public')] class extends Component {
             <div class="text-sm text-zinc-500">
                 <span class="font-semibold text-zinc-800 dark:text-zinc-100">{{ __('Matchday :number', ['number' => $this->matchday->number]) }}</span>
                 &middot; {{ $this->matchday->kickoff_at ? $this->matchday->kickoff_at->translatedFormat('j F Y, H:i') : __('not set yet') }}
-                @if ($this->matchday->competition) &middot; {{ $this->matchday->competition }} @endif
+                @if ($this->matchday->competitionLabel()) &middot; {{ $this->matchday->competitionLabel() }} @endif
             </div>
             @if ($this->isOpen)
                 <flux:badge color="green" icon="lock-open">{{ __('Open') }}</flux:badge>

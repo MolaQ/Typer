@@ -87,18 +87,18 @@ class AwardHallOfFame
             $this->addTeam($competition, $result['team'], 'matches', $points, null, ['won' => $result['won'], 'drawn' => $result['drawn']]);
         }
 
-        if ($final->isEmpty() || $final->max(fn($s) => $s->stats['played'] ?? 0) === 0) {
+        if ($final->isEmpty() || $final->max(fn ($s) => $s->stats['played'] ?? 0) === 0) {
             return; // sezon trwa albo rozgrywki bez rozegranych meczów
         }
 
-        $topGoals = (int) $final->max(fn($s) => $s->stats['for'] ?? 0);
+        $topGoals = (int) $final->max(fn ($s) => $s->stats['for'] ?? 0);
         $topScorerGiven = false;
 
         foreach ($final as $standing) {
             $placeKey = [1 => 'champion', 2 => 'second', 3 => 'third'][$standing->place] ?? null;
             if ($placeKey) {
-                $trophy = $standing->place === 1 ? 'league_' . $tier : null;
-                $this->add($competition, $standing, $placeKey, HallOfFame::value('league_' . $placeKey) * $multiplier, $trophy);
+                $trophy = $standing->place === 1 ? 'league_'.$tier : null;
+                $this->add($competition, $standing, $placeKey, HallOfFame::value('league_'.$placeKey) * $multiplier, $trophy);
             }
 
             // Awans: 4 najlepsze z lig 2-10 i z podwórkowej (z Ekstraklasy nikt nie awansuje).
@@ -107,9 +107,9 @@ class AwardHallOfFame
             }
 
             // Król strzelców: najwięcej bramek w lidze; przy równej liczbie wyżej w tabeli.
-            if (!$topScorerGiven && $topGoals > 0 && (int) ($standing->stats['for'] ?? 0) === $topGoals) {
+            if (! $topScorerGiven && $topGoals > 0 && (int) ($standing->stats['for'] ?? 0) === $topGoals) {
                 $topScorerGiven = true;
-                $this->add($competition, $standing, 'top_scorer', HallOfFame::value('league_top_scorer') * $multiplier, 'top_scorer_' . $tier, ['goals' => $topGoals]);
+                $this->add($competition, $standing, 'top_scorer', HallOfFame::value('league_top_scorer') * $multiplier, 'top_scorer_'.$tier, ['goals' => $topGoals]);
             }
         }
     }
@@ -120,12 +120,12 @@ class AwardHallOfFame
         $type = $competition->type->value;
 
         foreach ($this->results($competition) as $result) {
-            $this->addTeam($competition, $result['team'], 'matches', $result['won'] * HallOfFame::value($type . '_win'), null, ['won' => $result['won']]);
+            $this->addTeam($competition, $result['team'], 'matches', $result['won'] * HallOfFame::value($type.'_win'), null, ['won' => $result['won']]);
         }
 
         $winner = $final->first();
         if ($winner && $winner->place === 1 && ($winner->stats['played'] ?? 0) > 0) {
-            $this->add($competition, $winner, 'title', HallOfFame::value($type . '_winner'), $type);
+            $this->add($competition, $winner, 'title', HallOfFame::value($type.'_winner'), $type);
         }
     }
 
@@ -144,7 +144,7 @@ class AwardHallOfFame
         $counts = [];
         foreach ($fixtures as $fixture) {
             foreach ([[$fixture->home_entry_id, $fixture->home_goals, $fixture->away_goals], [$fixture->away_entry_id, $fixture->away_goals, $fixture->home_goals]] as [$entryId, $for, $against]) {
-                if (!$entryId) {
+                if (! $entryId) {
                     continue; // wirtualny rywal
                 }
                 $counts[$entryId] ??= ['won' => 0, 'drawn' => 0];
@@ -185,12 +185,12 @@ class AwardHallOfFame
         foreach ($fixtures->groupBy('winner_entry_id') as $entryId => $won) {
             $team = $teams->get($teamOfEntry[$entryId] ?? 0);
 
-            if (!$team) {
+            if (! $team) {
                 continue;
             }
 
             $rounds = $won->pluck('round')->sort()->values()->all();
-            $points = collect($rounds)->filter(fn($r) => $r < CupBracket::ROUNDS)->sum(fn($r) => HallOfFame::value('cup_round_' . $r));
+            $points = collect($rounds)->filter(fn ($r) => $r < CupBracket::ROUNDS)->sum(fn ($r) => HallOfFame::value('cup_round_'.$r));
             $this->addTeam($competition, $team, 'cup_rounds', $points, null, ['rounds' => $rounds]);
 
             // Zwycięzca pucharu: punkty i trofeum dopiero po zakończeniu sezonu.
@@ -221,7 +221,7 @@ class AwardHallOfFame
                 continue;
             }
 
-            $points = array_sum(array_map(fn($limit) => HallOfFame::value($stages[$limit]), $reached));
+            $points = array_sum(array_map(fn ($limit) => HallOfFame::value($stages[$limit]), $reached));
             $this->add($competition, $standing, 'legends_stages', $points, $standing->place === 1 ? CompetitionType::Legends->value : null, ['place' => $standing->place]);
         }
     }

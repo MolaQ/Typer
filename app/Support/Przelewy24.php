@@ -53,13 +53,13 @@ final class Przelewy24
         $response = $this->http()->post($this->api('transaction/register'), $body);
         $token = $response->json('data.token');
 
-        if (!$response->successful() || !$token) {
+        if (! $response->successful() || ! $token) {
             Log::warning('Przelewy24 register failed', ['status' => $response->status(), 'body' => $response->json()]);
 
             throw new RuntimeException(__('The payment could not be started. Try again later.'));
         }
 
-        return $this->host() . '/trnRequest/' . $token;
+        return $this->host().'/trnRequest/'.$token;
     }
 
     /** Czy powiadomienie od P24 ma poprawny podpis i pasuje do naszych danych. */
@@ -105,7 +105,7 @@ final class Przelewy24
             ]),
         ]);
 
-        if (!$response->successful() || $response->json('data.status') !== 'success') {
+        if (! $response->successful() || $response->json('data.status') !== 'success') {
             Log::warning('Przelewy24 verify failed', ['session' => $payment->session_id, 'status' => $response->status(), 'body' => $response->json()]);
 
             return false;
@@ -134,6 +134,6 @@ final class Przelewy24
 
     private function api(string $path): string
     {
-        return $this->host() . '/api/v1/' . $path;
+        return $this->host().'/api/v1/'.$path;
     }
 }

@@ -10,6 +10,7 @@ use App\Models\Matchday;
 use App\Models\MatchdayQuestion;
 use App\Models\TipAnswer;
 use App\Support\Audit;
+use App\Support\SystemFeed;
 use App\Support\TipRules;
 use DomainException;
 use Illuminate\Support\Facades\DB;
@@ -70,10 +71,10 @@ class SaveMatchdayResult
             return;
         }
 
-        $old = $matchday->lech_goals !== null ? $matchday->lech_goals . ':' . $matchday->opponent_goals : null;
+        $old = $matchday->lech_goals !== null ? $matchday->lech_goals.':'.$matchday->opponent_goals : null;
         $matchday->update(['lech_goals' => $lech, 'opponent_goals' => $opponent]);
 
-        Audit::log('matchday.result', null, ['result' => $old], ['result' => $lech . ':' . $opponent], $this->label($matchday));
+        Audit::log('matchday.result', null, ['result' => $old], ['result' => $lech.':'.$opponent], $this->label($matchday));
     }
 
     /**
@@ -124,15 +125,15 @@ class SaveMatchdayResult
             $stats['swiss'] = app(DrawNextSwissRound::class)->afterMatchday($matchday->fresh());
 
             // Informacje systemowe: wynik kolejki i nowe pary Ligi podwórkowej (tylko przy pierwszym przeliczeniu).
-            if (!$wasPlayed && $stats['swiss'] > 0) {
-                \App\Support\SystemFeed::record('competitions', 'Liga podwórkowa: pairs for round :round drawn', ['round' => $matchday->number + 1], 'results', ['c' => 'swiss', 'round' => $matchday->number + 1]);
+            if (! $wasPlayed && $stats['swiss'] > 0) {
+                SystemFeed::record('competitions', 'Liga podwórkowa: pairs for round :round drawn', ['round' => $matchday->number + 1], 'results', ['c' => 'swiss', 'round' => $matchday->number + 1]);
             }
-            if (!$wasPlayed) {
+            if (! $wasPlayed) {
                 $md = $matchday->fresh();
-                \App\Support\SystemFeed::record(
+                SystemFeed::record(
                     'results',
                     'Matchday :number settled: :fixture :score',
-                    ['number' => $md->number, 'fixture' => $md->fixture, 'score' => $md->lech_goals . ':' . $md->opponent_goals],
+                    ['number' => $md->number, 'fixture' => $md->fixture, 'score' => $md->lech_goals.':'.$md->opponent_goals],
                     'results',
                     ['round' => $md->number],
                 );
@@ -145,7 +146,7 @@ class SaveMatchdayResult
                 'matchday.scored',
                 null,
                 ['status' => $wasPlayed ? MatchdayStatus::Played->value : 'pending'],
-                ['result' => $matchday->lech_goals . ':' . $matchday->opponent_goals, 'matches' => $stats['fixtures'], 'cancelled_questions' => $cancelled->count()],
+                ['result' => $matchday->lech_goals.':'.$matchday->opponent_goals, 'matches' => $stats['fixtures'], 'cancelled_questions' => $cancelled->count()],
                 $this->label($matchday),
             );
 
@@ -155,7 +156,7 @@ class SaveMatchdayResult
 
     private function label(Matchday $matchday): string
     {
-        return __('Matchday :number', ['number' => $matchday->number]) . ' (' . $matchday->season->title . ')';
+        return __('Matchday :number', ['number' => $matchday->number]).' ('.$matchday->season->title.')';
     }
 
     /**

@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\QuestionSide;
+use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -17,12 +18,14 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property string|null $reject_reason
  * @property int|null $question_id
  * @property int|null $reviewed_by
- * @property \Carbon\CarbonInterface|null $reviewed_at
+ * @property CarbonInterface|null $reviewed_at
  */
 class QuestionProposal extends Model
 {
     public const PENDING = 'pending';
+
     public const ACCEPTED = 'accepted';
+
     public const REJECTED = 'rejected';
 
     /** Ile propozycji jeden gracz może mieć jednocześnie w kolejce. */

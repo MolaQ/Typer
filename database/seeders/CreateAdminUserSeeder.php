@@ -2,10 +2,10 @@
 
 namespace Database\Seeders;
 
-use Illuminate\Database\Seeder;
 use App\Models\User;
-use Spatie\Permission\Models\Role;
+use Illuminate\Database\Seeder;
 use Spatie\Permission\Models\Permission;
+use Spatie\Permission\Models\Role;
 
 class CreateAdminUserSeeder extends Seeder
 {
@@ -17,14 +17,14 @@ class CreateAdminUserSeeder extends Seeder
             [
                 'name' => 'Admin User',
                 'password' => bcrypt('password'),
-                'team_name' => "Kolejorz Kaczory",
-                'team_short_name' => "Kolejorz",
-                'team_abbr' => "KOLKAC",
+                'team_name' => 'Kolejorz Kaczory',
+                'team_short_name' => 'Kolejorz',
+                'team_abbr' => 'KOLKAC',
             ]
         );
 
         // Admin nie musi potwierdzać adresu kodem.
-        if (!$user->email_verified_at) {
+        if (! $user->email_verified_at) {
             $user->forceFill(['email_verified_at' => now()])->save();
         }
 

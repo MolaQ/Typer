@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Carbon;
 
 /**
  * Typ gracza na wynik meczu Lecha (Lech – rywal, niezależnie od tego, kto gra u siebie).
@@ -13,7 +14,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property int $lech_goals
  * @property int $opponent_goals
  * @property bool $is_default domyślny typ premium wpisany przy przeliczeniu kolejki
- * @property \Illuminate\Support\Carbon $saved_at
+ * @property Carbon $saved_at
  */
 class Tip extends Model
 {
@@ -42,6 +43,6 @@ class Tip extends Model
     /** "2:1" – wynik z perspektywy Lecha. */
     public function score(): string
     {
-        return $this->lech_goals . ':' . $this->opponent_goals;
+        return $this->lech_goals.':'.$this->opponent_goals;
     }
 }

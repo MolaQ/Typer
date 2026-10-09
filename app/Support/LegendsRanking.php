@@ -6,6 +6,7 @@ use App\Enums\CompetitionType;
 use App\Models\Competition;
 use App\Models\CompetitionEntry;
 use App\Models\Matchday;
+use App\Models\SeasonTeam;
 use App\Models\TeamScore;
 use Illuminate\Support\Collection;
 
@@ -29,14 +30,14 @@ final class LegendsRanking
      * Ranking uczestników (od najlepszego) z kolejek 1..$upTo. $onlyAlive: tylko ci, którzy nie odpadli
      * przed kolejką $upTo (odpadnięci w samej kolejce $upTo zostają).
      *
-     * @return Collection<int, array{entry_id: int, team: \App\Models\SeasonTeam, eliminated_round: ?int, tip_points: int, bonus: int, exact: int, diff_hits: int, outcome_hits: int, hof: int, tipped_at: ?string}>
+     * @return Collection<int, array{entry_id: int, team: SeasonTeam, eliminated_round: ?int, tip_points: int, bonus: int, exact: int, diff_hits: int, outcome_hits: int, hof: int, tipped_at: ?string}>
      */
     public static function for(Competition $competition, int $upTo, bool $onlyAlive = false): Collection
     {
         $entries = $competition->entries()->with(['seasonTeam.user:id,name,team_name'])->get();
 
         if ($onlyAlive) {
-            $entries = $entries->filter(fn($e) => $e->eliminated_round === null || $e->eliminated_round >= $upTo);
+            $entries = $entries->filter(fn ($e) => $e->eliminated_round === null || $e->eliminated_round >= $upTo);
         }
 
         $matchdays = Matchday::where('season_id', $competition->season_id)->where('number', '<=', $upTo)->pluck('number', 'id');
@@ -59,7 +60,7 @@ final class LegendsRanking
                 'team' => $entry->seasonTeam,
                 'eliminated_round' => $entry->eliminated_round,
                 'tip_points' => (int) $own->sum('tip_points'),
-                'bonus' => (int) $own->sum(fn($s) => $s->bonus()),
+                'bonus' => (int) $own->sum(fn ($s) => $s->bonus()),
                 'exact' => $own->where('exact_hit', true)->count(),
                 'diff_hits' => $own->where('diff_hit', true)->count(),
                 'outcome_hits' => $own->where('outcome_hit', true)->count(),

@@ -54,7 +54,7 @@ final class HallOfFame
     {
         if (self::$values === null) {
             $saved = Schema::hasTable('hall_of_fame_settings')
-                ? DB::table('hall_of_fame_settings')->pluck('value', 'key')->map(fn($v) => (float) $v)->all()
+                ? DB::table('hall_of_fame_settings')->pluck('value', 'key')->map(fn ($v) => (float) $v)->all()
                 : [];
 
             self::$values = array_map('floatval', array_merge(self::DEFAULTS, array_intersect_key($saved, self::DEFAULTS)));
@@ -79,7 +79,7 @@ final class HallOfFame
     /** Mnożnik poziomu ligi (1-10, 11 = podwórkowa). */
     public static function multiplier(int $tier): float
     {
-        return self::value('multiplier_' . $tier);
+        return self::value('multiplier_'.$tier);
     }
 
     /**
@@ -91,12 +91,12 @@ final class HallOfFame
     {
         $multipliers = [];
         foreach (League::cases() as $league) {
-            $multipliers['multiplier_' . $league->value] = $league->label();
+            $multipliers['multiplier_'.$league->value] = $league->label();
         }
 
         $cup = [];
         foreach (range(1, CupBracket::ROUNDS - 1) as $round) {
-            $cup['cup_round_' . $round] = __('Win in round :round', ['round' => $round]);
+            $cup['cup_round_'.$round] = __('Win in round :round', ['round' => $round]);
         }
         $cup['cup_winner'] = __('Cup winner');
 
@@ -113,12 +113,12 @@ final class HallOfFame
             ],
             CompetitionType::Cup->label() => $cup,
             __('European leagues') => [
-                'champions_winner' => CompetitionType::Champions->label() . ': ' . __('winner'),
-                'europa_winner' => CompetitionType::Europa->label() . ': ' . __('winner'),
-                'conference_winner' => CompetitionType::Conference->label() . ': ' . __('winner'),
-                'champions_win' => CompetitionType::Champions->label() . ': ' . __('match won'),
-                'europa_win' => CompetitionType::Europa->label() . ': ' . __('match won'),
-                'conference_win' => CompetitionType::Conference->label() . ': ' . __('match won'),
+                'champions_winner' => CompetitionType::Champions->label().': '.__('winner'),
+                'europa_winner' => CompetitionType::Europa->label().': '.__('winner'),
+                'conference_winner' => CompetitionType::Conference->label().': '.__('winner'),
+                'champions_win' => CompetitionType::Champions->label().': '.__('match won'),
+                'europa_win' => CompetitionType::Europa->label().': '.__('match won'),
+                'conference_win' => CompetitionType::Conference->label().': '.__('match won'),
             ],
             CompetitionType::Legends->label() => [
                 'legends_top16' => __('Top :count', ['count' => 16]),
@@ -139,10 +139,10 @@ final class HallOfFame
     {
         $out = [];
         foreach (League::cases() as $league) {
-            $out['league_' . $league->value] = __('Champion: :league', ['league' => $league->label()]);
+            $out['league_'.$league->value] = __('Champion: :league', ['league' => $league->label()]);
         }
         foreach (League::cases() as $league) {
-            $out['top_scorer_' . $league->value] = __('Top scorer: :league', ['league' => $league->label()]);
+            $out['top_scorer_'.$league->value] = __('Top scorer: :league', ['league' => $league->label()]);
         }
         foreach ([CompetitionType::Cup, CompetitionType::Champions, CompetitionType::Europa, CompetitionType::Conference, CompetitionType::Legends, CompetitionType::Golden] as $type) {
             $out[$type->value] = $type->label();
@@ -154,7 +154,7 @@ final class HallOfFame
     /** @return array<string, string> klucz trofeum => adres ikony */
     public static function iconUrls(): array
     {
-        return TrophyIcon::pluck('path', 'key')->map(fn($path) => asset('storage/' . $path))->all();
+        return TrophyIcon::pluck('path', 'key')->map(fn ($path) => asset('storage/'.$path))->all();
     }
 
     /**
@@ -182,18 +182,18 @@ final class HallOfFame
     /** @return array<int, float> */
     private static function sumBefore(Season $season, string $column): array
     {
-        if (!Schema::hasTable('hall_of_fame_awards')) {
+        if (! Schema::hasTable('hall_of_fame_awards')) {
             return [];
         }
 
         return HallOfFameAward::query()
             ->join('seasons', 'seasons.id', '=', 'hall_of_fame_awards.season_id')
             ->where('seasons.number', '<', $season->number)
-            ->whereNotNull('hall_of_fame_awards.' . $column)
-            ->groupBy('hall_of_fame_awards.' . $column)
-            ->selectRaw('hall_of_fame_awards.' . $column . ' as owner, sum(hall_of_fame_awards.points) as total')
+            ->whereNotNull('hall_of_fame_awards.'.$column)
+            ->groupBy('hall_of_fame_awards.'.$column)
+            ->selectRaw('hall_of_fame_awards.'.$column.' as owner, sum(hall_of_fame_awards.points) as total')
             ->pluck('total', 'owner')
-            ->map(fn($v) => round((float) $v, 1))
+            ->map(fn ($v) => round((float) $v, 1))
             ->all();
     }
 }

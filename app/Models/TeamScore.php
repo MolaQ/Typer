@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Enums\CompetitionType;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Carbon;
 
 /**
  * Dorobek zespołu w kolejce dla jednego zestawu pytań (wynik ofensywny i defensywa).
@@ -16,7 +17,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property bool $has_tip
  * @property int|null $tip_lech
  * @property int|null $tip_opponent
- * @property \Illuminate\Support\Carbon|null $tipped_at
+ * @property Carbon|null $tipped_at
  * @property int $tip_points
  * @property bool $outcome_hit
  * @property bool $diff_hit

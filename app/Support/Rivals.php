@@ -2,7 +2,6 @@
 
 namespace App\Support;
 
-use App\Enums\CompetitionType;
 use App\Enums\MatchdayStatus;
 use App\Enums\QuestionSide;
 use App\Models\Competition;
@@ -27,7 +26,9 @@ use App\Models\User;
 final class Rivals
 {
     public const OPEN = 'open';
+
     public const CLOSED = 'closed';
+
     public const PLAYED = 'played';
 
     public static function phase(Matchday $matchday): string
@@ -47,7 +48,7 @@ final class Rivals
     {
         $team = SeasonTeam::where('season_id', $matchday->season_id)->where('user_id', $viewer->id)->first();
 
-        if (!$team) {
+        if (! $team) {
             return [];
         }
 
@@ -58,13 +59,13 @@ final class Rivals
         $competitions = Competition::where('season_id', $matchday->season_id)->get()->keyBy('id');
         $mine = CompetitionEntry::whereIn('competition_id', $competitions->keys())
             ->where('season_team_id', $team->id)
-            ->where(fn($q) => $q->whereNull('eliminated_round')->orWhere('eliminated_round', '>=', $round))
+            ->where(fn ($q) => $q->whereNull('eliminated_round')->orWhere('eliminated_round', '>=', $round))
             ->pluck('id');
 
         $fixtures = Fixture::with(['home.seasonTeam.user:id,name,team_name', 'home.seasonTeam.bot:id,name', 'away.seasonTeam.user:id,name,team_name', 'away.seasonTeam.bot:id,name'])
             ->where('round', $round)
             ->whereIn('competition_id', $competitions->keys())
-            ->where(fn($q) => $q->whereIn('home_entry_id', $mine)->orWhereIn('away_entry_id', $mine))
+            ->where(fn ($q) => $q->whereIn('home_entry_id', $mine)->orWhereIn('away_entry_id', $mine))
             ->get();
 
         if ($fixtures->isEmpty()) {
@@ -72,7 +73,7 @@ final class Rivals
         }
 
         // Liczba odpowiedzi rywali: user_id => zestaw => strona => liczba.
-        $rivalUsers = $fixtures->map(fn($f) => ($mine->contains($f->home_entry_id) ? $f->away : $f->home)?->seasonTeam?->user_id)->filter()->unique();
+        $rivalUsers = $fixtures->map(fn ($f) => ($mine->contains($f->home_entry_id) ? $f->away : $f->home)?->seasonTeam?->user_id)->filter()->unique();
         $slots = MatchdayQuestion::where('matchday_id', $matchday->id)->get(['id', 'competition_type', 'side'])->keyBy('id');
         $counts = [];
         foreach (TipAnswer::where('matchday_id', $matchday->id)->whereIn('user_id', $rivalUsers)->get(['user_id', 'matchday_question_id']) as $answer) {
@@ -108,7 +109,7 @@ final class Rivals
                 'h2h' => $rival && $premium ? self::headToHead($viewer, $rival) : null,
             ];
 
-            if ($rival && !$rival->is_bot) {
+            if ($rival && ! $rival->is_bot) {
                 $tip = $tips->get($rival->user_id);
                 $offense = $counts[$rival->user_id][$set][QuestionSide::Offensive->value] ?? 0;
                 $defense = $counts[$rival->user_id][$set][QuestionSide::Defensive->value] ?? 0;
@@ -129,10 +130,10 @@ final class Rivals
 
             // Po wynikach: typ i bonusy z rozliczenia (także boty).
             if ($rival && $phase === self::PLAYED) {
-                $score = $scores->get($rival->id)?->first(fn($s) => $s->question_set->value === $set);
+                $score = $scores->get($rival->id)?->first(fn ($s) => $s->question_set->value === $set);
                 if ($score) {
                     $row['tipped'] = $score->has_tip;
-                    $row['tip'] = $score->has_tip ? $score->tip_lech . ':' . $score->tip_opponent : null;
+                    $row['tip'] = $score->has_tip ? $score->tip_lech.':'.$score->tip_opponent : null;
                     $row['bonus'] = __('Offense :offense, defense :defense', ['offense' => $score->offense_bonus, 'defense' => $score->defense_bonus]);
                 }
             }
@@ -190,7 +191,7 @@ final class Rivals
                 'tipped' => null, 'outcome' => null, 'tip' => null, 'tipped_at' => null, 'offense' => null, 'defense' => null, 'score' => null,
             ];
 
-            if ($team && !$team->is_bot) {
+            if ($team && ! $team->is_bot) {
                 $tip = $tips->get($team->user_id);
                 $side['tipped'] = $tip !== null;
 
@@ -209,7 +210,7 @@ final class Rivals
             // Po wynikach pełne rozliczenie (także boty).
             if ($team && ($score = $scores->get($team->id))) {
                 $side['tipped'] = $score->has_tip;
-                $side['tip'] = $score->has_tip ? $score->tip_lech . ':' . $score->tip_opponent : null;
+                $side['tip'] = $score->has_tip ? $score->tip_lech.':'.$score->tip_opponent : null;
                 $side['tipped_at'] = $score->tipped_at;
                 $side['score'] = $score;
             }
@@ -243,11 +244,11 @@ final class Rivals
 
         $fixtures = Fixture::with('competition.season:id,number')
             ->whereNotNull('home_goals')
-            ->where(fn($q) => $q
-                ->where(fn($w) => $w->whereIn('home_entry_id', $mine)->whereIn('away_entry_id', $theirs))
-                ->orWhere(fn($w) => $w->whereIn('home_entry_id', $theirs)->whereIn('away_entry_id', $mine)))
+            ->where(fn ($q) => $q
+                ->where(fn ($w) => $w->whereIn('home_entry_id', $mine)->whereIn('away_entry_id', $theirs))
+                ->orWhere(fn ($w) => $w->whereIn('home_entry_id', $theirs)->whereIn('away_entry_id', $mine)))
             ->get()
-            ->sortByDesc(fn($f) => [$f->competition->season->number, $f->round, $f->id]);
+            ->sortByDesc(fn ($f) => [$f->competition->season->number, $f->round, $f->id]);
 
         $out = ['won' => 0, 'drawn' => 0, 'lost' => 0, 'meetings' => []];
         foreach ($fixtures as $fixture) {
@@ -266,7 +267,7 @@ final class Rivals
                 'season' => $fixture->competition->season->roman_number,
                 'competition' => $fixture->competition->name ?: $fixture->competition->type->label(),
                 'round' => (int) $fixture->round,
-                'score' => $for . ':' . $against . ($fixture->decided_by_time ? ' ' . __('(pen.)') : ''),
+                'score' => $for.':'.$against.($fixture->decided_by_time ? ' '.__('(pen.)') : ''),
                 'outcome' => $outcome,
             ];
         }
