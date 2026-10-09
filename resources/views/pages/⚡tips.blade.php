@@ -476,9 +476,9 @@ new #[Layout('layouts::public')] class extends Component {
                 $tileClass = !$hasResult
                     ? 'border-zinc-500 bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-200'
                     : match ($option->lech_goals <=> $option->opponent_goals) {
-                        1 => 'border-green-600 bg-green-400 text-green-950',
-                        0 => 'border-yellow-500 bg-yellow-200 text-yellow-950',
-                        default => 'border-red-600 bg-red-400 text-red-950',
+                        1 => 'border-green-500 bg-green-100 text-green-950',
+                        0 => 'border-yellow-500 bg-yellow-100 text-yellow-950',
+                        default => 'border-red-500 bg-red-100 text-red-950',
                     };
                 $selected = $option->number === $this->number;
             @endphp
@@ -486,18 +486,20 @@ new #[Layout('layouts::public')] class extends Component {
                 class="{{ $tileClass }} {{ $selected ? 'ring-2 ring-lech-600 ring-offset-2 dark:ring-lech-400 dark:ring-offset-zinc-900' : 'hover:shadow-md' }} flex min-w-0 flex-col items-start gap-0.5 rounded-xl border px-3 py-2 text-left transition">
                 <span class="flex w-full items-center justify-between gap-1.5 text-xs font-semibold opacity-80">
                     <span>{{ __('Matchday :number', ['number' => $option->number]) }}</span>
-                    @if (!$hasResult && $option->isOpenForTips())
-                        <span class="size-2 rounded-full bg-green-500" title="{{ __('Tipping open') }}"></span>
-                    @endif
+                    <span class="flex items-center gap-1.5">
+                        @if (!$hasResult && $option->kickoff_at)
+                            <span class="font-normal">{{ $option->kickoff_at->translatedFormat('j M, H:i') }}</span>
+                        @endif
+                        @if (!$hasResult && $option->isOpenForTips())
+                            <span class="size-2 rounded-full bg-green-500" title="{{ __('Tipping open') }}"></span>
+                        @endif
+                    </span>
                 </span>
-                <span class="w-full truncate text-sm font-medium">{{ filled($option->opponent) ? $option->opponent : __('not set yet') }}</span>
-                @if ($hasResult)
-                    <span class="text-lg font-black leading-tight tabular-nums">{{ $option->lech_goals }}:{{ $option->opponent_goals }}</span>
-                @elseif ($option->kickoff_at)
-                    <span class="text-xs opacity-80">{{ $option->kickoff_at->translatedFormat('j M, H:i') }}</span>
-                @else
-                    <span class="text-xs opacity-80">–</span>
-                @endif
+                {{-- Rywal Lecha i wynik w jednej linii; bez przypisanego meczu informacja i „?:?” --}}
+                <span class="flex w-full items-baseline justify-between gap-2">
+                    <span class="{{ filled($option->opponent) ? 'font-bold' : 'italic opacity-70' }} min-w-0 truncate text-base">{{ filled($option->opponent) ? $option->opponent : __('Match not assigned yet') }}</span>
+                    <span class="shrink-0 text-xl font-black tabular-nums">{{ $hasResult ? $option->lech_goals . ':' . $option->opponent_goals : '?:?' }}</span>
+                </span>
                 {{-- Liczba typów graczy i odsetek trafionych rozstrzygnięć --}}
                 @php
                     $tipStat = $this->matchdayTipStats[$option->id] ?? ['tips' => 0, 'outcome' => null];
