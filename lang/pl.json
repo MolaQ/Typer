@@ -1186,5 +1186,13 @@
     "Złota Liga: new payments change the line-up": "Złota Liga: nowe wpłaty zmieniają skład",
     "By the payments the line-up would be: :list. Change it on the Competitions page if you want.": "Według wpłat skład byłby taki: :list. Jeśli chcesz, zmień go na stronie Rozgrywki.",
     "Złota Liga created.": "Złota Liga utworzona.",
-    "Złota Liga already exists.": "Złota Liga już istnieje."
+    "Złota Liga already exists.": "Złota Liga już istnieje.",
+    "Your cup path": "Twoja droga w pucharze",
+    "vs :team": "z :team",
+    ":played of :total matches played": "Rozegrane :played z :total meczów",
+    "Your match": "Twój mecz",
+    "All matches": "Wszystkie mecze",
+    "The number next to the team is its seed in this round.": "Liczba przy zespole to jego miejsce w drabince tej rundy.",
+    "Your match / not played yet": "Twój mecz / przed wynikiem",
+    "after penalties": "po karnych"
 }

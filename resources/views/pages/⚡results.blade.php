@@ -23,7 +23,8 @@ use Livewire\WithPagination;
 /**
  * Wyniki i tabele sezonu (dla wszystkich, także gości). Domyślnie sezon aktywny, a gdy go nie ma, ostatnio zakończony.
  * Strzałki w banerze przesuwają o jeden sezon wstecz albo do przodu (archiwum: sezony aktywne i zakończone).
- * Ligi i Liga podwórkowa: tabela + mecze wybranej kolejki. Puchar Polski: mecze wybranej rundy.
+ * Ligi i Liga podwórkowa: tabela + mecze wybranej kolejki. Puchar Polski: pasek rund, „Twoja droga”, karty meczów rundy
+ * (partials/cup-fixture-card), objaśnienia i legenda jak w Lidze Legend.
  * Kliknięcie zespołu otwiera okno ze statystykami (podstawowe i premium), kliknięcie meczu okno ze szczegółami
  * (widoczność jak w podglądzie rywali: przed zamknięciem typowania, po zamknięciu i po wynikach).
  * Uwaga: nie nazywaj własności "slots" ani "rows" – Livewire rezerwuje część nazw.
@@ -187,7 +188,7 @@ new #[Layout('layouts::public')] class extends Component {
         $this->fixtureId = null;
 
         unset($this->season, $this->options, $this->competition, $this->isCup, $this->hasTable, $this->table,
-            $this->isLegends, $this->legends, $this->legendsHistory, $this->matchday, $this->matches, $this->myTeamId);
+            $this->isLegends, $this->legends, $this->legendsHistory, $this->cupPath, $this->cupPlayed, $this->matchday, $this->matches, $this->myTeamId);
 
         $this->normalize();
         $this->resetPage('matchesPage');
@@ -279,6 +280,47 @@ new #[Layout('layouts::public')] class extends Component {
         }
 
         return $history;
+    }
+
+    /**
+     * Puchar Polski: mecze zespołu zalogowanego gracza w kolejnych rundach (runda => mecz).
+     * Do paska „Twoja droga” i przypiętego meczu nad drabinką.
+     *
+     * @return array<int, Fixture>
+     */
+    #[Computed]
+    public function cupPath(): array
+    {
+        if (!$this->isCup || !$this->myTeamId) {
+            return [];
+        }
+
+        $entryId = \App\Models\CompetitionEntry::where('competition_id', $this->competition->id)
+            ->where('season_team_id', $this->myTeamId)
+            ->value('id');
+
+        if (!$entryId) {
+            return [];
+        }
+
+        return Fixture::query()
+            ->with(['home.seasonTeam.user:id,name,team_name', 'home.seasonTeam.bot:id,name', 'away.seasonTeam.user:id,name,team_name', 'away.seasonTeam.bot:id,name'])
+            ->where('competition_id', $this->competition->id)
+            ->where(fn ($q) => $q->where('home_entry_id', $entryId)->orWhere('away_entry_id', $entryId))
+            ->get()
+            ->keyBy('round')
+            ->all();
+    }
+
+    /** Puchar Polski: ile meczów wybranej rundy ma już wynik. */
+    #[Computed]
+    public function cupPlayed(): int
+    {
+        if (!$this->isCup) {
+            return 0;
+        }
+
+        return Fixture::where('competition_id', $this->competition->id)->where('round', $this->round)->whereNotNull('home_goals')->count();
     }
 
     #[Computed]
@@ -642,8 +684,161 @@ new #[Layout('layouts::public')] class extends Component {
                 </div>
             @endif
 
+            {{-- ============ Puchar Polski: drabinka rundy w kartach meczów ============ --}}
+            @if ($this->isCup)
+                @php
+                    $rounds = \App\Support\CupBracket::ROUNDS;
+                    $total = intdiv(\App\Support\CupBracket::seatsInRound($round), 2);
+                    $path = $this->cupPath;
+                    $myId = $this->myTeamId;
+                    $final = $round === $rounds ? $this->matches?->first() : null;
+                    // Etykieta etapu w pasku: liczba zespołów, potem ćwierćfinał, półfinał i finał.
+                    $stageLabel = fn (int $stage) => match ($stage) {
+                        $rounds => __('Final'),
+                        $rounds - 1 => '1/2',
+                        $rounds - 2 => '1/4',
+                        default => (string) \App\Support\CupBracket::seatsInRound($stage),
+                    };
+                @endphp
+                <div class="space-y-3">
+                    {{-- Pasek etapów: 512 → 256 → … → Finał, każdy etap to link do swojej rundy --}}
+                    <nav class="flex flex-wrap items-center gap-1 text-xs" aria-label="{{ __('Rounds') }}">
+                        @foreach (range(1, $rounds) as $stage)
+                            @php
+                                $stageClass = $stage === $round
+                                    ? 'lech-bar font-semibold'
+                                    : ($stage < $round ? 'bg-lech-100 text-lech-800 hover:bg-lech-200 dark:bg-lech-900/40 dark:text-lech-200' : 'bg-zinc-100 text-zinc-500 hover:bg-zinc-200 dark:bg-zinc-800');
+                            @endphp
+                            <a href="{{ $this->pageUrl($stage) }}" wire:navigate title="{{ \App\Support\CupBracket::roundName($stage) }}"
+                                class="{{ $stageClass }} rounded-full px-2.5 py-1 tabular-nums transition">{{ $stageLabel($stage) }}</a>
+                            @if ($stage < $rounds)
+                                <flux:icon.chevron-right variant="micro" class="text-zinc-400" />
+                            @endif
+                        @endforeach
+                    </nav>
+
+                    {{-- Zdobywca pucharu po rozegranym finale --}}
+                    @if ($final && $final->winner_entry_id)
+                        @php
+                            $champion = $final->winner_entry_id === $final->home_entry_id ? $final->home : $final->away;
+                        @endphp
+                        <div class="lech-banner lech-bar-shadow flex items-center gap-3 rounded-xl px-4 py-3">
+                            <flux:icon.trophy class="size-8 shrink-0 text-amber-300" />
+                            <div class="min-w-0">
+                                <div class="text-xs uppercase tracking-wide opacity-80">{{ __('Cup winner') }}</div>
+                                <button type="button" wire:click="showTeam({{ $champion?->season_team_id ?? 0 }})" class="truncate text-lg font-bold hover:underline">{{ $champion?->seasonTeam->name }}</button>
+                            </div>
+                        </div>
+                    @endif
+
+                    {{-- Twoja droga w pucharze: kafelek na rundę (zielony = awans, czerwony = odpadnięcie, bursztynowy = mecz przed wynikiem) --}}
+                    @if ($path)
+                        <flux:card class="space-y-2 p-3">
+                            <div class="flex items-center justify-between gap-2">
+                                <flux:heading size="sm">{{ __('Your cup path') }}</flux:heading>
+                            </div>
+                            <div class="flex flex-wrap gap-1">
+                                @foreach (range(1, $rounds) as $stage)
+                                    @php
+                                        $fx = $path[$stage] ?? null;
+                                        $isHome = $fx && $fx->home?->season_team_id === $myId;
+                                        $myEntryId = $fx ? ($isHome ? $fx->home_entry_id : $fx->away_entry_id) : null;
+                                        $opponent = $fx ? ($isHome ? $fx->away : $fx->home) : null;
+                                        $myGoals = $fx ? ($isHome ? $fx->home_goals : $fx->away_goals) : null;
+                                        $theirGoals = $fx ? ($isHome ? $fx->away_goals : $fx->home_goals) : null;
+                                        $pathClass = match (true) {
+                                            $fx === null => 'bg-zinc-100 text-zinc-400 dark:bg-zinc-800',
+                                            !$fx->isPlayed() => 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200',
+                                            $fx->winner_entry_id === $myEntryId => 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-200',
+                                            default => 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300',
+                                        };
+                                        $pathTitle = \App\Support\CupBracket::roundName($stage) . ($opponent ? ': ' . __('vs :team', ['team' => $opponent->seasonTeam->name]) : '');
+                                    @endphp
+                                    @if ($fx)
+                                        <a href="{{ $this->pageUrl($stage) }}" wire:navigate title="{{ $pathTitle }}"
+                                            class="{{ $pathClass }} {{ $stage === $round ? 'ring-2 ring-lech-500' : '' }} flex w-14 flex-col items-center rounded-md px-1 py-1 text-[10px] leading-tight transition hover:opacity-80">
+                                            <span class="opacity-70">{{ $stageLabel($stage) }}</span>
+                                            <span class="text-xs font-bold tabular-nums">{{ $fx->isPlayed() ? $myGoals . ':' . $theirGoals : '–' }}</span>
+                                            @if ($fx->decided_by_time)
+                                                <span class="opacity-70">{{ __('(pen.)') }}</span>
+                                            @endif
+                                        </a>
+                                    @else
+                                        <span title="{{ \App\Support\CupBracket::roundName($stage) }}"
+                                            class="{{ $pathClass }} flex w-14 flex-col items-center rounded-md px-1 py-1 text-[10px] leading-tight">
+                                            <span class="opacity-70">{{ $stageLabel($stage) }}</span>
+                                            <span class="text-xs font-bold">·</span>
+                                        </span>
+                                    @endif
+                                @endforeach
+                            </div>
+                        </flux:card>
+                    @endif
+
+                    <flux:card class="space-y-3">
+                        <div class="flex flex-wrap items-baseline justify-between gap-2">
+                            <flux:heading>{{ \App\Support\CupBracket::roundName($round) }}</flux:heading>
+                            <flux:text class="text-xs tabular-nums">
+                                {{ __(':played of :total matches played', ['played' => $this->cupPlayed, 'total' => $total]) }}
+                            </flux:text>
+                        </div>
+                        {{-- Pasek postępu rundy --}}
+                        <div class="h-1.5 overflow-hidden rounded-full bg-zinc-100 dark:bg-zinc-800">
+                            <div class="h-full rounded-full bg-lech-600" style="width: {{ $total ? round($this->cupPlayed / $total * 100) : 0 }}%"></div>
+                        </div>
+
+                        @if ($this->matches && $this->matches->isNotEmpty())
+                            {{-- Własny mecz przypięty nad drabinką --}}
+                            @if (isset($path[$round]))
+                                <div class="text-xs font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-300">{{ __('Your match') }}</div>
+                                <div class="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                                    @include('partials.cup-fixture-card', ['fixture' => $path[$round], 'mine' => true])
+                                </div>
+                                <div class="text-xs font-semibold uppercase tracking-wide text-zinc-500">{{ __('All matches') }}</div>
+                            @endif
+
+                            <div class="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                                @foreach ($this->matches as $fixture)
+                                    @include('partials.cup-fixture-card', [
+                                        'fixture' => $fixture,
+                                        'mine' => $myId && in_array($myId, [$fixture->home?->season_team_id, $fixture->away?->season_team_id]),
+                                    ])
+                                @endforeach
+                            </div>
+
+                            @if ($this->matches->hasPages())
+                                <div class="flex items-center justify-between gap-2 pt-1">
+                                    <flux:button size="sm" variant="ghost" icon="chevron-left"
+                                        wire:click="previousPage('matchesPage')" :disabled="$this->matches->onFirstPage()" />
+                                    <flux:text class="text-xs tabular-nums">
+                                        {{ __('Page :current of :last', ['current' => $this->matches->currentPage(), 'last' => $this->matches->lastPage()]) }}
+                                    </flux:text>
+                                    <flux:button size="sm" variant="ghost" icon="chevron-right"
+                                        wire:click="nextPage('matchesPage')" :disabled="!$this->matches->hasMorePages()" />
+                                </div>
+                            @endif
+                        @else
+                            <flux:text>{{ __('No matches yet.') }}</flux:text>
+                        @endif
+                    </flux:card>
+
+                    {{-- Objaśnienia kursywą pod drabinką i legenda kolorów --}}
+                    <div class="space-y-1 px-1 text-xs italic text-zinc-500">
+                        <p>
+                            {{ __('The favourite plays on the left and the winner takes the better seed of the pair. A draw goes to the team that saved its tip earlier (at an equal time the higher seed), shown as “after penalties”.') }}
+                            {{ __('The number next to the team is its seed in this round.') }}
+                        </p>
+                        <p class="flex flex-wrap gap-4 not-italic">
+                            <span class="flex items-center gap-1"><span class="inline-block h-3 w-3 rounded bg-green-500"></span>{{ __('Goes through') }}</span>
+                            <span class="flex items-center gap-1"><span class="inline-block h-3 w-3 rounded bg-red-400"></span>{{ __('Eliminated') }}</span>
+                            <span class="flex items-center gap-1"><span class="inline-block h-3 w-3 rounded bg-amber-400"></span>{{ __('Your match / not played yet') }}</span>
+                        </p>
+                    </div>
+                </div>
+            @endif
+
             {{-- ============ Mecze kolejki / rundy ============ --}}
-            @if (!$this->isLegends)
+            @if (!$this->isLegends && !$this->isCup)
             <flux:card class="space-y-2 self-start">
                 <flux:heading>
                     {{ $this->isCup ? \App\Support\CupBracket::roundName($round) : __('Matchday :number', ['number' => $round]) }}
