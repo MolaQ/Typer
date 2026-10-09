@@ -86,6 +86,9 @@ final class PlayerStats
             $row = [
                 'name' => $competition->name ?: $competition->type->label(),
                 'type' => $competition->type,
+                // Do linków na stronę wyników (/results/sezon-N/{slug}?team=id zespołu).
+                'slug' => $competition->slug(),
+                'team_id' => $team->id,
                 'trophy' => $competition->trophyKey(),
                 'status' => '',
                 'played' => 0, 'won' => 0, 'drawn' => 0, 'lost' => 0,

@@ -43,6 +43,9 @@ new #[Layout('layouts::public')] class extends Component {
     /** Zespół (season_teams.id) i mecz pokazywane w oknach. */
     public ?int $teamId = null;
 
+    /** Szukany zespół (season_teams.id, parametr ?team= z profilu zespołu): wyróżniony, a lista meczów otwiera się na jego stronie. */
+    public ?int $focusTeamId = null;
+
     /**
      * Przyjazny adres: /results/sezon-2/ekstraklasa/kolejka-9. Stare adresy z parametrami (?c=league-1&round=9&s=2,
      * np. w informacjach systemowych) też działają, a po pierwszej zmianie w formularzu adres zmienia się na nowy.
@@ -54,6 +57,37 @@ new #[Layout('layouts::public')] class extends Component {
         $this->key = $competition_slug ?? $this->legacyKey((string) request()->query('c', ''));
 
         $this->normalize();
+
+        $team = (int) request()->query('team', '0');
+        if ($team > 0) {
+            $this->focusTeamId = $team;
+            $this->openFocusPage();
+        }
+    }
+
+    /** Strona listy meczów (po 32), na której gra szukany zespół w wybranej kolejce. */
+    private function openFocusPage(): void
+    {
+        if (!$this->focusTeamId || !$this->competition) {
+            return;
+        }
+
+        $ids = Fixture::where('competition_id', $this->competition->id)->where('round', $this->round)->orderBy('id')->pluck('id')->all();
+        $own = Fixture::where('competition_id', $this->competition->id)->where('round', $this->round)
+            ->where(fn($q) => $q->whereHas('home', fn($h) => $h->where('season_team_id', $this->focusTeamId))
+                ->orWhereHas('away', fn($a) => $a->where('season_team_id', $this->focusTeamId)))
+            ->value('id');
+        $index = $own === null ? false : array_search($own, $ids, true);
+
+        if ($index !== false) {
+            $this->setPage(intdiv((int) $index, 32) + 1, 'matchesPage');
+        }
+    }
+
+    /** Czy zespół wyróżniamy: zespół zalogowanego gracza albo szukany z profilu. */
+    public function highlighted(?int $teamId): bool
+    {
+        return $teamId !== null && in_array($teamId, array_filter([$this->myTeamId, $this->focusTeamId]), true);
     }
 
     /** Stare klucze z parametru c (league-N, cup, swiss, c-ID) na klucze z adresu. */
@@ -525,7 +559,7 @@ new #[Layout('layouts::public')] class extends Component {
                                     };
                                 @endphp
                                 <tr wire:key="row-{{ $row['entry_id'] }}"
-                                    class="{{ $zoneClass }} border-b border-zinc-100 last:border-b-0 dark:border-zinc-700/50 {{ $row['team']->id == $this->myTeamId ? 'bg-amber-50 font-semibold dark:bg-amber-900/20' : '' }}">
+                                    class="{{ $zoneClass }} border-b border-zinc-100 last:border-b-0 dark:border-zinc-700/50 {{ $this->highlighted($row['team']->id) ? 'bg-amber-50 font-semibold dark:bg-amber-900/20' : '' }}">
                                     <td class="px-3 py-1.5 text-right tabular-nums text-zinc-500">{{ $index + 1 }}.</td>
                                     <td class="max-w-56 truncate px-3 py-1.5">
                                         <button type="button" wire:click="showTeam({{ $row['team']->id }})" class="truncate hover:text-lech-700 hover:underline dark:hover:text-lech-300">{{ $row['team']->name }}</button>
@@ -607,7 +641,7 @@ new #[Layout('layouts::public')] class extends Component {
                                         $zoneClass = $out ? 'border-l-transparent text-zinc-400' : ($index < $limit ? 'border-l-green-500' : 'border-l-red-500');
                                     @endphp
                                     <tr wire:key="leg-{{ $row['entry_id'] }}"
-                                        class="{{ $zoneClass }} border-b border-l-4 border-b-zinc-100 last:border-b-0 dark:border-b-zinc-700/50 {{ $row['team']->id == $this->myTeamId ? 'bg-amber-50 font-semibold dark:bg-amber-900/20' : '' }}">
+                                        class="{{ $zoneClass }} border-b border-l-4 border-b-zinc-100 last:border-b-0 dark:border-b-zinc-700/50 {{ $this->highlighted($row['team']->id) ? 'bg-amber-50 font-semibold dark:bg-amber-900/20' : '' }}">
                                         <td class="px-3 py-1.5 text-right tabular-nums">{{ $out ? '' : ($index + 1) . '.' }}</td>
                                         <td class="max-w-56 truncate px-3 py-1.5">
                                             <button type="button" wire:click="showTeam({{ $row['team']->id }})" class="truncate hover:text-lech-700 hover:underline dark:hover:text-lech-300">{{ $row['team']->name }}</button>
@@ -801,7 +835,7 @@ new #[Layout('layouts::public')] class extends Component {
                                     <div class="{{ $cupCell }}" style="{{ $cupCellStyle }}" wire:key="cup-cell-{{ $fixture->id }}">
                                         @include('partials.cup-fixture-card', [
                                             'fixture' => $fixture,
-                                            'mine' => $myId && in_array($myId, [$fixture->home?->season_team_id, $fixture->away?->season_team_id]),
+                                            'mine' => $this->highlighted($fixture->home?->season_team_id) || $this->highlighted($fixture->away?->season_team_id),
                                         ])
                                     </div>
                                 @endforeach
@@ -849,7 +883,7 @@ new #[Layout('layouts::public')] class extends Component {
                     <ul class="space-y-1.5">
                         @foreach ($this->matches as $fixture)
                             @php
-                                $mine = $this->myTeamId && in_array($this->myTeamId, [$fixture->home?->season_team_id, $fixture->away?->season_team_id]);
+                                $mine = $this->highlighted($fixture->home?->season_team_id) || $this->highlighted($fixture->away?->season_team_id);
                             @endphp
                             <li wire:key="fx-{{ $fixture->id }}" wire:click="showFixture({{ $fixture->id }})" title="{{ __('Match details') }}"
                                 class="-mx-2 grid cursor-pointer grid-cols-[1fr_auto_1fr] items-center gap-2 rounded-md px-2 py-0.5 text-sm transition hover:bg-zinc-100 dark:hover:bg-zinc-700/50 {{ $mine ? 'font-semibold' : '' }}">
