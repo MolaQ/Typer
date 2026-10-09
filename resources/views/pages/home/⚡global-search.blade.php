@@ -164,7 +164,7 @@ new class extends Component {
             ->map(fn (News $n) => [
                 'title' => $n->title,
                 'sub' => $n->published_at?->format('d.m.Y'),
-                'url' => route('home') . '#news-' . $n->id,
+                'url' => route('news.show', $n),
             ])
             ->all();
     }

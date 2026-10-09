@@ -12,7 +12,7 @@ new #[Layout('layouts::public')] class extends Component {
     }
 }; ?>
 
-<div class="mx-auto flex w-full max-w-5xl flex-col gap-6">
+<div class="mx-auto flex w-full max-w-6xl flex-col gap-6">
     <x-page-banner :title="__('Rules of the game')" :subtitle="__('LechTYPER in a nutshell.')" />
 
     <x-accordion anchor="rule" :items="\App\Support\Guide::rules()" />

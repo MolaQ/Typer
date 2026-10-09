@@ -60,7 +60,7 @@ new #[Layout('layouts::public')] class extends Component {
     }
 }; ?>
 
-<div class="mx-auto flex w-full max-w-5xl flex-col gap-6">
+<div class="mx-auto flex w-full max-w-6xl flex-col gap-6">
     @if ($this->season)
         @php
             $season = $this->season;
@@ -159,8 +159,6 @@ new #[Layout('layouts::public')] class extends Component {
         </div>
     @endif
 
-    {{-- Newsy z panelu z ocenami kciukami: połowa szerokości środkowej części, jeden pod drugim --}}
-    <div class="grid gap-6 lg:grid-cols-2">
-        <livewire:pages::home.news />
-    </div>
+    {{-- Newsy z panelu z ocenami kciukami: siatka 3 x 5 z paginacją --}}
+    <livewire:pages::home.news />
 </div>

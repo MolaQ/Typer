@@ -21,6 +21,7 @@ Route::livewire('support', 'pages::support')->name('support');
 Route::livewire('rules', 'pages::rules')->name('rules');
 Route::livewire('faq', 'pages::faq')->name('faq');
 Route::livewire('system', 'pages::system-feed')->name('system');
+Route::livewire('news/{news}', 'pages::news-show')->name('news.show');
 Route::post('payments/przelewy24/status', [Przelewy24Controller::class, 'status'])->name('przelewy24.status');
 
 // Panel: wejście tylko z uprawnieniem dashboard-access (Admin ma je zawsze)

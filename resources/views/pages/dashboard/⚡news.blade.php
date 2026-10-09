@@ -83,7 +83,7 @@ new class extends Component {
         Audit::log($this->editId ? 'news.updated' : 'news.created', null, $old, $news->only(['title', 'published_at']), $news->title);
 
         if ($firstPublish) {
-            SystemFeed::record('news', 'News: :title', ['title' => $news->title], 'home', [], auth()->id());
+            SystemFeed::record('news', 'News: :title', ['title' => $news->title], 'news.show', ['news' => $news->id], auth()->id());
         }
 
         Flux::modal('news-form')->close();

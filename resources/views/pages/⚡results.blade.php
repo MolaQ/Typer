@@ -267,7 +267,7 @@ new #[Layout('layouts::public')] class extends Component {
     }
 }; ?>
 
-<div class="mx-auto flex w-full max-w-5xl flex-col gap-6">
+<div class="mx-auto flex w-full max-w-6xl flex-col gap-6">
     <x-page-banner :title="__('Results and tables')" :subtitle="$this->season?->title" />
 
     @if (!$this->season || count($this->options) === 0)

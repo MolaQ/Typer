@@ -288,7 +288,7 @@ new #[Layout('layouts::public')] class extends Component {
         Flux::toast(variant: 'success', text: __('Tip saved.'));
     }
 }; ?>
-<div class="mx-auto flex w-full max-w-5xl flex-col gap-6">
+<div class="mx-auto flex w-full max-w-6xl flex-col gap-6">
     {{-- Baner jak na stronie głównej --}}
     <x-page-banner :eyebrow="$this->season?->title ?? 'LechTYPER'" title="LechTYPER"
         :subtitle="__('Tip the score of the Lech match and answer the bonus questions. You can change your tip until kickoff.')" />
