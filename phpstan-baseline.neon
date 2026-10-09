@@ -238,7 +238,7 @@ parameters:
 			message: '#^Method App\\Enums\\CompetitionType\:\:automatic\(\) return type has no value type specified in iterable type array\.$#'
 			identifier: missingType.iterableValue
 			count: 1
-			path: app/Enums/Competitiontype.php
+			path: app/Enums/CompetitionType.php
 
 		-
 			message: '#^Method App\\Enums\\Permission\:\:values\(\) return type has no value type specified in iterable type array\.$#'
@@ -574,73 +574,73 @@ parameters:
 			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$name\.$#'
 			identifier: property.notFound
 			count: 2
-			path: app/Models/Seasonteam.php
+			path: app/Models/SeasonTeam.php
 
 		-
 			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$team_name\.$#'
 			identifier: property.notFound
 			count: 1
-			path: app/Models/Seasonteam.php
+			path: app/Models/SeasonTeam.php
 
 		-
 			message: '#^Method App\\Models\\SeasonTeam\:\:bot\(\) return type with generic class Illuminate\\Database\\Eloquent\\Relations\\BelongsTo does not specify its types\: TRelatedModel, TDeclaringModel$#'
 			identifier: missingType.generics
 			count: 1
-			path: app/Models/Seasonteam.php
+			path: app/Models/SeasonTeam.php
 
 		-
 			message: '#^Method App\\Models\\SeasonTeam\:\:isBot\(\) return type with generic class Illuminate\\Database\\Eloquent\\Casts\\Attribute does not specify its types\: TGet, TSet$#'
 			identifier: missingType.generics
 			count: 1
-			path: app/Models/Seasonteam.php
+			path: app/Models/SeasonTeam.php
 
 		-
 			message: '#^Method App\\Models\\SeasonTeam\:\:league\(\) return type with generic class Illuminate\\Database\\Eloquent\\Casts\\Attribute does not specify its types\: TGet, TSet$#'
 			identifier: missingType.generics
 			count: 1
-			path: app/Models/Seasonteam.php
+			path: app/Models/SeasonTeam.php
 
 		-
 			message: '#^Method App\\Models\\SeasonTeam\:\:name\(\) return type with generic class Illuminate\\Database\\Eloquent\\Casts\\Attribute does not specify its types\: TGet, TSet$#'
 			identifier: missingType.generics
 			count: 1
-			path: app/Models/Seasonteam.php
+			path: app/Models/SeasonTeam.php
 
 		-
 			message: '#^Method App\\Models\\SeasonTeam\:\:scopeInLeague\(\) has parameter \$query with generic class Illuminate\\Database\\Eloquent\\Builder but does not specify its types\: TModel$#'
 			identifier: missingType.generics
 			count: 1
-			path: app/Models/Seasonteam.php
+			path: app/Models/SeasonTeam.php
 
 		-
 			message: '#^Method App\\Models\\SeasonTeam\:\:scopeInLeague\(\) return type with generic class Illuminate\\Database\\Eloquent\\Builder does not specify its types\: TModel$#'
 			identifier: missingType.generics
 			count: 1
-			path: app/Models/Seasonteam.php
+			path: app/Models/SeasonTeam.php
 
 		-
 			message: '#^Method App\\Models\\SeasonTeam\:\:season\(\) return type with generic class Illuminate\\Database\\Eloquent\\Relations\\BelongsTo does not specify its types\: TRelatedModel, TDeclaringModel$#'
 			identifier: missingType.generics
 			count: 1
-			path: app/Models/Seasonteam.php
+			path: app/Models/SeasonTeam.php
 
 		-
 			message: '#^Method App\\Models\\SeasonTeam\:\:user\(\) return type with generic class Illuminate\\Database\\Eloquent\\Relations\\BelongsTo does not specify its types\: TRelatedModel, TDeclaringModel$#'
 			identifier: missingType.generics
 			count: 1
-			path: app/Models/Seasonteam.php
+			path: app/Models/SeasonTeam.php
 
 		-
 			message: '#^Unable to resolve the template type T in call to static method Illuminate\\Database\\Eloquent\\Casts\\Attribute\<mixed,mixed\>\:\:get\(\)$#'
 			identifier: argument.templateType
 			count: 1
-			path: app/Models/Seasonteam.php
+			path: app/Models/SeasonTeam.php
 
 		-
 			message: '#^Using nullsafe property access "\?\-\>name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
 			identifier: nullsafe.neverNull
 			count: 1
-			path: app/Models/Seasonteam.php
+			path: app/Models/SeasonTeam.php
 
 		-
 			message: '#^Method App\\Models\\Sponsor\:\:competitions\(\) return type with generic class Illuminate\\Database\\Eloquent\\Relations\\HasMany does not specify its types\: TRelatedModel, TDeclaringModel$#'
