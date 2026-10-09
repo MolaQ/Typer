@@ -101,6 +101,8 @@ final class LegendsRanking
             ];
         });
 
+        // Kształt wierszy jak w PHPDoc; PHPStan widzi tylko węższe zakresy liczb (int<0, max>).
+        /** @phpstan-ignore return.type */
         return $rows->sort(function (array $a, array $b) {
             foreach (['points', 'exact', 'diff_hits', 'outcome_hits', 'hof'] as $key) {
                 if ($a[$key] !== $b[$key]) {
