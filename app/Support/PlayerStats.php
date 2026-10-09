@@ -98,7 +98,7 @@ final class PlayerStats
                     ? __('Knocked out in: :round', ['round' => CupBracket::roundName($entry->eliminated_round)])
                     : __('Still in the cup');
             } elseif ($competition->type === CompetitionType::Legends) {
-                $row['legends'] = self::legendsPath($competition, $entry, $tipPoints);
+                $row['legends'] = $competition instanceof Competition ? self::legendsPath($competition, $entry, $tipPoints) : [];
                 $last = end($row['legends']);
                 $row['points'] = $last ? $last['total'] : null;
                 $row['status'] = $entry->eliminated_round
