@@ -10,7 +10,7 @@
         ['entry' => $fixture->away, 'entry_id' => $fixture->away_entry_id, 'seat' => $fixture->away_seat, 'goals' => $fixture->away_goals],
     ];
 @endphp
-<button type="button" wire:key="cup-{{ $fixture->id }}{{ $mine ? '-mine' : '' }}" wire:click="showFixture({{ $fixture->id }})" title="{{ __('Match details') }}"
+<button type="button" wire:click="showFixture({{ $fixture->id }})" title="{{ __('Match details') }}"
     class="{{ $mine ? 'ring-2 ring-amber-400 dark:ring-amber-500' : '' }} group flex w-full flex-col overflow-hidden rounded-lg border border-zinc-200 bg-white text-left text-sm shadow-xs transition hover:-translate-y-px hover:shadow-md dark:border-zinc-700 dark:bg-zinc-900">
     @foreach ($sides as $side)
         @php

@@ -692,6 +692,9 @@ new #[Layout('layouts::public')] class extends Component {
                     $path = $this->cupPath;
                     $myId = $this->myTeamId;
                     $final = $round === $rounds ? $this->matches?->first() : null;
+                    // Cztery kolumny tej samej szerokości; półfinał (2 mecze) i finał (1) wyśrodkowane, karty nie rosną.
+                    $cupGrid = 'flex flex-wrap justify-center gap-2';
+                    $cupCell = 'w-full sm:w-[calc((100%-0.5rem)/2)] lg:w-[calc((100%-1.5rem)/4)]';
                     // Etykieta etapu w pasku: liczba zespołów, potem ćwierćfinał, półfinał i finał.
                     $stageLabel = fn (int $stage) => match ($stage) {
                         $rounds => __('Final'),
@@ -791,18 +794,22 @@ new #[Layout('layouts::public')] class extends Component {
                             {{-- Własny mecz przypięty nad drabinką --}}
                             @if (isset($path[$round]))
                                 <div class="text-xs font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-300">{{ __('Your match') }}</div>
-                                <div class="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-                                    @include('partials.cup-fixture-card', ['fixture' => $path[$round], 'mine' => true])
+                                <div class="{{ $cupGrid }}">
+                                    <div class="{{ $cupCell }}" wire:key="cup-cell-mine">
+                                        @include('partials.cup-fixture-card', ['fixture' => $path[$round], 'mine' => true])
+                                    </div>
                                 </div>
                                 <div class="text-xs font-semibold uppercase tracking-wide text-zinc-500">{{ __('All matches') }}</div>
                             @endif
 
-                            <div class="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                            <div class="{{ $cupGrid }}">
                                 @foreach ($this->matches as $fixture)
-                                    @include('partials.cup-fixture-card', [
-                                        'fixture' => $fixture,
-                                        'mine' => $myId && in_array($myId, [$fixture->home?->season_team_id, $fixture->away?->season_team_id]),
-                                    ])
+                                    <div class="{{ $cupCell }}" wire:key="cup-cell-{{ $fixture->id }}">
+                                        @include('partials.cup-fixture-card', [
+                                            'fixture' => $fixture,
+                                            'mine' => $myId && in_array($myId, [$fixture->home?->season_team_id, $fixture->away?->season_team_id]),
+                                        ])
+                                    </div>
                                 @endforeach
                             </div>
 

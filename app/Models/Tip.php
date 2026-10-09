@@ -20,6 +20,12 @@ class Tip extends Model
 {
     protected $fillable = ['matchday_id', 'user_id', 'lech_goals', 'opponent_goals', 'is_default', 'saved_at'];
 
+    /**
+     * Zapis dat z mikrosekundami: bez tego Eloquent obcina saved_at do pełnych sekund, a w pucharze remis
+     * rozstrzyga wcześniejszy zapis typu (regulamin, punkt 7.3), więc typy z tej samej sekundy wyglądałyby na równe.
+     */
+    protected $dateFormat = 'Y-m-d H:i:s.u';
+
     protected function casts(): array
     {
         return [

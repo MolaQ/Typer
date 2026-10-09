@@ -276,7 +276,7 @@
                                     <dd class="tabular-nums">{{ $side['goals'] ?? '—' }}</dd>
                                 </div>
                                 @if ($side['tipped_at'] && $this->isCup)
-                                    <div class="text-xs text-zinc-500">{{ __('Tip saved: :time', ['time' => $side['tipped_at']->translatedFormat('j F, H:i:s')]) }}</div>
+                                    <div class="text-xs text-zinc-500">{{ __('Tip saved: :time', ['time' => $side['tipped_at']->translatedFormat('j F, H:i:s.v')]) }}</div>
                                 @endif
                             </dl>
                         @else
