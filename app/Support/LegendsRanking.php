@@ -74,6 +74,9 @@ final class LegendsRanking
         $season = $competition->season;
 
         $rows = $entries->map(function ($entry) use ($scores, $last, $season) {
+            /** @var CompetitionEntry $entry */
+            /** @var SeasonTeam $team */
+            $team = $entry->seasonTeam;
             $own = $scores->get($entry->season_team_id, collect());
             $lastScore = $own->firstWhere('matchday_id', $last);
 
@@ -81,8 +84,8 @@ final class LegendsRanking
             $bonusPoints = (int) $own->sum(fn (TeamScore $s) => self::bonusPoints($s->offense_bonus) + self::bonusPoints($s->defense_bonus));
 
             return [
-                'entry_id' => $entry->id,
-                'team' => $entry->seasonTeam,
+                'entry_id' => (int) $entry->getKey(),
+                'team' => $team,
                 'eliminated_round' => $entry->eliminated_round,
                 'points' => $points,
                 'last_points' => $lastScore ? self::matchdayPoints($lastScore) : null,
@@ -93,7 +96,7 @@ final class LegendsRanking
                 'exact' => $own->where('exact_hit', true)->count(),
                 'diff_hits' => $own->where('diff_hit', true)->count(),
                 'outcome_hits' => $own->where('outcome_hit', true)->count(),
-                'hof' => $season ? HallOfFame::teamPointsBefore($season, $entry->seasonTeam?->user_id, $entry->seasonTeam?->bot_id) : 0.0,
+                'hof' => $season ? HallOfFame::teamPointsBefore($season, $team->user_id, $team->bot_id) : 0.0,
                 'tipped_at' => $lastScore?->tipped_at?->format('Y-m-d H:i:s.u'),
             ];
         });

@@ -238,7 +238,7 @@ class AwardHallOfFame
         foreach ($entries as $entry) {
             $team = $entry->seasonTeam;
 
-            if (! $team) {
+            if (! $team instanceof SeasonTeam) {
                 continue;
             }
 
