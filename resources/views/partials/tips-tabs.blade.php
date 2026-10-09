@@ -95,7 +95,7 @@
             @if (isset($row['legends']))
                 {{-- Liga Legend: miejsce po każdej kolejce, punkty Legend z kolejki i suma z tabeli --}}
                 @if (count($row['legends']) > 0)
-                    <div class="grid grid-cols-2 gap-2 p-4 sm:grid-cols-3 lg:grid-cols-4">
+                    <div class="grid grid-cols-2 gap-2 p-4 sm:grid-cols-3">
                         @foreach ($row['legends'] as $stage)
                             <a href="{{ route('results', ['season_slug' => 'sezon-' . $this->season?->number, 'competition_slug' => 'liga-legend', 'round_slug' => 'kolejka-' . $stage['round']]) }}" wire:navigate
                                 class="{{ $stage['tip_points'] !== null ? $tipClasses[$stage['tip_points']] : 'border-zinc-200 dark:border-zinc-700' }} block space-y-1 rounded-xl border p-2.5 text-sm transition hover:shadow-md"
@@ -121,6 +121,14 @@
                                 @endif
                             </a>
                         @endforeach
+                        @if ($row['eliminated_round'])
+                            {{-- Kafelek końca przygody: zespół odpadł z tych rozgrywek --}}
+                            <div class="flex flex-col items-center justify-center gap-1 rounded-xl border border-red-300 bg-red-50 p-2.5 text-center text-sm dark:border-red-500/40 dark:bg-red-500/10">
+                                <flux:icon.x-circle class="size-6 text-red-500" />
+                                <div class="font-semibold text-red-700 dark:text-red-300">{{ __('Out of the competition') }}</div>
+                                <div class="text-xs text-zinc-500">{{ __('After matchday :number', ['number' => $row['eliminated_round']]) }}</div>
+                            </div>
+                        @endif
                     </div>
                 @else
                     <div class="px-4 py-3">
@@ -128,7 +136,7 @@
                     </div>
                 @endif
             @elseif (count($row['matches']) > 0)
-                <div class="grid grid-cols-2 gap-2 p-4 sm:grid-cols-3 lg:grid-cols-4">
+                <div class="grid grid-cols-2 gap-2 p-4 sm:grid-cols-3">
                     @foreach ($row['matches'] as $match)
                         <div class="{{ $match['tip_points'] !== null ? $tipClasses[$match['tip_points']] : 'border-zinc-200 dark:border-zinc-700' }} space-y-1 rounded-xl border p-2.5 text-sm"
                             wire:key="cm-{{ $loop->parent->index }}-{{ $match['round'] }}">
@@ -147,6 +155,14 @@
                             </div>
                         </div>
                     @endforeach
+                    @if ($row['eliminated_round'])
+                        {{-- Kafelek końca przygody: zespół odpadł z tych rozgrywek --}}
+                        <div class="flex flex-col items-center justify-center gap-1 rounded-xl border border-red-300 bg-red-50 p-2.5 text-center text-sm dark:border-red-500/40 dark:bg-red-500/10">
+                            <flux:icon.x-circle class="size-6 text-red-500" />
+                            <div class="font-semibold text-red-700 dark:text-red-300">{{ __('Out of the competition') }}</div>
+                            <div class="text-xs text-zinc-500">{{ $row['type'] === \App\Enums\CompetitionType::Cup ? \App\Support\CupBracket::roundName($row['eliminated_round']) : __('After matchday :number', ['number' => $row['eliminated_round']]) }}</div>
+                        </div>
+                    @endif
                 </div>
             @else
                 <div class="px-4 py-3">

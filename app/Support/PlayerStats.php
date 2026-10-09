@@ -91,6 +91,8 @@ final class PlayerStats
                 'played' => 0, 'won' => 0, 'drawn' => 0, 'lost' => 0,
                 'points' => null,
                 'matches' => self::entryMatches($entry, $team, $tipPoints),
+                // Puchar i Liga Legend: kolejka/runda, w której zespół odpadł (kafelek „odpadł z rozgrywek”).
+                'eliminated_round' => $entry->eliminated_round,
             ];
 
             if ($competition->type === CompetitionType::Cup) {

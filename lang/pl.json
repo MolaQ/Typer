@@ -1212,5 +1212,7 @@
     "Legend points": "punkty Legend",
     "of :count": "z :count",
     "Top :limit go through": "Dalej przechodzi :limit najlepszych",
-    "No matchday settled yet.": "Żadna kolejka nie jest jeszcze rozliczona."
+    "No matchday settled yet.": "Żadna kolejka nie jest jeszcze rozliczona.",
+    "Out of the competition": "Odpadnięcie z rozgrywek",
+    "After matchday :number": "Po kolejce :number"
 }
