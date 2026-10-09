@@ -42,7 +42,6 @@ new #[Layout('layouts::public')] class extends Component {
 
     /** Zespół (season_teams.id) i mecz pokazywane w oknach. */
     public ?int $teamId = null;
-    public ?int $fixtureId = null;
 
     /**
      * Przyjazny adres: /results/sezon-2/ekstraklasa/kolejka-9. Stare adresy z parametrami (?c=league-1&round=9&s=2,
@@ -185,7 +184,6 @@ new #[Layout('layouts::public')] class extends Component {
 
         $this->seasonNumber = $target;
         $this->teamId = null;
-        $this->fixtureId = null;
 
         unset($this->season, $this->options, $this->competition, $this->isCup, $this->hasTable, $this->table,
             $this->isLegends, $this->legends, $this->legendsHistory, $this->cupPath, $this->cupPlayed, $this->matchday, $this->matches, $this->myTeamId);
@@ -363,15 +361,14 @@ new #[Layout('layouts::public')] class extends Component {
     {
         $this->teamId = $id;
         unset($this->teamCard);
-        Flux::modal('fixture-details')->close();
+        Flux::modal('duel-details')->close();
         Flux::modal('team-details')->show();
     }
 
+    /** Szczegóły pojedynku w uniwersalnym oknie (pages::home.duel-modal w layoucie publicznym). */
     public function showFixture(int $id): void
     {
-        $this->fixtureId = $id;
-        unset($this->fixtureCard);
-        Flux::modal('fixture-details')->show();
+        $this->dispatch('show-duel', id: $id);
     }
 
     /** Statystyki zespołu w sezonie; część tylko dla premium (oglądającego). */
@@ -404,25 +401,6 @@ new #[Layout('layouts::public')] class extends Component {
             'favourite' => $premium && $team->user ? PlayerStats::favourites($team->user)['mine'] : null,
             'h2h' => $premium && $team->user_id !== $viewer?->id ? Rivals::headToHead($viewer, $team) : null,
         ];
-    }
-
-    /** Szczegóły meczu wybranej rundy (App\Support\Rivals::fixture). */
-    #[Computed]
-    public function fixtureCard(): ?array
-    {
-        if (!$this->fixtureId || !$this->competition) {
-            return null;
-        }
-
-        $fixture = Fixture::where('competition_id', $this->competition->id)->find($this->fixtureId);
-
-        if (!$fixture) {
-            return null;
-        }
-
-        $matchday = Matchday::where('season_id', $this->season->id)->where('number', $fixture->round)->first();
-
-        return Rivals::fixture($fixture, $matchday, auth()->user()) + ['round' => $fixture->round, 'matchday' => $matchday];
     }
 
     /* ==================================================================

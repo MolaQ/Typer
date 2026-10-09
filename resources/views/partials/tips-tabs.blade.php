@@ -138,7 +138,9 @@
             @elseif (count($row['matches']) > 0)
                 <div class="grid grid-cols-2 gap-2 p-4 sm:grid-cols-3">
                     @foreach ($row['matches'] as $match)
-                        <div class="{{ $match['tip_points'] !== null ? $tipClasses[$match['tip_points']] : 'border-zinc-200 dark:border-zinc-700' }} space-y-1 rounded-xl border p-2.5 text-sm"
+                        {{-- Kliknięcie otwiera uniwersalne okno pojedynku (pages::home.duel-modal) --}}
+                        <button type="button" wire:click="$dispatch('show-duel', { id: {{ $match['fixture_id'] }} })" title="{{ __('Match details') }}"
+                            class="{{ $match['tip_points'] !== null ? $tipClasses[$match['tip_points']] : 'border-zinc-200 dark:border-zinc-700' }} block w-full space-y-1 rounded-xl border p-2.5 text-left text-sm transition hover:shadow-md"
                             wire:key="cm-{{ $loop->parent->index }}-{{ $match['round'] }}">
                             <div class="flex items-center justify-between gap-2 text-xs text-zinc-500">
                                 <span>{{ $row['type'] === \App\Enums\CompetitionType::Cup ? \App\Support\CupBracket::roundName($match['round']) : __('Matchday :number', ['number' => $match['round']]) }}</span>
@@ -153,7 +155,7 @@
                                 @endif
                                 <span class="font-semibold tabular-nums">{{ $match['score'] ?? '–' }}</span>
                             </div>
-                        </div>
+                        </button>
                     @endforeach
                     @if ($row['eliminated_round'])
                         {{-- Kafelek końca przygody: zespół odpadł z tych rozgrywek --}}

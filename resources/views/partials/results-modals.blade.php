@@ -155,13 +155,3 @@
     @endif
 </flux:modal>
 
-<flux:modal name="fixture-details" class="w-full max-w-2xl">
-    @if ($card = $this->fixtureCard)
-        @include('partials.duel-card', [
-            'card' => $card,
-            'competitionName' => $this->competition?->name,
-            'roundLabel' => $this->isCup ? \App\Support\CupBracket::roundName($card['round']) : __('Matchday :number', ['number' => $card['round']]),
-            'isCup' => $this->isCup,
-        ])
-    @endif
-</flux:modal>

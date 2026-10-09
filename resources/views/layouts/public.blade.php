@@ -45,6 +45,9 @@
         <x-public.right-panel />
     </flux:modal>
 
+    {{-- Uniwersalne okno pojedynku (zdarzenie „show-duel”) dostępne na każdej stronie publicznej --}}
+    <livewire:pages::home.duel-modal />
+
     @fluxScripts
 </body>
 

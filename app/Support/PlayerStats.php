@@ -167,7 +167,7 @@ final class PlayerStats
      * i punkty za typ w tej kolejce (null: bez typu albo przed wynikami).
      *
      * @param  array<int, ?int>  $tipPoints  numer kolejki => punkty za typ
-     * @return array<int, array{round: int, rival: string, score: ?string, outcome: ?string, tip_points: ?int, played: bool}>
+     * @return array<int, array{fixture_id: int, round: int, rival: string, score: ?string, outcome: ?string, tip_points: ?int, played: bool}>
      */
     private static function entryMatches(CompetitionEntry $entry, SeasonTeam $team, array $tipPoints): array
     {
@@ -185,6 +185,7 @@ final class PlayerStats
             [$outcome, $for, $against] = $played ? self::result($fixture, $entry->id, $home) : [null, null, null];
 
             $out[] = [
+                'fixture_id' => (int) $fixture->id,
                 'round' => (int) $fixture->round,
                 'rival' => $rival?->seasonTeam?->name ?? Fixture::VIRTUAL_OPPONENT,
                 'score' => $played ? $for.':'.$against.($fixture->decided_by_time ? ' '.__('(pen.)') : '') : null,
