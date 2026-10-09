@@ -576,7 +576,7 @@ new #[Layout('layouts::public')] class extends Component {
                                     ? 'lech-bar font-semibold'
                                     : ($stage < $round ? 'bg-lech-100 text-lech-800 hover:bg-lech-200 dark:bg-lech-900/40 dark:text-lech-200' : 'bg-zinc-100 text-zinc-500 hover:bg-zinc-200 dark:bg-zinc-800');
                             @endphp
-                            <a href="{{ $this->pageUrl($stage) }}" wire:navigate title="{{ __('Matchday :number', ['number' => $stage]) }}"
+                            <a href="{{ $this->pageUrl($stage) }}" wire:navigate title="{{ __('Matchday :number', ['number' => $stage]) }}: {{ \App\Enums\KnockoutStage::labelFor($stage) }}"
                                 class="{{ $stageClass }} rounded-full px-2.5 py-1 tabular-nums transition">
                                 {{ $stage < $rounds ? \App\Support\LegendsRanking::limitAfter($stage - 1) : __('Final') }}
                             </a>

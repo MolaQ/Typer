@@ -1230,7 +1230,7 @@
     "Everyone sees whether a tip is in and how many questions were answered (blue stars). Premium also sees the outcome of the tip and which questions were answered.": "Każdy widzi, czy typ jest oddany i na ile pytań padły odpowiedzi (niebieskie gwiazdki). Premium widzi też rozstrzygnięcie typu i na które pytania padły odpowiedzi.",
     "Everyone sees the outcome of the tip and which questions were answered. Premium also sees the exact tip, when it was saved and the answers: green yes, red no.": "Każdy widzi rozstrzygnięcie typu i na które pytania padły odpowiedzi. Premium widzi też dokładny typ, czas jego zapisu i odpowiedzi: zielona tak, czerwona nie.",
     "Full settlement: tip, points for the tip and bonuses. Stars: green correct, red wrong, grey no answer.": "Pełne rozliczenie: typ, punkty za typ i bonusy. Gwiazdki: zielona trafiona, czerwona błędna, szara bez odpowiedzi.",
-    "Semi-final – :count teams": "Półfinał – :count zespoły",
-    "Quarter-final – :count teams": "Ćwierćfinał – :count zespołów",
-    "Team eliminated": "Drużyna wyeliminowana"
+    "Team eliminated": "Drużyna wyeliminowana",
+    "First qualifying round": "I runda eliminacji",
+    "Second qualifying round": "II runda eliminacji"
 }

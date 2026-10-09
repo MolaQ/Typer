@@ -101,7 +101,7 @@
                                 class="{{ $stage['tip_points'] !== null ? $tipClasses[$stage['tip_points']] : 'border-zinc-200 dark:border-zinc-700' }} block space-y-1 rounded-xl border p-2.5 text-sm transition hover:shadow-md"
                                 wire:key="lg-{{ $stage['round'] }}">
                                 <div class="flex items-center justify-between gap-2 text-xs text-zinc-500">
-                                    <span>{{ __('Matchday :number', ['number' => $stage['round']]) }}</span>
+                                    <span>{{ \App\Enums\KnockoutStage::labelFor($stage['round']) }}</span>
                                     @if ($stage['points'] !== null)
                                         <span class="font-semibold">+{{ $stage['points'] }}</span>
                                     @endif
@@ -125,7 +125,7 @@
                             {{-- Szare kafelki rund, których zespół już nie zagra, bo odpadł z rozgrywek --}}
                             @foreach (range($row['eliminated_round'] + 1, \App\Support\LegendsRanking::ROUNDS) as $round)
                                 <div class="block w-full space-y-1 rounded-xl border border-zinc-500 bg-zinc-100 p-2.5 text-sm dark:border-zinc-500 dark:bg-zinc-800" wire:key="out-{{ $loop->parent->index }}-{{ $round }}">
-                                    <div class="text-xs text-zinc-500">{{ __('Matchday :number', ['number' => $round]) }}</div>
+                                    <div class="text-xs text-zinc-500">{{ \App\Enums\KnockoutStage::labelFor($round) }}</div>
                                     <div class="flex items-center justify-center gap-1.5 text-zinc-600 dark:text-zinc-300">
                                         <flux:icon.x-circle class="size-5 shrink-0" />
                                         <span class="truncate font-medium">{{ __('Team eliminated') }}</span>
@@ -168,7 +168,7 @@
                         {{-- Szare kafelki rund, których zespół już nie zagra, bo odpadł z rozgrywek --}}
                         @foreach (range($row['eliminated_round'] + 1, ($row['type'] === \App\Enums\CompetitionType::Cup ? \App\Support\CupBracket::ROUNDS : \App\Support\LegendsRanking::ROUNDS)) as $round)
                             <div class="block w-full space-y-1 rounded-xl border border-zinc-500 bg-zinc-100 p-2.5 text-sm dark:border-zinc-500 dark:bg-zinc-800" wire:key="out-{{ $loop->parent->index }}-{{ $round }}">
-                                <div class="text-xs text-zinc-500">{{ $row['type'] === \App\Enums\CompetitionType::Cup ? \App\Support\CupBracket::stageLabel($round) : __('Matchday :number', ['number' => $round]) }}</div>
+                                <div class="text-xs text-zinc-500">{{ \App\Enums\KnockoutStage::labelFor($round) }}</div>
                                 <div class="flex items-center justify-center gap-1.5 text-zinc-600 dark:text-zinc-300">
                                     <flux:icon.x-circle class="size-5 shrink-0" />
                                     <span class="truncate font-medium">{{ __('Team eliminated') }}</span>
