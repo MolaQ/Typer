@@ -598,17 +598,56 @@ new #[Layout('layouts::public')] class extends Component {
             <flux:text>{{ __('There is no season to show yet.') }}</flux:text>
         </flux:card>
     @else
-        {{-- Wybór rozgrywek: przyciski w barwach rozgrywek (CompetitionColors), aktywne wyróżnione. Kolejka i sezon zostają. --}}
-        <nav class="grid gap-2" style="grid-template-columns: repeat(auto-fill, minmax(min(100%, 9.5rem), 1fr));" aria-label="{{ __('Competition') }}">
-            @foreach ($this->options as $optionKey => $optionName)
-                @php
-                    $optionColor = $this->optionColors[$optionKey] ?? 'league_1';
-                    $optionActive = $optionKey === $this->key;
-                @endphp
+        {{--
+            Wybór rozgrywek: jeden wąski pasek w kolorach strony. Ligi (Ekstraklasa … podwórkowa) zwinięte w menu,
+            pozostałe rozgrywki jako zakładki. Barwa rozgrywek (CompetitionColors) tylko jako mała kropka.
+            Zmiana rozgrywek zostawia kolejkę i sezon.
+        --}}
+        @php
+            $leagueOptions = [];
+            $otherOptions = [];
+            foreach ($this->options as $optionKey => $optionName) {
+                $optionColor = $this->optionColors[$optionKey] ?? 'league_1';
+                if (str_starts_with($optionColor, 'league_')) {
+                    $leagueOptions[$optionKey] = [$optionName, $optionColor];
+                } else {
+                    $otherOptions[$optionKey] = [$optionName, $optionColor];
+                }
+            }
+            $leagueActive = array_key_exists($this->key, $leagueOptions);
+            $pill = 'inline-flex shrink-0 items-center gap-2 rounded-full px-3.5 py-1.5 text-sm font-semibold transition';
+            $pillOff = 'text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800 dark:hover:text-white';
+        @endphp
+        <nav class="-mt-2 flex flex-wrap items-center gap-1 rounded-3xl border border-zinc-200 bg-white p-1 shadow-sm dark:border-zinc-700 dark:bg-zinc-900" aria-label="{{ __('Competition') }}">
+            @if (count($leagueOptions) > 0)
+                <flux:dropdown position="bottom" align="start">
+                    <button type="button" class="{{ $pill }} {{ $leagueActive ? 'lech-bar' : $pillOff }}">
+                        @if ($leagueActive)
+                            <span class="size-2.5 rounded-full ring-1 ring-white/40" style="background: {{ \App\Support\CompetitionColors::for($leagueOptions[$this->key][1])['bg2'] }}"></span>
+                            {{ $leagueOptions[$this->key][0] }}
+                        @else
+                            {{ __('Leagues') }}
+                        @endif
+                        <flux:icon.chevron-down variant="micro" />
+                    </button>
+                    <flux:menu>
+                        @foreach ($leagueOptions as $optionKey => [$optionName, $optionColor])
+                            <flux:menu.item wire:click="$set('key', '{{ $optionKey }}')" wire:key="lg-opt-{{ $optionKey }}">
+                                <span class="flex items-center gap-2">
+                                    <span class="size-2.5 rounded-full" style="background: {{ \App\Support\CompetitionColors::for($optionColor)['bg2'] }}"></span>
+                                    <span class="{{ $optionKey === $this->key ? 'font-bold' : '' }}">{{ $optionName }}</span>
+                                </span>
+                            </flux:menu.item>
+                        @endforeach
+                    </flux:menu>
+                </flux:dropdown>
+                <span class="mx-1 h-5 w-px shrink-0 bg-zinc-200 dark:bg-zinc-700"></span>
+            @endif
+            @foreach ($otherOptions as $optionKey => [$optionName, $optionColor])
                 <button type="button" wire:click="$set('key', '{{ $optionKey }}')" wire:key="opt-{{ $optionKey }}"
-                    style="{{ \App\Support\CompetitionColors::style($optionColor) }}"
-                    class="comp-chip {{ \App\Support\CompetitionColors::dashed($optionColor) ? 'comp-dashed' : '' }} {{ $optionActive ? 'ring-2 ring-offset-2 ring-lech-600 dark:ring-lech-300 dark:ring-offset-zinc-900' : 'opacity-80 hover:opacity-100' }} truncate rounded-lg px-3 py-2 text-center text-sm font-bold transition"
-                    @if ($optionActive) aria-current="true" @endif>
+                    class="{{ $pill }} {{ $optionKey === $this->key ? 'lech-bar' : $pillOff }}"
+                    @if ($optionKey === $this->key) aria-current="true" @endif>
+                    <span class="size-2.5 rounded-full" style="background: {{ \App\Support\CompetitionColors::for($optionColor)['bg2'] }}"></span>
                     {{ $optionName }}
                 </button>
             @endforeach
