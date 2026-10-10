@@ -7,6 +7,7 @@ use App\Enums\League;
 use App\Models\Competition;
 use App\Models\Fixture;
 use App\Models\Matchday;
+use App\Models\SeasonTeam;
 use App\Models\TeamScore;
 use Illuminate\Support\Collection;
 
@@ -20,7 +21,7 @@ use Illuminate\Support\Collection;
 final class Standings
 {
     /**
-     * @return Collection<int, array{entry_id: int, team: \App\Models\SeasonTeam, played: int, won: int, drawn: int, lost: int, for: int, against: int, diff: int, points: int, exact: int, diff_hits: int, outcome_hits: int, bonus: int, hof: int}>
+     * @return Collection<int, array{entry_id: int, team: SeasonTeam, played: int, won: int, drawn: int, lost: int, for: int, against: int, diff: int, points: int, exact: int, diff_hits: int, outcome_hits: int, bonus: int, hof: int}>
      */
     public static function for(Competition $competition): Collection
     {
@@ -52,7 +53,7 @@ final class Standings
             ->whereIn('season_team_id', $teamOfEntry->values())
             ->where('question_set', $competition->type->questionSet()->value)
             ->get()
-            ->groupBy(fn($s) => $s->matchday_id . '-' . $s->season_team_id);
+            ->groupBy(fn ($s) => $s->matchday_id.'-'.$s->season_team_id);
 
         foreach ($fixtures as $fixture) {
             $sides = [[$fixture->home_entry_id, $fixture->home_goals, $fixture->away_goals]];
@@ -62,7 +63,7 @@ final class Standings
             }
 
             foreach ($sides as [$entryId, $for, $against]) {
-                if (!isset($rows[$entryId])) {
+                if (! isset($rows[$entryId])) {
                     continue;
                 }
 
@@ -73,7 +74,7 @@ final class Standings
                 $row['points'] += Scoring::matchPoints($for, $against);
                 $row[$for > $against ? 'won' : ($for === $against ? 'drawn' : 'lost')]++;
 
-                $score = $scores->get(($matchdayIds[$fixture->round] ?? 0) . '-' . $teamOfEntry[$entryId])?->first();
+                $score = $scores->get(($matchdayIds[$fixture->round] ?? 0).'-'.$teamOfEntry[$entryId])?->first();
                 if ($score) {
                     $row['exact'] += (int) $score->exact_hit;
                     $row['diff_hits'] += (int) $score->diff_hit;
@@ -100,7 +101,7 @@ final class Standings
     {
         $tier = $competition->type === CompetitionType::Swiss ? League::Podworkowa->value : $competition->tier;
 
-        if (!in_array($competition->type, [CompetitionType::League, CompetitionType::Swiss], true) || $tier === null) {
+        if (! in_array($competition->type, [CompetitionType::League, CompetitionType::Swiss], true) || $tier === null) {
             return null;
         }
 

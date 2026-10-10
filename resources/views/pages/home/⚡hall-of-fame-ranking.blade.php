@@ -80,7 +80,8 @@ new class extends Component {
             ->whereNotNull('trophy')
             ->get(['user_id', 'trophy'])
             ->groupBy('user_id')
-            ->map(fn($rows) => $rows->countBy('trophy')->all())
+            // Ikony w kolejności ważności trofeów (HallOfFame::trophies()).
+            ->map(fn($rows) => $rows->countBy('trophy')->sortBy(fn($count, $key) => HallOfFame::trophyRank($key))->all())
             ->all();
     }
 

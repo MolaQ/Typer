@@ -23,16 +23,29 @@
     --color-zinc-900: #171717;
     --color-zinc-950: #0a0a0a;
 
-    --color-accent: var(--color-neutral-800);
-    --color-accent-content: var(--color-neutral-800);
+    /* Barwy LechTYPER: niebieski Kolejorza, biały, szary i czarny. */
+    --color-lech-50: #eef4ff;
+    --color-lech-100: #dbe7ff;
+    --color-lech-200: #b9cfff;
+    --color-lech-300: #86adff;
+    --color-lech-400: #4d82f5;
+    --color-lech-500: #2563eb;
+    --color-lech-600: #1d4ed8;
+    --color-lech-700: #1740b0;
+    --color-lech-800: #12348d;
+    --color-lech-900: #0b1f4d;
+    --color-lech-950: #061331;
+
+    --color-accent: var(--color-lech-700);
+    --color-accent-content: var(--color-lech-700);
     --color-accent-foreground: var(--color-white);
 }
 
 @layer theme {
     .dark {
-        --color-accent: var(--color-white);
-        --color-accent-content: var(--color-white);
-        --color-accent-foreground: var(--color-neutral-800);
+        --color-accent: var(--color-lech-400);
+        --color-accent-content: var(--color-lech-300);
+        --color-accent-foreground: var(--color-white);
     }
 }
 
@@ -45,6 +58,25 @@
     ::file-selector-button {
         border-color: var(--color-gray-200, currentColor);
     }
+}
+
+/* Banery LechTYPER: zawsze gradient z niebieskiego do granatowego (jak sidebar i belki) z delikatnym cieniem. */
+@utility lech-banner {
+    /* Ten sam gradient co lewy sidebar (lech-900 -> lech-950 -> czarny). */
+    background-image: linear-gradient(to bottom right, var(--color-lech-900) 0%, var(--color-lech-950) 55%, var(--color-black) 100%);
+    color: var(--color-white);
+    box-shadow: 0 14px 28px -14px rgb(6 19 49 / 0.55);
+}
+
+/* Delikatny cień pod belkami (nagłówek, pasek informacji). */
+/* Belka tytułowa karty: gradient sidebara, biały tekst. */
+@utility lech-bar {
+    background-image: linear-gradient(to right, var(--color-lech-900) 0%, var(--color-lech-950) 60%, var(--color-black) 100%);
+    color: var(--color-white);
+}
+
+@utility lech-bar-shadow {
+    box-shadow: 0 6px 18px -10px rgb(6 19 49 / 0.45);
 }
 
 [data-flux-field]:not(ui-radio, ui-checkbox) {
@@ -64,3 +96,39 @@ select:focus[data-flux-control] {
 /* \[:where(&)\]:size-4 {
     @apply size-4;
 } */
+
+/*
+ * Barwy rozgrywek (App\Support\CompetitionColors): element dostaje zmienne --c-bg1, --c-bg2, --c-accent, --c-ink
+ * przez style="{{ CompetitionColors::style($key) }}". Baner, odznaka (koło z obwódką akcentu) i plakietka.
+ */
+.comp-banner {
+    position: relative;
+    overflow: hidden;
+    border: 3px solid var(--c-accent);
+    background-image: linear-gradient(120deg, var(--c-bg1), var(--c-bg2));
+    color: var(--c-ink);
+    box-shadow: 0 14px 28px -14px rgb(6 19 49 / 0.55);
+}
+.comp-banner::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: radial-gradient(120% 90% at 100% 0%, color-mix(in srgb, var(--c-accent) 22%, transparent), transparent 60%);
+}
+.comp-badge {
+    border: 3px solid var(--c-accent);
+    background-image: linear-gradient(140deg, var(--c-bg2), var(--c-bg1));
+    color: var(--c-accent);
+}
+.comp-chip {
+    border: 1.5px solid var(--c-accent);
+    background-image: linear-gradient(120deg, var(--c-bg1), var(--c-bg2));
+    color: var(--c-accent);
+}
+.comp-accent {
+    color: var(--c-accent);
+}
+.comp-dashed {
+    border-style: dashed;
+}

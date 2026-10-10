@@ -41,6 +41,9 @@ enum Permission: string
     case SeasonEdit = 'season-edit';
     case SeasonDelete = 'season-delete';
 
+    // Pisanie newsów na stronę główną
+    case NewsCreate = 'news-create';
+
     /** Wszystkie wartości jako tablica tekstów, np. do seedera. */
     public static function values(): array
     {

@@ -49,7 +49,8 @@ new class extends Component {
     #[Computed]
     public function finishedSeasons()
     {
-        return Season::where('status', SeasonStatus::Finished->value)->orderBy('number')->get();
+        // Także sezon w trakcie: Hall of Fame liczy punkty za mecze na bieżąco.
+        return Season::whereIn('status', [SeasonStatus::Active->value, SeasonStatus::Finished->value])->orderBy('number')->get();
     }
 
     public function saveValues(): void
@@ -82,7 +83,7 @@ new class extends Component {
         $changed = array_keys(array_filter($after, fn($v, $k) => ($before[$k] ?? null) !== $v, ARRAY_FILTER_USE_BOTH));
         Audit::log('hall_of_fame.settings', null, array_intersect_key($before, array_flip($changed)), array_intersect_key($after, array_flip($changed)), __('Hall of Fame'));
 
-        Flux::toast(variant: 'success', text: __('Point values saved. Recalculate the finished seasons to apply them.'));
+        Flux::toast(variant: 'success', text: __('Point values saved. Recalculate the seasons to apply them.'));
     }
 
     public function resetValues(): void
@@ -193,7 +194,7 @@ new class extends Component {
             @can(\App\Enums\Permission::SeasonEdit->value)
                 <flux:modal.trigger name="confirm-recalculate">
                     <flux:button icon="arrow-path">
-                        {{ __('Recalculate finished seasons') }} ({{ $this->finishedSeasons->count() }})
+                        {{ __('Recalculate seasons') }} ({{ $this->finishedSeasons->count() }})
                     </flux:button>
                 </flux:modal.trigger>
             @endcan
@@ -212,7 +213,7 @@ new class extends Component {
                 <flux:heading>{{ $group }}</flux:heading>
                 <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                     @foreach ($fields as $key => $label)
-                        <flux:input type="number" step="0.5" min="0" wire:model="values.{{ $key }}" :label="$label"
+                        <flux:input type="number" step="0.1" min="0" wire:model="values.{{ $key }}" :label="$label"
                             wire:key="value-{{ $key }}" />
                     @endforeach
                 </div>
@@ -263,8 +264,8 @@ new class extends Component {
 
     <flux:modal name="confirm-recalculate" class="w-full md:w-[28rem]">
         <div class="space-y-4">
-            <flux:heading size="lg">{{ __('Recalculate finished seasons') }}</flux:heading>
-            <flux:text>{{ __('Recalculate Hall of Fame for all finished seasons?') }}</flux:text>
+            <flux:heading size="lg">{{ __('Recalculate seasons') }}</flux:heading>
+            <flux:text>{{ __('Recalculate Hall of Fame for all finished seasons and the current one?') }}</flux:text>
             <div class="flex justify-end gap-2">
                 <flux:modal.close>
                     <flux:button variant="ghost">{{ __('Cancel') }}</flux:button>

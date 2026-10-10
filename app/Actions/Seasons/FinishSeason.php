@@ -9,6 +9,7 @@ use App\Enums\SeasonStatus;
 use App\Models\Competition;
 use App\Models\FinalStanding;
 use App\Models\Fixture;
+use App\Models\HallOfFameAward;
 use App\Models\Matchday;
 use App\Models\Season;
 use App\Models\SeasonTeam;
@@ -16,9 +17,11 @@ use App\Models\Tip;
 use App\Models\User;
 use App\Support\Audit;
 use App\Support\CupBracket;
+use App\Support\HallOfFame;
 use App\Support\LegendsRanking;
 use App\Support\Roster;
 use App\Support\Standings;
+use App\Support\SystemFeed;
 use DomainException;
 use Illuminate\Support\Facades\DB;
 use Spatie\Permission\Models\Role;
@@ -62,7 +65,7 @@ class FinishSeason
                 null,
                 ['status' => SeasonStatus::Active->label()],
                 ['status' => SeasonStatus::Finished->label(), 'inactive' => count($inactive)],
-                $season->title . ($note ? ' (' . $note . ')' : ''),
+                $season->title.($note ? ' ('.$note.')' : ''),
             );
 
             return ['standings' => $standings, 'inactive' => $inactive];
@@ -79,7 +82,42 @@ class FinishSeason
             Audit::log('roles.updated', $user, ['roles' => RoleName::User->value], ['roles' => RoleName::Inactive->value], __('No tips in :count matchdays in a row', ['count' => self::INACTIVE_STREAK]));
         }
 
+        $this->recordFeed($season);
+
         return ['standings' => $result['standings'], 'inactive' => count($result['inactive'])];
+    }
+
+    /** Informacje systemowe: koniec sezonu i trofea zdobyte przez ludzi. */
+    private function recordFeed(Season $season): void
+    {
+        SystemFeed::record('seasons', 'Season :season finished', ['season' => $season->title], 'hall-of-fame');
+
+        $awards = HallOfFameAward::with(['user', 'competition'])
+            ->where('season_id', $season->id)
+            ->whereNotNull('trophy')
+            ->whereNotNull('user_id')
+            ->get();
+
+        foreach ($awards as $award) {
+            if (! $award->user) {
+                continue;
+            }
+
+            SystemFeed::record(
+                'trophies',
+                ':team won :competition',
+                [
+                    'team' => $award->user->team_name ?: $award->user->name,
+                    // Nagrody indywidualne (MVP, Złota Piłka, Złote Rękawice) pod własną nazwą, nie nazwą ligi.
+                    'competition' => in_array($award->trophy, HallOfFame::INDIVIDUAL, true)
+                        ? HallOfFame::trophies()[$award->trophy]
+                        : ($award->competition?->name ?? $season->title),
+                ],
+                'team.show',
+                ['user' => $award->user_id],
+                $award->user_id,
+            );
+        }
     }
 
     /** Zapisuje tabele końcowe. Zwraca liczbę zapisanych miejsc. */

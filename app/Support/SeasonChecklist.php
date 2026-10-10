@@ -2,17 +2,18 @@
 
 namespace App\Support;
 
+use App\Actions\Questions\DrawQuestions;
+use App\Enums\CompetitionType;
+use App\Enums\QuestionSide;
 use App\Enums\RoleName;
 use App\Enums\SeasonStatus;
 use App\Models\Bot;
-use App\Enums\CompetitionType;
 use App\Models\Competition;
 use App\Models\CompetitionEntry;
 use App\Models\Fixture;
 use App\Models\Matchday;
 use App\Models\MatchdayQuestion;
 use App\Models\Question;
-use App\Enums\QuestionSide;
 use App\Models\Season;
 use App\Models\SeasonTeam;
 use Spatie\Permission\Models\Role;
@@ -48,7 +49,7 @@ class SeasonChecklist
             __('General'),
             __('The pool has :count bots', ['count' => SeasonTeam::CUP_SIZE]),
             $botsOk,
-            $bots . ' / ' . SeasonTeam::CUP_SIZE,
+            $bots.' / '.SeasonTeam::CUP_SIZE,
             'dashboard.bots',
             'php artisan db:seed --class=BotsSeeder'
         );
@@ -64,7 +65,7 @@ class SeasonChecklist
         );
 
         // --- Sezon ---
-        if (!$season) {
+        if (! $season) {
             $items[] = self::item(__('Season'), __('The season exists'), false, '', 'dashboard.seasons', null);
 
             return $items;
@@ -77,7 +78,7 @@ class SeasonChecklist
             __('Season'),
             __('All :count matchdays are created', ['count' => Matchday::PER_SEASON]),
             $matchdays->count() >= Matchday::PER_SEASON,
-            $matchdays->count() . ' / ' . Matchday::PER_SEASON,
+            $matchdays->count().' / '.Matchday::PER_SEASON,
             'dashboard.matchdays',
             null
         );
@@ -87,7 +88,7 @@ class SeasonChecklist
             __('Season'),
             __('Every matchday has an opponent and a date'),
             $filled >= Matchday::PER_SEASON,
-            $filled . ' / ' . Matchday::PER_SEASON,
+            $filled.' / '.Matchday::PER_SEASON,
             'dashboard.matchdays',
             null
         );
@@ -121,14 +122,14 @@ class SeasonChecklist
             __('Team list'),
             __('The list has at least :count teams (bots included)', ['count' => SeasonTeam::CUP_SIZE]),
             $total >= SeasonTeam::CUP_SIZE,
-            $total . ' / ' . SeasonTeam::CUP_SIZE,
+            $total.' / '.SeasonTeam::CUP_SIZE,
             'dashboard.season-teams',
             null
         );
 
         // --- Pytania ---
         $perSide = MatchdayQuestion::PER_SIDE;
-        $types = \App\Actions\Questions\DrawQuestions::typesOfSeason($season->id);
+        $types = DrawQuestions::typesOfSeason($season->id);
         $need = $perSide * max(1, count($types));
         foreach ([QuestionSide::Offensive, QuestionSide::Defensive] as $side) {
             $have = Question::where('side', $side)->where('is_active', true)->count();
@@ -136,7 +137,7 @@ class SeasonChecklist
                 __('Questions'),
                 __('The bank has enough :side questions', ['side' => mb_strtolower($side->label())]),
                 $have >= $need,
-                $have . ' / ' . $need,
+                $have.' / '.$need,
                 'dashboard.questions',
                 'php artisan db:seed --class=QuestionsSeeder'
             );
@@ -145,12 +146,12 @@ class SeasonChecklist
         $slotsPerMatchday = $perSide * 2 * count($types);
         $counts = MatchdayQuestion::whereIn('matchday_id', $matchdays->pluck('id'))
             ->selectRaw('matchday_id, count(*) as c')->groupBy('matchday_id')->pluck('c', 'matchday_id');
-        $full = $matchdays->filter(fn($m) => (int) ($counts[$m->id] ?? 0) >= $slotsPerMatchday && $slotsPerMatchday > 0)->count();
+        $full = $matchdays->filter(fn ($m) => (int) ($counts[$m->id] ?? 0) >= $slotsPerMatchday && $slotsPerMatchday > 0)->count();
         $items[] = self::item(
             __('Questions'),
             __('Every matchday has full question sets'),
             $full >= Matchday::PER_SEASON,
-            $full . ' / ' . Matchday::PER_SEASON,
+            $full.' / '.Matchday::PER_SEASON,
             'dashboard.matchday-questions',
             null
         );
@@ -166,7 +167,7 @@ class SeasonChecklist
             __('Launch'),
             __('League fixtures are generated'),
             $leagueIds->count() === 10 && $leagueFixtures === 450,
-            $leagueIds->count() . ' ' . __('leagues') . ', ' . $leagueFixtures . ' ' . __('matches'),
+            $leagueIds->count().' '.__('leagues').', '.$leagueFixtures.' '.__('matches'),
             'dashboard.fixtures',
             null
         );
@@ -177,7 +178,7 @@ class SeasonChecklist
             __('Launch'),
             __('The Puchar Polski bracket is generated'),
             $cupFixtures === 511,
-            $cupFixtures . ' / 511',
+            $cupFixtures.' / 511',
             'dashboard.fixtures',
             null
         );

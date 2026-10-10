@@ -22,8 +22,8 @@ use Livewire\Component;
  * Rozgrywki tworzone ręcznie (regulamin, punkty 7 i 10): Liga Mistrzów, Liga Europy, Liga Konferencji,
  * Liga Legend i Złota Liga. Ich skład zależy od wyników poprzedniego sezonu, wpłat i punktów
  * Hall of Fame, więc admin sam wybiera uczestników z listy zespołów sezonu.
- * Gdy jest zakończony poprzedni sezon, ligi europejskie można utworzyć albo uzupełnić automatycznie
- * z jego tabel końcowych (przyciski „Utwórz z historii” i „Uzupełnij z poprzedniego sezonu”).
+ * Gdy jest podstawa, rozgrywki można utworzyć albo uzupełnić automatycznie: ligi europejskie z tabel końcowych
+ * poprzedniego sezonu, Złotą Ligę z wpłat (przyciski „Utwórz z historii” i „Uzupełnij z …”).
  * Ligi 10-zespołowe (Mistrzów, Europy, Konferencji) dostają terminarz z LeagueSchedule, a miejsca
  * ustawiają się według pozycji zespołów na liście przedsezonowej (wyżej = faworyt = gospodarz).
  * Podgląd: season-list. Zmiany: season-edit.
@@ -155,6 +155,88 @@ new class extends Component {
             ->get();
     }
 
+    /**
+     * Proponowane zespoły do wybranych rozgrywek (do 20), żeby nie szukać ich ręcznie:
+     *  - najpierw skład z historii (ligi europejskie: miejsca 1/2/3 lig z poprzedniego sezonu, Złota Liga: wpłacający),
+     *  - potem czołówka listy przedsezonowej (Liga Legend: tylko zespoły ludzi).
+     * W ligach europejskich zespół może grać tylko w jednej z nich, więc znika z propozycji wszystkich trzech.
+     *
+     * @return \Illuminate\Support\Collection<int, array{team: SeasonTeam, history: bool}>
+     */
+    #[Computed]
+    public function suggestions()
+    {
+        $competition = $this->selected;
+
+        if (!$competition || !$this->isOpen || ($competition->type->isRoundRobin() && $competition->entries_count >= League::SIZE)) {
+            return collect();
+        }
+
+        $european = [CompetitionType::Champions->value, CompetitionType::Europa->value, CompetitionType::Conference->value];
+        $blocking = in_array($competition->type->value, $european, true)
+            ? Competition::where('season_id', $this->seasonId)->whereIn('type', $european)->pluck('id')
+            : collect([$competition->id]);
+        $taken = CompetitionEntry::whereIn('competition_id', $blocking)->pluck('season_team_id')->all();
+
+        $history = $competition->type === CompetitionType::Legends
+            ? []
+            : array_values(app(BuildCompetitions::class)->historySeats($this->season, $competition->type));
+
+        // Złota Liga: z historii tylko wpłacający gracze (boty uzupełniają czołówka listy).
+        if ($competition->type === CompetitionType::Golden && $history !== []) {
+            $humans = SeasonTeam::whereIn('id', $history)->whereNotNull('user_id')->pluck('id')->all();
+            $history = array_values(array_intersect($history, $humans));
+        }
+
+        $history = array_values(array_diff($history, $taken));
+        $limit = 20;
+
+        $rest = SeasonTeam::where('season_id', $this->seasonId)
+            ->whereNotIn('id', array_merge($taken, $history))
+            ->when($competition->type === CompetitionType::Legends, fn($q) => $q->whereNotNull('user_id'))
+            ->orderBy('position')
+            ->limit(max(0, $limit - count($history)))
+            ->pluck('id')
+            ->all();
+
+        $ids = array_slice(array_merge($history, $rest), 0, $limit);
+        $teams = SeasonTeam::with(['user:id,name,team_name,team_abbr', 'bot:id,name'])->whereIn('id', $ids)->get()->keyBy('id');
+
+        return collect($ids)
+            ->filter(fn($id) => $teams->has($id))
+            ->map(fn($id) => ['team' => $teams[$id], 'history' => in_array($id, $history, true)])
+            ->values();
+    }
+
+    /** Dodaje propozycje po kolei, aż rozgrywki będą miały komplet (ligi 10-zespołowe) albo skończy się lista. */
+    public function addSuggestions(): void
+    {
+        $this->authorizeAbility(Permission::SeasonEdit);
+
+        if (!$this->ensureOpen() || !$this->ensureNoFixtures()) {
+            return;
+        }
+
+        $competition = $this->selected;
+        $free = $competition->type->isRoundRobin() ? League::SIZE - $competition->entries_count : $this->suggestions->count();
+        $added = [];
+
+        foreach ($this->suggestions->take(max(0, $free)) as $row) {
+            CompetitionEntry::firstOrCreate(
+                ['competition_id' => $competition->id, 'season_team_id' => $row['team']->id],
+                ['seed' => ((int) CompetitionEntry::where('competition_id', $competition->id)->max('seed')) + 1],
+            );
+            $added[] = $row['team']->name;
+        }
+
+        if ($added !== []) {
+            Audit::log('competition.updated', null, [], ['added' => implode(', ', $added)], $competition->name . ' (' . $this->season->title . ')');
+        }
+
+        $this->clearCaches();
+        Flux::toast(text: __('Teams added: :count.', ['count' => count($added)]), variant: 'success');
+    }
+
     /** Poprzedni zakończony sezon: podstawa do automatycznych składów lig europejskich. */
     #[Computed]
     public function previousSeason(): ?Season
@@ -162,20 +244,24 @@ new class extends Component {
         return $this->season ? app(BuildCompetitions::class)->previousSeason($this->season) : null;
     }
 
-    /** Ligi europejskie, których sezon nie ma, a które mają skład w historii. */
+    /** Rozgrywki, których sezon nie ma, a które mają skład w historii (ligi europejskie, Złota Liga z wpłat). */
     #[Computed]
     public function missingFromHistory(): array
     {
-        if (!$this->season || !$this->previousSeason) {
+        if (!$this->season) {
             return [];
         }
 
         $build = app(BuildCompetitions::class);
 
-        return array_values(array_filter(
-            $this->availableTypes,
-            fn(CompetitionType $type) => $type !== CompetitionType::Golden && $build->europeanSeats($this->season, $type) !== [],
-        ));
+        return array_values(array_filter($this->availableTypes, fn(CompetitionType $type) => $build->historySeats($this->season, $type) !== []));
+    }
+
+    /** Czy wybrane (puste) rozgrywki mają skład w historii. */
+    #[Computed]
+    public function selectedHasHistory(): bool
+    {
+        return $this->selected !== null && app(BuildCompetitions::class)->historySeats($this->season, $this->selected->type) !== [];
     }
 
     /** Opis składu danego typu (wg regulaminu). */
@@ -186,7 +272,7 @@ new class extends Component {
             CompetitionType::Europa => __('10 teams: the second places of the 10 leagues from the previous season. Round robin, 9 rounds.'),
             CompetitionType::Conference => __('10 teams: the third places of the 10 leagues from the previous season. Round robin, 9 rounds.'),
             CompetitionType::Legends => __('Human teams only. The fixtures of this competition are added in a later stage.'),
-            CompetitionType::Golden => __('Teams that paid to join. No Hall of Fame points. The fixtures are added in a later stage.'),
+            CompetitionType::Golden => __('10 teams with the highest payments in the last 12 months, bots fill the free places. Round robin, 9 rounds, no Hall of Fame points.'),
             default => '',
         };
     }
@@ -242,7 +328,7 @@ new class extends Component {
         Flux::toast(text: __('Competition created.'), variant: 'success');
     }
 
-    /** Tworzy brakujące ligi europejskie ze składami z tabel końcowych poprzedniego sezonu (regulamin, punkt 10). */
+    /** Tworzy brakujące ligi europejskie (z tabel końcowych poprzedniego sezonu) i Złotą Ligę (z wpłat), regulamin, punkt 10. */
     public function createFromHistory(BuildCompetitions $build): void
     {
         $this->authorizeAbility(Permission::SeasonEdit);
@@ -251,22 +337,22 @@ new class extends Component {
             return;
         }
 
-        $created = DB::transaction(fn() => $build->buildEuropean($this->season));
+        $created = $build->buildFromHistory($this->season);
 
         if ($created === 0) {
-            Flux::toast(text: __('There is nothing to create from the previous season.'), variant: 'warning');
+            Flux::toast(text: __('There is nothing to create from history.'), variant: 'warning');
 
             return;
         }
 
-        Audit::log('competition.created', null, [], ['from_history' => $this->previousSeason?->title, 'count' => $created], $this->season->title);
+        Audit::log('competition.created', null, [], ['from_history' => true, 'count' => $created], $this->season->title);
 
         $this->reset('selectedId');
         $this->clearCaches();
-        Flux::toast(text: __('Created from the previous season: :count.', ['count' => $created]), variant: 'success');
+        Flux::toast(text: __('Created from history: :count.', ['count' => $created]), variant: 'success');
     }
 
-    /** Uzupełnia puste rozgrywki europejskie z tabel końcowych poprzedniego sezonu. */
+    /** Uzupełnia puste rozgrywki składem z historii (ligi europejskie: poprzedni sezon, Złota Liga: wpłaty). */
     public function fillFromHistory(BuildCompetitions $build): void
     {
         $this->authorizeAbility(Permission::SeasonEdit);
@@ -278,18 +364,18 @@ new class extends Component {
         $competition = $this->selected;
         abort_if($competition === null, 422);
 
-        $added = $build->fillEuropean($competition);
+        $added = $build->fillFromHistory($competition);
 
         if ($added === 0) {
-            Flux::toast(text: __('There is nothing to add from the previous season.'), variant: 'warning');
+            Flux::toast(text: __('There is nothing to add from history.'), variant: 'warning');
 
             return;
         }
 
-        Audit::log('competition.updated', null, [], ['from_history' => $this->previousSeason?->title, 'teams' => $added], $competition->name . ' (' . $this->season->title . ')');
+        Audit::log('competition.updated', null, [], ['from_history' => true, 'teams' => $added], $competition->name . ' (' . $this->season->title . ')');
 
         $this->clearCaches();
-        Flux::toast(text: __('Teams added from the previous season: :count.', ['count' => $added]), variant: 'success');
+        Flux::toast(text: __('Teams added from history: :count.', ['count' => $added]), variant: 'success');
     }
 
     public function confirmDelete(int $id): void
@@ -355,6 +441,21 @@ new class extends Component {
 
         if (CompetitionEntry::where('competition_id', $competition->id)->where('season_team_id', $team->id)->exists()) {
             return;
+        }
+
+        // Zespół gra najwyżej w jednej lidze europejskiej sezonu.
+        $european = [CompetitionType::Champions->value, CompetitionType::Europa->value, CompetitionType::Conference->value];
+        if (in_array($competition->type->value, $european, true)) {
+            $other = CompetitionEntry::where('season_team_id', $team->id)
+                ->whereIn('competition_id', Competition::where('season_id', $this->seasonId)->whereIn('type', $european)->select('id'))
+                ->with('competition:id,name')
+                ->first();
+
+            if ($other) {
+                Flux::toast(text: __(':team already plays in :competition.', ['team' => $team->name, 'competition' => $other->competition->name]), variant: 'warning');
+
+                return;
+            }
         }
 
         CompetitionEntry::create([
@@ -517,7 +618,7 @@ new class extends Component {
 
     private function clearCaches(): void
     {
-        unset($this->competitions, $this->availableTypes, $this->missingFromHistory, $this->selected, $this->entries, $this->results);
+        unset($this->competitions, $this->availableTypes, $this->missingFromHistory, $this->selectedHasHistory, $this->selected, $this->entries, $this->results, $this->suggestions);
     }
 
     private function authorizeAbility(Permission $permission): void
@@ -565,6 +666,12 @@ new class extends Component {
             @endif
         </div>
     </div>
+
+    <flux:callout icon="information-circle" variant="secondary">
+        <flux:callout.text>
+            {{ __('Liga Legend, the leagues, the cup and Liga podwórkowa are created automatically when the season is approved (or with "Generate missing competitions" on the Fixtures page), because they depend on the final season list.') }}
+        </flux:callout.text>
+    </flux:callout>
 
     @if (!$this->season)
         <flux:card class="space-y-4">
@@ -657,14 +764,18 @@ new class extends Component {
                         @empty
                             <flux:text class="text-sm">{{ __('No teams yet.') }}</flux:text>
 
-                            @if ($this->isOpen && $this->previousSeason && $selected->type !== \App\Enums\CompetitionType::Golden)
+                            @if ($this->isOpen && $this->selectedHasHistory)
                                 @can(\App\Enums\Permission::SeasonEdit->value)
                                     <div>
                                         <flux:button size="sm" icon="sparkles" wire:click="fillFromHistory">
-                                            {{ __('Fill from :season', ['season' => $this->previousSeason->title]) }}
+                                            {{ $selected->type === \App\Enums\CompetitionType::Golden ? __('Fill from payments') : __('Fill from :season', ['season' => $this->previousSeason?->title]) }}
                                         </flux:button>
                                     </div>
                                 @endcan
+                            @elseif ($this->isOpen && $selected->type === \App\Enums\CompetitionType::Golden)
+                                <flux:text class="text-sm text-zinc-500">
+                                    {{ __('No payments in the last 12 months from teams on the list, so add the teams by hand.') }}
+                                </flux:text>
                             @endif
                         @endforelse
                     </div>
@@ -687,6 +798,37 @@ new class extends Component {
                                     </div>
                                 @endforeach
                             </div>
+
+                            {{-- Propozycje: historia, potem czołówka listy (dodany zespół znika z listy) --}}
+                            @if ($this->suggestions->isNotEmpty())
+                                <div class="space-y-2 border-t border-zinc-200 pt-4 dark:border-zinc-700">
+                                    <div class="flex flex-wrap items-center justify-between gap-2">
+                                        <flux:heading size="sm">{{ __('Proposed teams') }}</flux:heading>
+                                        <flux:button size="xs" variant="primary" icon="sparkles" wire:click="addSuggestions">
+                                            {{ $selected->type->isRoundRobin()
+                                                ? __('Add :count proposed', ['count' => min(\App\Enums\League::SIZE - $selected->entries_count, $this->suggestions->count())])
+                                                : __('Add all proposed') }}
+                                        </flux:button>
+                                    </div>
+                                    @if (in_array($selected->type, [\App\Enums\CompetitionType::Champions, \App\Enums\CompetitionType::Europa, \App\Enums\CompetitionType::Conference], true))
+                                        <flux:text size="sm" class="text-xs text-zinc-500">{{ __('A team can play in only one European competition, so teams already added elsewhere are not proposed.') }}</flux:text>
+                                    @endif
+                                    <div class="divide-y divide-zinc-100 dark:divide-zinc-800">
+                                        @foreach ($this->suggestions as $row)
+                                            <div class="flex items-center gap-3 py-1.5 text-sm" wire:key="sug-{{ $row['team']->id }}">
+                                                <span class="min-w-0 flex-1 truncate">{{ $row['team']->name }}</span>
+                                                @if ($row['history'])
+                                                    <flux:badge size="sm" color="amber">
+                                                        {{ $selected->type === \App\Enums\CompetitionType::Golden ? __('Payments') : __('Previous season') }}
+                                                    </flux:badge>
+                                                @endif
+                                                <span class="text-xs text-zinc-400">#{{ $row['team']->position }} &middot; {{ $row['team']->league->label() }}</span>
+                                                <flux:button size="xs" icon="plus" wire:click="addTeam({{ $row['team']->id }})">{{ __('Add') }}</flux:button>
+                                            </div>
+                                        @endforeach
+                                    </div>
+                                </div>
+                            @endif
                         @endcan
                     @elseif ($fixed)
                         <flux:text class="text-sm text-amber-600 dark:text-amber-400">

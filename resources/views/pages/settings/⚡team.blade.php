@@ -24,11 +24,13 @@ new class extends Component {
         $this->fillFromUser();
     }
 
-    /** Konto bez żadnej roli zmienia dane od razu, pozostałe wysyłają prośbę. */
+    /** Konto bez żadnej roli i gracz premium zmieniają dane od razu, pozostali wysyłają prośbę (regulamin, punkt 11). */
     #[Computed]
     public function canRenameDirectly(): bool
     {
-        return !auth()->user()->roles()->exists();
+        $user = auth()->user();
+
+        return !$user->roles()->exists() || \App\Support\Premium::isActive($user);
     }
 
     #[Computed]

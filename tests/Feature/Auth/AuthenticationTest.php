@@ -19,7 +19,8 @@ test('users can authenticate using the login screen', function () {
 
     $response
         ->assertSessionHasNoErrors()
-        ->assertRedirect(route('dashboard', absolute: false));
+        // Po zalogowaniu zawsze strona główna (App\Http\Responses\LoginResponse), panel tylko z menu.
+        ->assertRedirect(route('home'));
 
     $this->assertAuthenticated();
 });

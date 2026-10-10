@@ -4,6 +4,7 @@ namespace App\Actions\Results;
 
 use App\Enums\CompetitionType;
 use App\Enums\QuestionSide;
+use App\Enums\RoleName;
 use App\Models\BotTip;
 use App\Models\Competition;
 use App\Models\CompetitionEntry;
@@ -14,14 +15,17 @@ use App\Models\SeasonTeam;
 use App\Models\TeamScore;
 use App\Models\Tip;
 use App\Models\TipAnswer;
+use App\Models\User;
 use App\Support\LegendsRanking;
+use App\Support\Premium;
 use App\Support\Scoring;
 use DomainException;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
 /**
  * Przelicza kolejkę po wpisaniu wyniku meczu Lecha i poprawnych odpowiedzi (regulamin, punkty 3, 6, 7, 8):
- *  1. boty dostają losowy typ 0-3 : 0-3 (raz, potem zostaje zapisany),
+ *  1. boty dostają losowy typ 0-3 : 0-3 (raz, potem zostaje zapisany), a gracze premium bez typu swój domyślny typ,
  *  2. każdy zespół dostaje dorobek (team_scores) dla każdego zestawu pytań swoich rozgrywek,
  *  3. mecze tej kolejki we wszystkich rozgrywkach dostają wynik,
  *  4. w pucharze zwycięzca wchodzi na lepsze miejsce pary w meczu następnej rundy,
@@ -48,11 +52,14 @@ class ScoreMatchday
 
             $teams = SeasonTeam::where('season_id', $matchday->season_id)->get(['id', 'user_id']);
 
+            // Gracze premium bez typu dostają swój domyślny typ (regulamin, punkt 11).
+            $this->premiumDefaults($matchday, $teams->whereNotNull('user_id')->pluck('user_id')->all());
+
             // Rozgrywki sezonu i to, w których zestawach pytań gra każdy zespół.
             $competitions = Competition::where('season_id', $matchday->season_id)->get()->keyBy('id');
             // Puchar i Liga Legend: przeliczenie kolejki cofa odpadnięcia z tej kolejki (liczymy je od nowa niżej).
-            $legends = $competitions->first(fn($c) => $c->type === CompetitionType::Legends);
-            $knockout = $competitions->filter(fn($c) => in_array($c->type, [CompetitionType::Cup, CompetitionType::Legends], true));
+            $legends = $competitions->first(fn ($c) => $c->type === CompetitionType::Legends);
+            $knockout = $competitions->filter(fn ($c) => in_array($c->type, [CompetitionType::Cup, CompetitionType::Legends], true));
             CompetitionEntry::whereIn('competition_id', $knockout->keys())
                 ->where('eliminated_round', '>=', $matchday->number)
                 ->update(['eliminated_round' => null]);
@@ -215,7 +222,7 @@ class ScoreMatchday
         $rows = [];
 
         foreach ($botTeamIds as $teamId) {
-            if (!$existing->has($teamId)) {
+            if (! $existing->has($teamId)) {
                 $rows[] = [
                     'matchday_id' => $matchday->id,
                     'season_team_id' => $teamId,
@@ -238,7 +245,7 @@ class ScoreMatchday
      * Kto odpadł z pucharu albo Ligi Legend, nie gra już w tych rozgrywkach: jego odpowiedzi na ich pytania
      * w kolejnych kolejkach są usuwane i nie liczą się do niczego.
      *
-     * @param  \Illuminate\Support\Collection<int, Competition>  $knockout
+     * @param  Collection<int, Competition>  $knockout
      */
     private function dropAnswersOfEliminated(Matchday $matchday, $knockout): void
     {
@@ -271,13 +278,44 @@ class ScoreMatchday
 
         $next = Fixture::where('competition_id', $fixture->competition_id)
             ->where('round', $fixture->round + 1)
-            ->where(fn($q) => $q->where('home_seat', $seat)->orWhere('away_seat', $seat))
+            ->where(fn ($q) => $q->where('home_seat', $seat)->orWhere('away_seat', $seat))
             ->first();
 
-        if (!$next) {
+        if (! $next) {
             return; // finał
         }
 
         $next->update($next->home_seat === $seat ? ['home_entry_id' => $winnerEntryId] : ['away_entry_id' => $winnerEntryId]);
+    }
+
+    /**
+     * Domyślny typ premium (regulamin, punkt 11): gracz, który w chwili meczu ma aktywne premium i nie wytypował,
+     * dostaje swój domyślny typ (0:0, dopóki go nie ustawi), bez odpowiedzi na pytania. Czas typu = godzina meczu.
+     *
+     * @param  array<int, int>  $userIds  gracze z listy sezonu
+     */
+    private function premiumDefaults(Matchday $matchday, array $userIds): void
+    {
+        $kickoff = $matchday->kickoff_at ?? now();
+        $tipped = Tip::where('matchday_id', $matchday->id)->pluck('user_id')->all();
+
+        $users = User::whereIn('id', array_diff($userIds, $tipped))
+            // Premium z datą ważną w chwili meczu albo bezterminowe (rola Premium bez daty).
+            ->where(fn ($q) => $q->where('premium_until', '>', $kickoff)
+                ->orWhere(fn ($w) => $w->whereNull('premium_until')->whereHas('roles', fn ($r) => $r->where('name', RoleName::Premium->value))))
+            ->get(['id', 'premium_until', 'default_tip_lech', 'default_tip_opponent']);
+
+        foreach ($users as $user) {
+            [$lech, $opponent] = Premium::defaultTip($user);
+
+            Tip::create([
+                'matchday_id' => $matchday->id,
+                'user_id' => $user->id,
+                'lech_goals' => $lech,
+                'opponent_goals' => $opponent,
+                'is_default' => true,
+                'saved_at' => $kickoff,
+            ]);
+        }
     }
 }

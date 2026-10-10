@@ -2,9 +2,9 @@
 
 namespace App\Support;
 
+use App\Enums\CompetitionType;
 use App\Enums\League;
 use App\Enums\SeasonStatus;
-use App\Enums\CompetitionType;
 use App\Models\Bot;
 use App\Models\Competition;
 use App\Models\CompetitionEntry;
@@ -17,7 +17,8 @@ use Illuminate\Support\Facades\DB;
  * Obsada list przedsezonowych: wstawianie graczy do lig i zwalnianie ich miejsc.
  * Wspólna logika dla strony "Lista zespołów" i dla automatu po zmianie ról użytkownika.
  *
- * Zasada: gracz zajmuje miejsce najwyżej sklasyfikowanego bota w lidze (bot wraca do puli),
+ * Zasada: gracz zajmuje miejsce najwyżej sklasyfikowanego bota w lidze (bot przechodzi na koniec listy,
+ * czyli do Ligi podwórkowej),
  * a zwalniane miejsce gracza zajmuje wolny bot, więc ligi i terminarz zawsze mają komplet zespołów.
  */
 class Roster
@@ -28,6 +29,18 @@ class Roster
      */
     public static function place(int $seasonId, int $userId, League $league): bool
     {
+        $placed = self::placeTeam($seasonId, $userId, $league);
+
+        // Informacje systemowe: gracz trafił do ligi.
+        if ($placed && ($user = User::find($userId))) {
+            SystemFeed::record('leagues', ':team joined :league', ['team' => $user->team_name ?: $user->name, 'league' => $league->label()], 'team.show', ['user' => $user->id], $user->id);
+        }
+
+        return $placed;
+    }
+
+    private static function placeTeam(int $seasonId, int $userId, League $league): bool
+    {
         $bot = SeasonTeam::where('season_id', $seasonId)
             ->whereNull('user_id')
             ->inLeague($league)
@@ -36,8 +49,14 @@ class Roster
             ->first();
 
         if ($bot) {
+            $botId = $bot->bot_id;
             $bot->update(['user_id' => $userId, 'bot_id' => null]);
             self::joinLegends($seasonId, $bot->id);
+
+            // Wypchnięty bot nie znika: przechodzi na koniec listy, czyli do Ligi podwórkowej.
+            if ($botId) {
+                self::appendBot($seasonId, $botId);
+            }
 
             return true;
         }
@@ -62,6 +81,23 @@ class Roster
         }
 
         return false;
+    }
+
+    /** Dopisuje bota na koniec listy (Liga podwórkowa), także do jej rozgrywek, jeśli sezon już je ma. */
+    private static function appendBot(int $seasonId, int $botId): void
+    {
+        $end = max(League::TOP_TEAMS, (int) SeasonTeam::where('season_id', $seasonId)->max('position')) + 1;
+        $now = now();
+        $teamId = SeasonTeam::insertGetId([
+            'season_id' => $seasonId,
+            'position' => $end,
+            'user_id' => null,
+            'bot_id' => $botId,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+
+        self::joinSwiss($seasonId, $teamId, $end);
     }
 
     /**

@@ -49,6 +49,7 @@ new class extends Component {
         return [
             'users' => User::count(),
             'withoutRole' => User::doesntHave('roles')->count(),
+            'unverified' => User::whereNull('email_verified_at')->count(),
             'admins' => User::whereHas('roles', fn($q) => $q->where('name', self::ADMIN_ROLE))->count(),
         ];
     }
@@ -70,7 +71,8 @@ new class extends Component {
                 $q->where(fn($q) => $q->where('name', 'like', $term)->orWhere('email', 'like', $term));
             })
             ->when($this->roleFilter === '__none', fn($q) => $q->doesntHave('roles'))
-            ->when($this->roleFilter !== '' && $this->roleFilter !== '__none', fn($q) => $q->whereHas('roles', fn($r) => $r->where('name', $this->roleFilter)))
+            ->when($this->roleFilter === '__unverified', fn($q) => $q->whereNull('email_verified_at'))
+            ->when($this->roleFilter !== '' && !str_starts_with($this->roleFilter, '__'), fn($q) => $q->whereHas('roles', fn($r) => $r->where('name', $this->roleFilter)))
             ->orderBy($this->safeSortBy(), $this->safeDirection())
             ->paginate(10, pageName: 'usersPage');
     }
@@ -173,7 +175,19 @@ new class extends Component {
             $this->selected = array_values(array_diff($this->selected, [$inactive]));
         }
 
+        $wasPlayer = \App\Support\Players::canPlay($user);
+        $wasBanned = $user->hasRole(RoleName::Banned->value);
+
         $user->syncRoles($this->selected);
+        $user->unsetRelation('roles');
+
+        // Informacje systemowe: nowy gracz albo ban.
+        if (!$wasPlayer && \App\Support\Players::canPlay($user)) {
+            \App\Support\SystemFeed::record('players', ':name joined the game', ['name' => $user->team_name ?: $user->name], 'team.show', ['user' => $user->id], $user->id);
+        }
+        if (!$wasBanned && $user->hasRole(RoleName::Banned->value)) {
+            \App\Support\SystemFeed::record('moderation', ':name was banned', ['name' => $user->name], null, [], $user->id);
+        }
 
         // Rola decyduje o udziale w zabawie: gracz (bez bana) trafia na listy sezonów,
         // a zbanowany albo bez roli traci miejsce na rzecz bota (patrz App\Support\Roster).
@@ -190,6 +204,41 @@ new class extends Component {
             Flux::toast(text: __('The player was removed from the season list.'), variant: 'warning');
         }
         $this->resetForm();
+    }
+
+    /* ------------------------------------------------------------------
+     | Potwierdzenie e-maila kodem: admin widzi kod, może wygenerować nowy albo potwierdzić ręcznie.
+     * ----------------------------------------------------------------*/
+
+    /** Nowy kod (bez wysyłki maila), np. gdy gracz dzwoni, że mail nie dotarł. */
+    public function newCode(int $id): void
+    {
+        $this->authorizeAdmin();
+
+        $user = User::findOrFail($id);
+
+        if ($user->hasVerifiedEmail()) {
+            return;
+        }
+
+        $code = $user->newVerificationCode();
+        Flux::toast(text: __('New code for :name: :code', ['name' => $user->name, 'code' => $code]), variant: 'success');
+    }
+
+    /** Potwierdza adres bez kodu. */
+    public function confirmEmail(int $id): void
+    {
+        $this->authorizeAdmin();
+
+        $user = User::findOrFail($id);
+
+        if (!$user->hasVerifiedEmail()) {
+            $user->confirmEmail();
+            event(new \Illuminate\Auth\Events\Verified($user));
+        }
+
+        unset($this->stats);
+        Flux::toast(text: __('Email of :name confirmed.', ['name' => $user->name]), variant: 'success');
     }
 
     public function resetForm(): void
@@ -218,7 +267,7 @@ new class extends Component {
     </div>
 
     {{-- Statystyki --}}
-    <div class="grid gap-4 md:grid-cols-3">
+    <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <flux:card class="flex items-center gap-4">
             <flux:icon.users class="size-8 text-zinc-400" />
             <div>
@@ -240,6 +289,13 @@ new class extends Component {
                 <flux:heading size="xl">{{ $this->stats['withoutRole'] }}</flux:heading>
             </div>
         </flux:card>
+        <flux:card class="flex items-center gap-4">
+            <flux:icon.envelope class="size-8 text-zinc-400" />
+            <div>
+                <flux:text>{{ __('Email not confirmed') }}</flux:text>
+                <flux:heading size="xl">{{ $this->stats['unverified'] }}</flux:heading>
+            </div>
+        </flux:card>
     </div>
 
     {{-- Wyszukiwarka i filtr --}}
@@ -253,6 +309,7 @@ new class extends Component {
             <flux:select wire:model.live="roleFilter">
                 <flux:select.option value="">{{ __('All roles') }}</flux:select.option>
                 <flux:select.option value="__none">{{ __('Without a role') }}</flux:select.option>
+                <flux:select.option value="__unverified">{{ __('Email not confirmed') }}</flux:select.option>
                 @foreach ($this->roles as $role)
                     <flux:select.option :value="$role->name">{{ $role->name }}</flux:select.option>
                 @endforeach
@@ -271,6 +328,7 @@ new class extends Component {
                 wire:click="sort('email')">
                 {{ __('Email') }}
             </flux:table.column>
+            <flux:table.column>{{ __('Email confirmation') }}</flux:table.column>
             <flux:table.column sortable :sorted="$sortBy === 'roles_count'" :direction="$sortDirection"
                 wire:click="sort('roles_count')">
                 {{ __('Roles') }}
@@ -296,6 +354,28 @@ new class extends Component {
                     </flux:table.cell>
                     <flux:table.cell class="text-zinc-500">{{ $user->email }}</flux:table.cell>
                     <flux:table.cell>
+                        @if ($user->email_verified_at)
+                            <flux:badge size="sm" color="green" icon="check">{{ __('Confirmed') }}</flux:badge>
+                        @else
+                            @php
+                                $codeValid = $user->verification_code && $user->verification_code_expires_at?->isFuture();
+                            @endphp
+                            <div class="flex items-center gap-1">
+                                @if ($codeValid)
+                                    <span class="rounded bg-amber-100 px-2 py-0.5 font-mono text-sm font-semibold tracking-widest text-amber-800 dark:bg-amber-500/20 dark:text-amber-200"
+                                        title="{{ __('Valid until :time', ['time' => $user->verification_code_expires_at->format('d.m H:i')]) }}">{{ $user->verification_code }}</span>
+                                @else
+                                    <flux:badge size="sm" color="zinc">{{ $user->verification_code ? __('Code expired') : __('No code') }}</flux:badge>
+                                @endif
+                                <flux:button variant="ghost" size="xs" icon="arrow-path" wire:click="newCode({{ $user->id }})"
+                                    :aria-label="__('New code')" :tooltip="__('New code')" />
+                                <flux:button variant="ghost" size="xs" icon="check-badge" wire:click="confirmEmail({{ $user->id }})"
+                                    wire:confirm="{{ __('Confirm this email without a code?') }}" :aria-label="__('Confirm without a code')"
+                                    :tooltip="__('Confirm without a code')" />
+                            </div>
+                        @endif
+                    </flux:table.cell>
+                    <flux:table.cell>
                         <div class="flex flex-wrap gap-1">
                             @forelse ($user->roles as $role)
                                 <flux:badge size="sm"
@@ -314,7 +394,7 @@ new class extends Component {
                 </flux:table.row>
             @empty
                 <flux:table.row>
-                    <flux:table.cell colspan="5" class="py-10 text-center text-zinc-500">
+                    <flux:table.cell colspan="6" class="py-10 text-center text-zinc-500">
                         {{ __('No users match your filters.') }}
                     </flux:table.cell>
                 </flux:table.row>

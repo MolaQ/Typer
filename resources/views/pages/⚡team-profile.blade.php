@@ -29,6 +29,42 @@ new #[Layout('layouts::public')] class extends Component {
         return $this->view()->title($this->user->team_name ?: $this->user->name);
     }
 
+    /** Sezon do sekcji „Rozgrywki w sezonie”: aktywny, a bez niego ostatnio zakończony. */
+    #[Computed]
+    public function currentSeason(): ?Season
+    {
+        return Season::current() ?? Season::where('status', \App\Enums\SeasonStatus::Finished->value)->orderByDesc('number')->first();
+    }
+
+    /**
+     * Rozgrywki zespołu w sezonie: miejsce w tabeli albo etap (puchar, Liga Legend) i link do wyników
+     * z wyróżnionym zespołem (?team=), na kolejce jego ostatniego meczu.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    #[Computed]
+    public function seasonCompetitions(): array
+    {
+        $season = $this->currentSeason;
+        if (!$season) {
+            return [];
+        }
+
+        return array_map(function (array $row) use ($season) {
+            $lastMatch = end($row['matches']);
+            $lastLegends = isset($row['legends']) ? end($row['legends']) : false;
+            $round = $row['eliminated_round'] ?? ($lastLegends ? $lastLegends['round'] : ($lastMatch ? $lastMatch['round'] : null));
+            $params = ['season_slug' => 'sezon-' . $season->number, 'competition_slug' => $row['slug']];
+            if ($round) {
+                $params['round_slug'] = 'kolejka-' . $round;
+            }
+            $row['url'] = route('results', $params) . '?team=' . $row['team_id'];
+            $row['out'] = (bool) $row['eliminated_round'];
+
+            return $row;
+        }, \App\Support\PlayerStats::competitions($this->user, $season));
+    }
+
     #[Computed]
     public function awards()
     {
@@ -78,7 +114,7 @@ new #[Layout('layouts::public')] class extends Component {
                 'count' => $rows->count(),
                 'seasons' => $rows->map(fn($a) => $a->season?->roman_number)->filter()->sort()->values()->all(),
             ])
-            // Kolejność jak na liście trofeów (od Ekstraklasy w dół).
+            // Kolejność według ważności trofeów (HallOfFame::trophies(): od Ligi Legend w dół).
             ->sortBy(fn($item) => array_search($item['key'], array_keys($names), true))
             ->values()
             ->all();
@@ -149,26 +185,60 @@ new #[Layout('layouts::public')] class extends Component {
     }
 }; ?>
 
-<div class="mx-auto flex w-full max-w-5xl flex-col gap-6">
-    <div class="flex flex-wrap items-end justify-between gap-4">
-        <div class="space-y-1">
-            <flux:text size="sm">
-                <flux:link :href="route('hall-of-fame')" wire:navigate>{{ __('Hall of Fame') }}</flux:link>
-            </flux:text>
-            <flux:heading size="xl" level="1">{{ $user->team_name ?: $user->name }}</flux:heading>
-        </div>
+<div class="mx-auto flex w-full max-w-6xl flex-col gap-6">
+    <x-page-banner :eyebrow="__('Hall of Fame')" :title="$user->team_name ?: $user->name">
+        <a href="{{ route('hall-of-fame') }}" wire:navigate class="inline-flex items-center gap-1 text-sm font-semibold text-lech-100 hover:text-white hover:underline">
+            <flux:icon.arrow-left variant="micro" /> {{ __('Full ranking') }}
+        </a>
 
-        <div class="flex gap-6">
-            <div class="text-right">
-                <flux:text size="sm">{{ __('Hall of Fame points') }}</flux:text>
-                <p class="text-2xl font-bold tabular-nums">{{ \App\Support\HallOfFame::format($this->total) }}</p>
+        <x-slot:aside>
+            <div class="flex gap-6 rounded-xl bg-white/10 px-5 py-3">
+                <div class="text-right">
+                    <p class="text-xs uppercase tracking-widest text-lech-200">{{ __('Hall of Fame points') }}</p>
+                    <p class="text-2xl font-bold tabular-nums">{{ \App\Support\HallOfFame::format($this->total) }}</p>
+                </div>
+                <div class="text-right">
+                    <p class="text-xs uppercase tracking-widest text-lech-200">{{ __('All-time rank') }}</p>
+                    <p class="text-2xl font-bold tabular-nums">{{ $this->rank ? $this->rank . '.' : '—' }}</p>
+                </div>
             </div>
-            <div class="text-right">
-                <flux:text size="sm">{{ __('All-time rank') }}</flux:text>
-                <p class="text-2xl font-bold tabular-nums">{{ $this->rank ? $this->rank . '.' : '—' }}</p>
+        </x-slot:aside>
+    </x-page-banner>
+
+    {{-- Rozgrywki w bieżącym sezonie: miejsce albo odpadnięcie, kliknięcie otwiera wyniki z wyróżnionym zespołem --}}
+    @if (count($this->seasonCompetitions) > 0)
+        <flux:card class="space-y-4">
+            <div class="flex items-center justify-between gap-2">
+                <flux:heading size="lg">{{ __('Competitions this season') }}</flux:heading>
+                <flux:badge color="zinc">{{ $this->currentSeason->title }}</flux:badge>
             </div>
-        </div>
-    </div>
+            <div class="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                @foreach ($this->seasonCompetitions as $row)
+                    <a href="{{ $row['url'] }}" wire:navigate wire:key="sc-{{ $loop->index }}"
+                        class="{{ $row['out'] ? 'border-zinc-500 bg-zinc-100 dark:bg-zinc-800' : 'border-lech-200 bg-lech-50/60 hover:border-lech-400 dark:border-lech-800 dark:bg-lech-950/40' }} flex items-center gap-3 rounded-xl border p-3 text-sm transition hover:shadow-md">
+                        @if (isset($this->icons[$row['trophy']]))
+                            <img src="{{ $this->icons[$row['trophy']] }}" alt="" class="{{ $row['out'] ? 'opacity-40 grayscale' : '' }} size-10 shrink-0 object-contain">
+                        @else
+                            <flux:icon.trophy class="size-10 shrink-0 text-amber-500" />
+                        @endif
+                        <div class="min-w-0 flex-1">
+                            <div class="truncate font-semibold">{{ $row['name'] }}</div>
+                            <div class="{{ $row['out'] ? 'text-zinc-600 dark:text-zinc-300' : 'text-lech-700 dark:text-lech-300' }} flex items-center gap-1 text-xs font-medium">
+                                @if ($row['out'])
+                                    <flux:icon.x-circle variant="micro" />
+                                @endif
+                                <span class="truncate">{{ $row['status'] }}</span>
+                            </div>
+                        </div>
+                        @if ($row['points'] !== null)
+                            <span class="shrink-0 font-bold tabular-nums">{{ __(':points pts', ['points' => $row['points']]) }}</span>
+                        @endif
+                        <flux:icon.chevron-right variant="micro" class="shrink-0 text-zinc-400" />
+                    </a>
+                @endforeach
+            </div>
+        </flux:card>
+    @endif
 
     {{-- Gablota --}}
     <flux:card class="space-y-4">

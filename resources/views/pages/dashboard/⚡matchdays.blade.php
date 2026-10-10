@@ -30,7 +30,7 @@ new class extends Component {
     public ?int $matchdayId = null;
     public string $opponent = '';
     public bool $isHome = true;
-    public string $competition = '';
+    public string $competition = 'league'; // App\Enums\MatchCompetition::DEFAULT
     public string $kickoffAt = ''; // format pola datetime-local: 2026-10-18T17:30
     public string $status = 'planned';
 
@@ -67,6 +67,37 @@ new class extends Component {
     public function matchdays()
     {
         return $this->season?->matchdays()->get() ?? collect();
+    }
+
+    /**
+     * Trafność typów w rozegranych kolejkach: id kolejki => [typy, trafione rozstrzygnięcia %, dokładne %].
+     *
+     * @return array<int, array{tips: int, outcome: ?int, exact: ?int}>
+     */
+    #[Computed]
+    public function accuracy(): array
+    {
+        $played = $this->matchdays->where('status', MatchdayStatus::Played)->keyBy('id');
+
+        if ($played->isEmpty()) {
+            return [];
+        }
+
+        $out = [];
+        foreach (\App\Models\Tip::whereIn('matchday_id', $played->keys())->get(['matchday_id', 'lech_goals', 'opponent_goals'])->groupBy('matchday_id') as $id => $tips) {
+            $m = $played[$id];
+            $real = $m->lech_goals <=> $m->opponent_goals;
+            $outcome = $tips->filter(fn($t) => ($t->lech_goals <=> $t->opponent_goals) === $real)->count();
+            $exact = $tips->filter(fn($t) => $t->lech_goals === $m->lech_goals && $t->opponent_goals === $m->opponent_goals)->count();
+
+            $out[$id] = [
+                'tips' => $tips->count(),
+                'outcome' => (int) round($outcome / $tips->count() * 100),
+                'exact' => (int) round($exact / $tips->count() * 100),
+            ];
+        }
+
+        return $out;
     }
 
     /** Liczba uzupełnionych kolejek i najbliższy mecz. */
@@ -147,7 +178,9 @@ new class extends Component {
         $this->matchdayId = $matchday->id;
         $this->opponent = (string) $matchday->opponent;
         $this->isHome = $matchday->is_home;
-        $this->competition = (string) $matchday->competition;
+        // Starszy wpis z dowolnym tekstem (spoza enuma) zamieniamy na domyślne „Rozgrywki ligowe”.
+        $this->competition = \App\Enums\MatchCompetition::tryFrom((string) $matchday->competition)?->value
+            ?? \App\Enums\MatchCompetition::DEFAULT->value;
         $this->kickoffAt = $matchday->kickoff_at?->format('Y-m-d\TH:i') ?? '';
         $this->status = $matchday->status->value;
         $this->resetValidation();
@@ -160,7 +193,7 @@ new class extends Component {
         return [
             'opponent' => ['required', 'string', 'max:80'],
             'isHome' => ['boolean'],
-            'competition' => ['nullable', 'string', 'max:60'],
+            'competition' => ['required', \Illuminate\Validation\Rule::enum(\App\Enums\MatchCompetition::class)],
             // Termin jest wymagany dla kolejki zaplanowanej. Przełożona może być bez daty.
             'kickoffAt' => [Rule::requiredIf(fn() => $this->status === MatchdayStatus::Planned->value), 'nullable', 'date_format:Y-m-d\TH:i'],
             'status' => ['required', Rule::in([MatchdayStatus::Planned->value, MatchdayStatus::Postponed->value])],
@@ -192,7 +225,6 @@ new class extends Component {
         }
 
         $this->opponent = Str::squish($this->opponent);
-        $this->competition = Str::squish($this->competition);
 
         $this->validate();
 
@@ -208,7 +240,7 @@ new class extends Component {
             ->fill([
                 'opponent' => $this->opponent,
                 'is_home' => $this->isHome,
-                'competition' => $this->competition !== '' ? $this->competition : null,
+                'competition' => $this->competition,
                 'kickoff_at' => $kickoff,
                 'status' => $this->status,
             ])
@@ -218,6 +250,17 @@ new class extends Component {
 
         if ($before !== $after) {
             Audit::log('matchday.updated', null, $before, $after, $this->season->title . ', ' . __('matchday :n', ['n' => $matchday->number]));
+
+            // Informacje systemowe: nowy albo przełożony mecz (rywal lub godzina), tylko dla kompletnych kolejek.
+            if ($matchday->isFilled() && ($before['opponent'] !== $after['opponent'] || $before['kickoff_at'] !== $after['kickoff_at'])) {
+                \App\Support\SystemFeed::record(
+                    'matches',
+                    filled($before['opponent']) ? 'Match updated: :fixture (matchday :number, :date)' : 'Match added: :fixture (matchday :number, :date)',
+                    ['fixture' => $matchday->fixture, 'number' => $matchday->number, 'date' => $matchday->kickoff_at->format('d.m.Y H:i')],
+                    'results',
+                    ['round' => $matchday->number],
+                );
+            }
         }
 
         Flux::modal('matchday-form')->close();
@@ -306,7 +349,7 @@ new class extends Component {
         return [
             'opponent' => $matchday->opponent,
             'home_away' => $matchday->is_home ? __('Home') : __('Away'),
-            'competition' => $matchday->competition,
+            'competition' => $matchday->competitionLabel(),
             'kickoff_at' => $matchday->kickoff_at?->format('Y-m-d H:i'),
             'status' => $matchday->status->label(),
         ];
@@ -412,6 +455,8 @@ new class extends Component {
                     <flux:table.column>{{ __('Competition') }}</flux:table.column>
                     <flux:table.column>{{ __('Kickoff') }}</flux:table.column>
                     <flux:table.column>{{ __('Status') }}</flux:table.column>
+                    <flux:table.column>{{ __('Result') }}</flux:table.column>
+                    <flux:table.column>{{ __('Correct tips') }}</flux:table.column>
                     <flux:table.column />
                 </flux:table.columns>
 
@@ -432,7 +477,7 @@ new class extends Component {
                                 @endif
                             </flux:table.cell>
 
-                            <flux:table.cell class="text-zinc-500">{{ $matchday->competition ?: '—' }}
+                            <flux:table.cell class="text-zinc-500">{{ $matchday->competitionLabel() ?? '—' }}
                             </flux:table.cell>
 
                             <flux:table.cell>
@@ -455,6 +500,38 @@ new class extends Component {
                             <flux:table.cell>
                                 <flux:badge size="sm" :color="$matchday->status->color()">
                                     {{ $matchday->status->label() }}</flux:badge>
+                            </flux:table.cell>
+
+                            {{-- Rozstrzygnięcie z perspektywy Lecha: zielony wygrana, żółty remis, czerwony porażka --}}
+                            <flux:table.cell>
+                                @if ($matchday->status === \App\Enums\MatchdayStatus::Played)
+                                    @php
+                                        $diff = $matchday->lech_goals <=> $matchday->opponent_goals;
+                                        $resultColor = [1 => 'green', 0 => 'yellow', -1 => 'red'][$diff];
+                                        $resultLabel = [1 => __('Lech wins'), 0 => __('A draw'), -1 => __('Lech loses')][$diff];
+                                    @endphp
+                                    <flux:badge size="sm" :color="$resultColor" :title="$resultLabel">
+                                        {{ $matchday->lech_goals }}:{{ $matchday->opponent_goals }} &middot; {{ $resultLabel }}
+                                    </flux:badge>
+                                @else
+                                    <span class="text-zinc-400">—</span>
+                                @endif
+                            </flux:table.cell>
+
+                            <flux:table.cell class="text-sm">
+                                @if (isset($this->accuracy[$matchday->id]))
+                                    @php
+                                        $acc = $this->accuracy[$matchday->id];
+                                    @endphp
+                                    <div class="tabular-nums" title="{{ __('Tips: :count', ['count' => $acc['tips']]) }}">
+                                        {{ __('Outcome :outcome%, exact :exact%', ['outcome' => $acc['outcome'], 'exact' => $acc['exact']]) }}
+                                    </div>
+                                    <div class="text-xs text-zinc-500">{{ __('Tips: :count', ['count' => $acc['tips']]) }}</div>
+                                @elseif ($matchday->status === \App\Enums\MatchdayStatus::Played)
+                                    <span class="text-zinc-400">{{ __('No tips') }}</span>
+                                @else
+                                    <span class="text-zinc-400">—</span>
+                                @endif
                             </flux:table.cell>
 
                             <flux:table.cell align="end">
@@ -494,7 +571,12 @@ new class extends Component {
 
             <flux:switch wire:model="isHome" :label="__('Home match')" />
 
-            <flux:input wire:model="competition" :label="__('Competition')" placeholder="Ekstraklasa" />
+            {{-- Rozgrywki meczu z enuma App\Enums\MatchCompetition (domyślnie rozgrywki ligowe) --}}
+            <flux:select wire:model="competition" :label="__('Competition')">
+                @foreach (\App\Enums\MatchCompetition::options() as $value => $label)
+                    <flux:select.option :value="$value">{{ $label }}</flux:select.option>
+                @endforeach
+            </flux:select>
 
             <flux:input wire:model="kickoffAt" type="datetime-local" :label="__('Kickoff')"
                 :description="__('Tips close at this time.')" />

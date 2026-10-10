@@ -44,7 +44,7 @@ final class Promotion
 
             // Mała liga (np. pusta podwórkowa): awans i spadek nie mogą dotyczyć tych samych zespołów.
             $upIds = array_column($up[$level], 'id');
-            $down[$level] = array_values(array_filter($down[$level], fn($t) => !in_array($t['id'], $upIds, true)));
+            $down[$level] = array_values(array_filter($down[$level], fn ($t) => ! in_array($t['id'], $upIds, true)));
 
             foreach (array_merge($up[$level], $down[$level]) as $team) {
                 $moving[$team['id']] = true;
@@ -57,11 +57,11 @@ final class Promotion
                 break;
             }
 
-            $upper = array_values(array_filter(array_reverse($tiers[$level]), fn($t) => !isset($moving[$t['id']])));
-            $lower = array_values(array_filter($tiers[$level + 1], fn($t) => !isset($moving[$t['id']])));
+            $upper = array_values(array_filter(array_reverse($tiers[$level]), fn ($t) => ! isset($moving[$t['id']])));
+            $lower = array_values(array_filter($tiers[$level + 1], fn ($t) => ! isset($moving[$t['id']])));
 
             for ($swap = 0; $swap < $extraSwaps && $upper !== [] && $lower !== []; $swap++) {
-                if ($upper[0]['human'] || !$lower[0]['human']) {
+                if ($upper[0]['human'] || ! $lower[0]['human']) {
                     break;
                 }
 
@@ -78,7 +78,7 @@ final class Promotion
 
         foreach ($levels as $level) {
             $relegated = $level > 1 ? self::inTableOrder($down[$level - 1], $tiers[$level - 1]) : [];
-            $stayers = array_filter($tiers[$level], fn($t) => !isset($moving[$t['id']]));
+            $stayers = array_filter($tiers[$level], fn ($t) => ! isset($moving[$t['id']]));
             $promoted = $level < $lowest ? self::inTableOrder($up[$level + 1], $tiers[$level + 1]) : [];
 
             $result[$level] = array_merge(
@@ -95,7 +95,7 @@ final class Promotion
     private static function inTableOrder(array $teams, array $table): array
     {
         $order = array_flip(array_column($table, 'id'));
-        usort($teams, fn($a, $b) => $order[$a['id']] <=> $order[$b['id']]);
+        usort($teams, fn ($a, $b) => $order[$a['id']] <=> $order[$b['id']]);
 
         return $teams;
     }

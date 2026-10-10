@@ -126,7 +126,7 @@ new class extends Component {
         }
 
         if ($this->currentLogoPath && !$this->removeLogo) {
-            return Storage::disk('public')->url($this->currentLogoPath);
+            return asset('storage/' . $this->currentLogoPath);
         }
 
         return null;
@@ -404,6 +404,7 @@ new class extends Component {
             $season->update(['status' => SeasonStatus::Active]);
 
             Audit::log('season.activated', null, ['status' => $old], ['status' => SeasonStatus::Active->label()], $season->title);
+            \App\Support\SystemFeed::record('seasons', 'Season :season started', ['season' => $season->title], 'results');
 
             return true;
         });

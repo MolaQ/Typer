@@ -1,8 +1,19 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 42" {{ $attributes }}>
-    <path 
-        fill="currentColor" 
-        fill-rule="evenodd" 
-        clip-rule="evenodd"
-        d="M17.2 5.633 8.6.855 0 5.633v26.51l16.2 9 16.2-9v-8.442l7.6-4.223V9.856l-8.6-4.777-8.6 4.777V18.3l-5.6 3.111V5.633ZM38 18.301l-5.6 3.11v-6.157l5.6-3.11V18.3Zm-1.06-7.856-5.54 3.078-5.54-3.079 5.54-3.078 5.54 3.079ZM24.8 18.3v-6.157l5.6 3.111v6.158L24.8 18.3Zm-1 1.732 5.54 3.078-13.14 7.302-5.54-3.078 13.14-7.3v-.002Zm-16.2 7.89 7.6 4.222V38.3L2 30.966V7.92l5.6 3.111v16.892ZM8.6 9.3 3.06 6.222 8.6 3.143l5.54 3.08L8.6 9.3Zm21.8 15.51-13.2 7.334V38.3l13.2-7.334v-6.156ZM9.6 11.034l5.6-3.11v14.6l-5.6 3.11v-14.6Z"
-    />
+{{-- Znak LechTYPER: tarcza w barwach Lecha z ptakiem o skrzydle z piór (nawiązanie do herbu i dawnego
+     znaczka Twittera, gdzie zaczęła się zabawa). Projekt roboczy: plik można podmienić na docelowe logo. --}}
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" {{ $attributes }}>
+    <defs>
+        <linearGradient id="lechtyper-shield" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stop-color="#1d4ed8" />
+            <stop offset="1" stop-color="#0b1f4d" />
+        </linearGradient>
+    </defs>
+    <path d="M32 2 L58 10 V32 C58 46 47 56 32 62 C17 56 6 46 6 32 V10 Z" fill="url(#lechtyper-shield)" />
+    <path d="M32 6 L54 13 V32 C54 44 45 52.5 32 57.5 C19 52.5 10 44 10 32 V13 Z" fill="none" stroke="#fff"
+        stroke-opacity=".35" stroke-width="1.2" />
+    <path fill="#fff"
+        d="M17 38 C21 46 33 48 40 42 C45 38 46 31 45 27 L50 24.5 L45.5 23.5 C44 20 40.5 18.5 37 19.5 C33.5 20.5 32 24 32.5 27.5 C27 28 21 33 17 38 Z" />
+    <circle cx="40" cy="23.5" r="1.2" fill="#0b1f4d" />
+    <path fill="#fff" d="M30 31 C26 25 25 18 27 12 C29 17 31 21 34 24 Z" />
+    <path fill="#fff" d="M27 33 C21 29 18 23 18 16 C21 21 25 25 30 28 Z" />
+    <path fill="#fff" d="M24 35 C17 33 13 28 11 22 C15 26 20 29 26 31 Z" />
 </svg>
