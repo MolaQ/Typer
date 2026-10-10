@@ -625,7 +625,7 @@ new #[Layout('layouts::public')] class extends Component {
                 <flux:dropdown position="bottom" align="start">
                     <button type="button" class="{{ $pill }} {{ $leagueActive ? $pillOn : $pillOff }}">
                         @if ($leagueActive)
-                            <span class="size-2.5 rounded-full" style="background: {{ \App\Support\CompetitionColors::for($leagueOptions[$this->key][1])['bg2'] }}"></span>
+                            <span class="size-3 shrink-0 rounded-full" style="{{ \App\Support\CompetitionColors::dotStyle($leagueOptions[$this->key][1]) }}"></span>
                             {{ $leagueOptions[$this->key][0] }}
                         @else
                             {{ __('Leagues') }}
@@ -636,7 +636,7 @@ new #[Layout('layouts::public')] class extends Component {
                         @foreach ($leagueOptions as $optionKey => [$optionName, $optionColor])
                             <flux:menu.item wire:click="$set('key', '{{ $optionKey }}')" wire:key="lg-opt-{{ $optionKey }}">
                                 <span class="flex items-center gap-2">
-                                    <span class="size-2.5 rounded-full" style="background: {{ \App\Support\CompetitionColors::for($optionColor)['bg2'] }}"></span>
+                                    <span class="size-3 shrink-0 rounded-full" style="{{ \App\Support\CompetitionColors::dotStyle($optionColor) }}"></span>
                                     <span class="{{ $optionKey === $this->key ? 'font-bold' : '' }}">{{ $optionName }}</span>
                                 </span>
                             </flux:menu.item>
@@ -649,7 +649,7 @@ new #[Layout('layouts::public')] class extends Component {
                 <button type="button" wire:click="$set('key', '{{ $optionKey }}')" wire:key="opt-{{ $optionKey }}"
                     class="{{ $pill }} {{ $optionKey === $this->key ? $pillOn : $pillOff }}"
                     @if ($optionKey === $this->key) aria-current="true" @endif>
-                    <span class="size-2.5 rounded-full" style="background: {{ \App\Support\CompetitionColors::for($optionColor)['bg2'] }}"></span>
+                    <span class="size-3 shrink-0 rounded-full" style="{{ \App\Support\CompetitionColors::dotStyle($optionColor) }}"></span>
                     {{ $optionName }}
                 </button>
             @endforeach

@@ -121,6 +121,17 @@ class CompetitionColors
         return "--c-bg1: {$c['bg1']}; --c-bg2: {$c['bg2']}; --c-accent: {$c['accent']}; --c-ink: {$c['ink']};";
     }
 
+    /**
+     * Styl małej kropki rozgrywek (np. w pasku wyboru): gradient tła z obwódką w kolorze akcentu,
+     * żeby jasne barwy (C klasa) też były widoczne na białym tle.
+     */
+    public static function dotStyle(string $key): string
+    {
+        $c = self::for($key);
+
+        return "background: linear-gradient(135deg, {$c['bg1']}, {$c['bg2']}); box-shadow: inset 0 0 0 1.5px {$c['accent']}, 0 0 0 1px rgb(0 0 0 / 0.15);";
+    }
+
     public static function dashed(string $key): bool
     {
         return in_array($key, self::DASHED, true);
