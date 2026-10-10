@@ -1240,5 +1240,15 @@
     "sec": "sek.",
     "Lech match result": "Wynik meczu Lecha",
     "Match not assigned yet": "Mecz jeszcze nieprzypisany",
-    "Competitions this season": "Rozgrywki w sezonie"
+    "Competitions this season": "Rozgrywki w sezonie",
+    "Competition colors": "Barwy rozgrywek",
+    "Background gradient, accent and text color of each competition, used in banners, badges and winner marks. Backgrounds without yellow, orange or red; gold only as an accent.": "Gradient tła, akcent i kolor tekstu każdych rozgrywek: do banerów, odznak i oznaczeń zwycięzców. Tła bez żółtego, pomarańczowego i czerwonego, złoto tylko jako akcent.",
+    "Colors saved.": "Barwy zapisane.",
+    "Background 1": "Tło 1",
+    "Background 2": "Tło 2",
+    "Accent": "Akcent",
+    "Text": "Tekst",
+    "Restore default": "Przywróć domyślne",
+    "Previous": "Poprzednie",
+    "Next": "Następne"
 }

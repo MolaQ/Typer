@@ -76,6 +76,9 @@ Route::middleware(['auth', 'verified', 'permission:'.Permission::DashboardAccess
     Route::livewire('dashboard/hall-of-fame', 'pages::dashboard.hall-of-fame')
         ->middleware('permission:season-list')
         ->name('dashboard.hall-of-fame');
+    Route::livewire('dashboard/competition-colors', 'pages::dashboard.competition-colors')
+        ->middleware('permission:season-list')
+        ->name('dashboard.competition-colors');
     Route::livewire('dashboard/news', 'pages::dashboard.news')
         ->middleware('permission:'.Permission::NewsCreate->value)
         ->name('dashboard.news');

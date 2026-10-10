@@ -96,3 +96,39 @@ select:focus[data-flux-control] {
 /* \[:where(&)\]:size-4 {
     @apply size-4;
 } */
+
+/*
+ * Barwy rozgrywek (App\Support\CompetitionColors): element dostaje zmienne --c-bg1, --c-bg2, --c-accent, --c-ink
+ * przez style="{{ CompetitionColors::style($key) }}". Baner, odznaka (koło z obwódką akcentu) i plakietka.
+ */
+.comp-banner {
+    position: relative;
+    overflow: hidden;
+    border: 3px solid var(--c-accent);
+    background-image: linear-gradient(120deg, var(--c-bg1), var(--c-bg2));
+    color: var(--c-ink);
+    box-shadow: 0 14px 28px -14px rgb(6 19 49 / 0.55);
+}
+.comp-banner::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: radial-gradient(120% 90% at 100% 0%, color-mix(in srgb, var(--c-accent) 22%, transparent), transparent 60%);
+}
+.comp-badge {
+    border: 3px solid var(--c-accent);
+    background-image: linear-gradient(140deg, var(--c-bg2), var(--c-bg1));
+    color: var(--c-accent);
+}
+.comp-chip {
+    border: 1.5px solid var(--c-accent);
+    background-image: linear-gradient(120deg, var(--c-bg1), var(--c-bg2));
+    color: var(--c-accent);
+}
+.comp-accent {
+    color: var(--c-accent);
+}
+.comp-dashed {
+    border-style: dashed;
+}

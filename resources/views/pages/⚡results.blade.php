@@ -132,9 +132,9 @@ new #[Layout('layouts::public')] class extends Component {
     /** Poprawia wybór rozgrywek i kolejki po wejściu na stronę albo po zmianie sezonu. */
     private function normalize(): void
     {
-        // Domyślnie rozgrywki zalogowanego gracza (jego liga albo podwórkowa), inaczej Ekstraklasa.
+        // Domyślnie Ekstraklasa (pierwsza w kolejności CompetitionColors::order()).
         if (!array_key_exists($this->key, $this->options)) {
-            $this->key = $this->myKey() ?? (array_key_first($this->options) ?? '');
+            $this->key = array_key_first($this->options) ?? '';
         }
 
         if ($this->round < 1 || $this->round > Matchday::PER_SEASON) {
@@ -227,6 +227,40 @@ new #[Layout('layouts::public')] class extends Component {
         $this->syncUrl();
     }
 
+    /**
+     * Strzałki w banerze: poprzednie albo następne rozgrywki w kolejności. Sezon i kolejka zostają.
+     */
+    public function shiftCompetition(int $step): void
+    {
+        $keys = array_keys($this->options);
+        $index = array_search($this->key, $keys, true);
+        $target = $index === false ? null : ($keys[$index + ($step <=> 0)] ?? null);
+
+        if ($target === null) {
+            return;
+        }
+
+        $this->key = $target;
+        $this->teamId = null;
+        unset($this->competition, $this->isCup, $this->hasTable, $this->table, $this->isLegends, $this->legends,
+            $this->legendsHistory, $this->cupPath, $this->cupPlayed, $this->matches);
+        $this->updatedKey();
+    }
+
+    /** Strzałki w banerze: poprzednia albo następna kolejka (runda). Sezon i rozgrywki zostają. */
+    public function shiftRound(int $step): void
+    {
+        $target = $this->round + ($step <=> 0);
+
+        if ($target < 1 || $target > Matchday::PER_SEASON) {
+            return;
+        }
+
+        $this->round = $target;
+        unset($this->table, $this->legends, $this->cupPlayed, $this->matchday, $this->matches);
+        $this->updatedRound();
+    }
+
     /** klucz => nazwa rozgrywek sezonu */
     #[Computed]
     public function options(): array
@@ -235,8 +269,11 @@ new #[Layout('layouts::public')] class extends Component {
             return [];
         }
 
+        // Kolejność: ligi od Ekstraklasy do podwórkowej, Puchar Polski, LM, LE, LK, Liga Legend, Złota Liga.
         $options = [];
-        foreach (Competition::where('season_id', $this->season->id)->orderBy('tier')->orderBy('id')->get() as $competition) {
+        $competitions = Competition::where('season_id', $this->season->id)->orderBy('id')->get()
+            ->sortBy(fn(Competition $c) => \App\Support\CompetitionColors::rank($c->trophyKey()));
+        foreach ($competitions as $competition) {
             $options[$this->keyOf($competition)] = $competition->name;
         }
 
@@ -441,20 +478,6 @@ new #[Layout('layouts::public')] class extends Component {
      | POMOCNICZE
      * ================================================================*/
 
-    private function myKey(): ?string
-    {
-        if (!$this->myTeamId) {
-            return null;
-        }
-
-        $competition = Competition::where('season_id', $this->season->id)
-            ->whereIn('type', [CompetitionType::League->value, CompetitionType::Swiss->value])
-            ->whereHas('entries', fn($q) => $q->where('season_team_id', $this->myTeamId))
-            ->first();
-
-        return $competition ? $this->keyOf($competition) : null;
-    }
-
     private function keyOf(Competition $competition): string
     {
         return $competition->slug();
@@ -467,26 +490,96 @@ new #[Layout('layouts::public')] class extends Component {
         $newer = $this->neighbourSeason(1);
         $archived = $this->season && $this->season->status !== \App\Enums\SeasonStatus::Active;
     @endphp
-    <x-page-banner :title="__('Results and tables')" :subtitle="$this->season?->title"
-        :eyebrow="$archived ? __('Season archive') : 'LechTYPER'">
-        {{-- Dyskretne strzałki archiwum: o jeden sezon wstecz albo do przodu --}}
-        @if ($older || $newer)
-            <x-slot:aside>
-                <div class="flex items-center gap-2">
-                    <button type="button" wire:click="shiftSeason(-1)" @disabled(!$older)
-                        title="{{ __('Previous season') }}" aria-label="{{ __('Previous season') }}"
-                        class="flex size-9 items-center justify-center rounded-full bg-white/10 text-white transition hover:bg-white/20 disabled:cursor-default disabled:opacity-30 disabled:hover:bg-white/10">
-                        <flux:icon.chevron-left variant="mini" />
-                    </button>
-                    <button type="button" wire:click="shiftSeason(1)" @disabled(!$newer)
-                        title="{{ __('Next season') }}" aria-label="{{ __('Next season') }}"
-                        class="flex size-9 items-center justify-center rounded-full bg-white/10 text-white transition hover:bg-white/20 disabled:cursor-default disabled:opacity-30 disabled:hover:bg-white/10">
-                        <flux:icon.chevron-right variant="mini" />
-                    </button>
+    @if ($this->competition)
+        {{--
+            Baner rozgrywek w ich barwach (App\Support\CompetitionColors): trofeum w odznace, nazwa rozgrywek i sezon,
+            etap (kolejka albo runda) i strzałki: rozgrywki, kolejka, sezon. Zmiana jednego zostawia dwa pozostałe.
+        --}}
+        @php
+            $colorKey = $this->competition->trophyKey();
+            $dashed = \App\Support\CompetitionColors::dashed($colorKey) ? 'comp-dashed' : '';
+            $bannerIcons = \App\Support\HallOfFame::iconUrls();
+            $optionKeys = array_keys($this->options);
+            $keyIndex = array_search($this->key, $optionKeys, true);
+            $sponsor = $this->competition->sponsor;
+            $arrowClass = 'flex size-8 items-center justify-center rounded-full bg-white/15 transition hover:bg-white/25 disabled:cursor-default disabled:opacity-30 disabled:hover:bg-white/15';
+            $navs = [
+                [__('Competition'), 'shiftCompetition', $keyIndex !== false && $keyIndex > 0, $keyIndex !== false && $keyIndex < count($optionKeys) - 1],
+                [$this->isCup ? __('Round') : __('Matchday'), 'shiftRound', $round > 1, $round < \App\Models\Matchday::PER_SEASON],
+                [__('Season'), 'shiftSeason', (bool) $older, (bool) $newer],
+            ];
+        @endphp
+        <section class="comp-banner {{ $dashed }} rounded-2xl px-5 py-6 sm:px-8" style="{{ \App\Support\CompetitionColors::style($colorKey) }}">
+            <div class="relative z-10 flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
+                <div class="flex min-w-0 items-center gap-4">
+                    <div class="comp-badge {{ $dashed }} flex size-20 shrink-0 items-center justify-center rounded-full shadow-lg" title="{{ __('Trophy to win') }}">
+                        @if (isset($bannerIcons[$colorKey]))
+                            <img src="{{ $bannerIcons[$colorKey] }}" alt="" class="size-14 object-contain">
+                        @else
+                            <flux:icon.trophy class="size-9" />
+                        @endif
+                    </div>
+                    <div class="min-w-0 space-y-1">
+                        <p class="comp-accent text-xs font-bold uppercase tracking-[0.2em]">
+                            {{ $this->competition->name ?: $this->competition->type->label() }} – {{ $this->season->title }}
+                            @if ($archived) · {{ __('Season archive') }} @endif
+                        </p>
+                        <h1 class="text-3xl font-black tracking-tight sm:text-4xl">
+                            {{ $this->isCup || $this->isLegends ? \App\Enums\KnockoutStage::labelFor($round) : __('Matchday :number', ['number' => $round]) }}
+                        </h1>
+                        @if ($sponsor)
+                            <a @if ($sponsor->url) href="{{ $sponsor->url }}" target="_blank" rel="noopener sponsored" @endif
+                                class="inline-flex items-center gap-2 text-xs opacity-80 hover:opacity-100">
+                                <span class="uppercase tracking-widest">powered by</span>
+                                @if ($sponsor->logoUrl())
+                                    <img src="{{ $sponsor->logoUrl() }}" alt="{{ $sponsor->name }}" class="h-7 max-w-28 rounded bg-white object-contain p-0.5">
+                                @else
+                                    <span class="font-semibold">{{ $sponsor->name }}</span>
+                                @endif
+                            </a>
+                        @endif
+                    </div>
                 </div>
-            </x-slot:aside>
-        @endif
-    </x-page-banner>
+
+                <div class="flex flex-wrap gap-2">
+                    @foreach ($navs as [$navLabel, $navMethod, $canBack, $canForward])
+                        <div class="flex items-center gap-1.5 rounded-full bg-black/15 px-1.5 py-1">
+                            <button type="button" wire:click="{{ $navMethod }}(-1)" @disabled(!$canBack) class="{{ $arrowClass }}"
+                                aria-label="{{ $navLabel }}: {{ __('Previous') }}" title="{{ __('Previous') }}">
+                                <flux:icon.chevron-left variant="mini" />
+                            </button>
+                            <span class="min-w-16 text-center text-[11px] font-bold uppercase tracking-wider">{{ $navLabel }}</span>
+                            <button type="button" wire:click="{{ $navMethod }}(1)" @disabled(!$canForward) class="{{ $arrowClass }}"
+                                aria-label="{{ $navLabel }}: {{ __('Next') }}" title="{{ __('Next') }}">
+                                <flux:icon.chevron-right variant="mini" />
+                            </button>
+                        </div>
+                    @endforeach
+                </div>
+            </div>
+        </section>
+    @else
+    <x-page-banner :title="__('Results and tables')" :subtitle="$this->season?->title"
+            :eyebrow="$archived ? __('Season archive') : 'LechTYPER'">
+            {{-- Dyskretne strzałki archiwum: o jeden sezon wstecz albo do przodu --}}
+            @if ($older || $newer)
+                <x-slot:aside>
+                    <div class="flex items-center gap-2">
+                        <button type="button" wire:click="shiftSeason(-1)" @disabled(!$older)
+                            title="{{ __('Previous season') }}" aria-label="{{ __('Previous season') }}"
+                            class="flex size-9 items-center justify-center rounded-full bg-white/10 text-white transition hover:bg-white/20 disabled:cursor-default disabled:opacity-30 disabled:hover:bg-white/10">
+                            <flux:icon.chevron-left variant="mini" />
+                        </button>
+                        <button type="button" wire:click="shiftSeason(1)" @disabled(!$newer)
+                            title="{{ __('Next season') }}" aria-label="{{ __('Next season') }}"
+                            class="flex size-9 items-center justify-center rounded-full bg-white/10 text-white transition hover:bg-white/20 disabled:cursor-default disabled:opacity-30 disabled:hover:bg-white/10">
+                            <flux:icon.chevron-right variant="mini" />
+                        </button>
+                    </div>
+                </x-slot:aside>
+            @endif
+        </x-page-banner>
+    @endif
 
     @if (!$this->season || count($this->options) === 0)
         <flux:card>
@@ -513,9 +606,6 @@ new #[Layout('layouts::public')] class extends Component {
             </div>
         </div>
 
-        @if ($this->competition)
-            <x-competition-header :competition="$this->competition" />
-        @endif
 
         @if ($this->matchday && filled($this->matchday->opponent))
             <flux:text>

@@ -95,7 +95,7 @@
                 </flux:sidebar.group>
 
                 <flux:sidebar.group expandable
-                    :expanded="request()->routeIs('dashboard.hall-of-fame', 'dashboard.sponsors')"
+                    :expanded="request()->routeIs('dashboard.hall-of-fame', 'dashboard.sponsors', 'dashboard.competition-colors')"
                     :heading="__('Prestige and partners')" class="grid">
                     <flux:sidebar.item icon="star" :href="route('dashboard.hall-of-fame')"
                         :current="request()->routeIs('dashboard.hall-of-fame')" wire:navigate>
@@ -104,6 +104,10 @@
                     <flux:sidebar.item icon="megaphone" :href="route('dashboard.sponsors')"
                         :current="request()->routeIs('dashboard.sponsors')" wire:navigate>
                         {{ __('Sponsors') }}
+                    </flux:sidebar.item>
+                    <flux:sidebar.item icon="swatch" :href="route('dashboard.competition-colors')"
+                        :current="request()->routeIs('dashboard.competition-colors')" wire:navigate>
+                        {{ __('Competition colors') }}
                     </flux:sidebar.item>
                 </flux:sidebar.group>
             @endif
