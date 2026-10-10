@@ -280,6 +280,18 @@ new #[Layout('layouts::public')] class extends Component {
         return $options;
     }
 
+    /** klucz rozgrywek => klucz barw (Competition::trophyKey()) do przycisków pod banerem */
+    #[Computed]
+    public function optionColors(): array
+    {
+        if (!$this->season) {
+            return [];
+        }
+
+        return Competition::where('season_id', $this->season->id)->get()
+            ->mapWithKeys(fn(Competition $c) => [$this->keyOf($c) => $c->trophyKey()])->all();
+    }
+
     #[Computed]
     public function competition(): ?Competition
     {
@@ -521,11 +533,11 @@ new #[Layout('layouts::public')] class extends Component {
                     </div>
                     <div class="min-w-0 space-y-1">
                         <p class="comp-accent text-xs font-bold uppercase tracking-[0.2em]">
-                            {{ $this->competition->name ?: $this->competition->type->label() }} – {{ $this->season->title }}
+                            {{ $this->season->title }} – {{ $this->isCup || $this->isLegends ? \App\Enums\KnockoutStage::labelFor($round) : __('Matchday :number', ['number' => $round]) }}
                             @if ($archived) · {{ __('Season archive') }} @endif
                         </p>
-                        <h1 class="text-3xl font-black tracking-tight sm:text-4xl">
-                            {{ $this->isCup || $this->isLegends ? \App\Enums\KnockoutStage::labelFor($round) : __('Matchday :number', ['number' => $round]) }}
+                        <h1 class="text-3xl font-black uppercase tracking-tight sm:text-4xl">
+                            {{ $this->competition->name ?: $this->competition->type->label() }}
                         </h1>
                         @if ($sponsor)
                             <a @if ($sponsor->url) href="{{ $sponsor->url }}" target="_blank" rel="noopener sponsored" @endif
@@ -586,25 +598,21 @@ new #[Layout('layouts::public')] class extends Component {
             <flux:text>{{ __('There is no season to show yet.') }}</flux:text>
         </flux:card>
     @else
-        <div class="flex flex-wrap items-end gap-3">
-            <div class="w-full sm:w-72">
-                <flux:select wire:model.live="key" :label="__('Competition')">
-                    @foreach ($this->options as $optionKey => $optionName)
-                        <flux:select.option :value="$optionKey">{{ $optionName }}</flux:select.option>
-                    @endforeach
-                </flux:select>
-            </div>
-
-            <div class="w-full sm:w-64">
-                <flux:select wire:model.live="round" :label="$this->isCup ? __('Round') : __('Matchday')">
-                    @foreach (range(1, \App\Models\Matchday::PER_SEASON) as $number)
-                        <flux:select.option :value="$number">
-                            {{ $this->isCup ? $number . '. ' . \App\Support\CupBracket::roundName($number) : __('Matchday :number', ['number' => $number]) }}
-                        </flux:select.option>
-                    @endforeach
-                </flux:select>
-            </div>
-        </div>
+        {{-- Wybór rozgrywek: przyciski w barwach rozgrywek (CompetitionColors), aktywne wyróżnione. Kolejka i sezon zostają. --}}
+        <nav class="grid gap-2" style="grid-template-columns: repeat(auto-fill, minmax(min(100%, 9.5rem), 1fr));" aria-label="{{ __('Competition') }}">
+            @foreach ($this->options as $optionKey => $optionName)
+                @php
+                    $optionColor = $this->optionColors[$optionKey] ?? 'league_1';
+                    $optionActive = $optionKey === $this->key;
+                @endphp
+                <button type="button" wire:click="$set('key', '{{ $optionKey }}')" wire:key="opt-{{ $optionKey }}"
+                    style="{{ \App\Support\CompetitionColors::style($optionColor) }}"
+                    class="comp-chip {{ \App\Support\CompetitionColors::dashed($optionColor) ? 'comp-dashed' : '' }} {{ $optionActive ? 'ring-2 ring-offset-2 ring-lech-600 dark:ring-lech-300 dark:ring-offset-zinc-900' : 'opacity-80 hover:opacity-100' }} truncate rounded-lg px-3 py-2 text-center text-sm font-bold transition"
+                    @if ($optionActive) aria-current="true" @endif>
+                    {{ $optionName }}
+                </button>
+            @endforeach
+        </nav>
 
 
         @if ($this->matchday && filled($this->matchday->opponent))
