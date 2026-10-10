@@ -78,10 +78,12 @@ class SaveTip
             }
         }
 
-        return DB::transaction(function () use ($user, $matchday, $lech, $opponent, $new) {
+        return DB::transaction(function () use ($user, $matchday, $lech, $opponent, $new, $allowedIds) {
             $tip = Tip::where('matchday_id', $matchday->id)->where('user_id', $user->id)->lockForUpdate()->first();
 
+            // Porównujemy tylko odpowiedzi z zestawów, na które gracz może teraz odpowiadać.
             $old = TipAnswer::where('matchday_id', $matchday->id)->where('user_id', $user->id)
+                ->whereIn('matchday_question_id', $allowedIds)
                 ->pluck('answer', 'matchday_question_id')
                 ->map(fn ($a) => (bool) $a)
                 ->all();
@@ -105,8 +107,10 @@ class SaveTip
 
             $tip->fill(['lech_goals' => $lech, 'opponent_goals' => $opponent, 'saved_at' => $savedAt, 'save_order' => $order, 'is_default' => false])->save();
 
-            // Usuń odpowiedzi wyczyszczone przez gracza i te z rozgrywek, z których odpadł; zapisz pozostałe.
+            // Usuń odpowiedzi wyczyszczone przez gracza i zapisz pozostałe. Odpowiedzi z rozgrywek, z których odpadł,
+            // zostają (nie liczą się, ale służą statystyce pytań i wracają do gry, gdy przeliczenie zmieni awans).
             TipAnswer::where('matchday_id', $matchday->id)->where('user_id', $user->id)
+                ->whereIn('matchday_question_id', $allowedIds)
                 ->whereNotIn('matchday_question_id', array_keys($new))
                 ->delete();
 

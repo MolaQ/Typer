@@ -9,8 +9,8 @@ use App\Models\Competition;
  * W jakich typach rozgrywek sezonu gra dany użytkownik? Od tego zależy, na jakie zestawy pytań
  * bonusowych odpowiada (jeden zestaw 5+5 na każdy typ rozgrywek, w którym gra).
  * Liga i Liga podwórkowa mają wspólny zestaw, więc obie zwracamy jako League.
- * Zespół, który odpadł z pucharu albo z Ligi Legend, nie odpowiada już na pytania tych rozgrywek
- * (w kolejce, w której odpadł, jeszcze tak).
+ * Zespół, który odpadł z pucharu, pucharu europejskiego albo z Ligi Legend, nie odpowiada już na pytania tych rozgrywek
+ * (w kolejce, w której odpadł, jeszcze tak). Odpowiedzi udzielone wcześniej z wyprzedzeniem zostają w bazie, ale się nie liczą.
  */
 class PlayerCompetitions
 {
