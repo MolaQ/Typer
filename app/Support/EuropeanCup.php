@@ -6,6 +6,7 @@ use App\Enums\KnockoutStage;
 use App\Models\Competition;
 use App\Models\CompetitionEntry;
 use App\Models\Fixture;
+use App\Models\SeasonTeam;
 use Illuminate\Support\Collection;
 
 /**
@@ -161,7 +162,7 @@ final class EuropeanCup
     /**
      * Tabele grup po meczach fazy grupowej: litera => wiersze Standings (od pierwszego miejsca).
      *
-     * @return array<string, Collection<int, array<string, mixed>>>
+     * @return array<string, Collection<int, array{entry_id: int, team: SeasonTeam, played: int, won: int, drawn: int, lost: int, for: int, against: int, diff: int, points: int, exact: int, diff_hits: int, outcome_hits: int, bonus: int, hof: int}>>
      */
     public static function groupTables(Competition $competition): array
     {
@@ -286,11 +287,18 @@ final class EuropeanCup
         $entries = CompetitionEntry::with('seasonTeam')->where('competition_id', $competition->id)->get()->keyBy('id');
         $knockout = Fixture::where('competition_id', $competition->id)->where('round', '>', self::GROUP_ROUNDS)->get();
 
+        /** @var list<array{team: mixed, stats: array<string, mixed>}> $rows */
+        $rows = [];
+
         if ($knockout->isEmpty()) {
             // Faza grupowa trwa albo nie ruszyła: kolejność z wirtualnych tabel miejsc.
-            return collect(self::placeTables($competition))->flatten(1)
-                ->map(fn ($row) => ['team' => $row['team'], 'stats' => collect($row)->except(['team', 'entry_id'])->all()])
-                ->values();
+            foreach (self::placeTables($competition) as $table) {
+                foreach ($table as $row) {
+                    $rows[] = ['team' => $row['team'], 'stats' => self::stats($row)];
+                }
+            }
+
+            return collect($rows);
         }
 
         // Najdalsza runda i miejsce drabinki z 1/8 finału (lepsze miejsce = wyżej w swojej grupie odpadnięć).
@@ -311,20 +319,34 @@ final class EuropeanCup
             }
         }
 
-        $ordered = collect(array_keys($reached))
-            ->sort(fn (int $a, int $b) => [$reached[$b], $seat[$a] ?? 99] <=> [$reached[$a], $seat[$b] ?? 99])
-            ->values();
+        $ids = array_keys($reached);
+        usort($ids, fn (int $a, int $b) => [$reached[$b], $seat[$a] ?? 99] <=> [$reached[$a], $seat[$b] ?? 99]);
 
-        $rows = $ordered->map(fn ($id) => ['team' => $entries[$id]->seasonTeam, 'stats' => ['round' => $reached[$id], 'seat' => $seat[$id] ?? null]]);
+        foreach ($ids as $id) {
+            $rows[] = ['team' => $entries->get($id)?->seasonTeam, 'stats' => ['round' => $reached[$id], 'seat' => $seat[$id] ?? null]];
+        }
 
         // Miejsca 5 i 6 z grup.
         $places = self::placeTables($competition);
         foreach ([5, 6] as $place) {
             foreach ($places[$place] ?? [] as $row) {
-                $rows->push(['team' => $row['team'], 'stats' => collect($row)->except(['team', 'entry_id'])->all()]);
+                $rows[] = ['team' => $row['team'], 'stats' => self::stats($row)];
             }
         }
 
-        return $rows->values();
+        return collect($rows);
+    }
+
+    /**
+     * Statystyki wiersza tabeli do tabel końcowych (bez zespołu i id wpisu).
+     *
+     * @param  array<string, mixed>  $row
+     * @return array<string, mixed>
+     */
+    private static function stats(array $row): array
+    {
+        unset($row['team'], $row['entry_id']);
+
+        return $row;
     }
 }
