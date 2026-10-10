@@ -23,7 +23,9 @@ use Illuminate\Support\Facades\DB;
  *  - tylko do godziny pierwszego gwizdka (Matchday::isOpenForTips),
  *  - gracz odpowiada tylko na zestawy typów rozgrywek, w których gra,
  *  - saved_at zmienia się wyłącznie, gdy typ lub odpowiedzi faktycznie się zmieniły
- *    (ponowne zapisanie tych samych danych nie psuje pierwszeństwa w remisie pucharu).
+ *    (ponowne zapisanie tych samych danych nie psuje pierwszeństwa w remisie pucharu),
+ *  - każdy zapis zmiany dostaje kolejny numer z dziennika tip_saves (save_order): liczy się ostatni zapis,
+ *    a mniejszy numer wygrywa remisy tam, gdzie rozstrzyga czas typu (puchary, Liga Legend).
  */
 class SaveTip
 {
@@ -94,7 +96,14 @@ class SaveTip
             }
 
             $tip ??= new Tip(['matchday_id' => $matchday->id, 'user_id' => $user->id]);
-            $tip->fill(['lech_goals' => $lech, 'opponent_goals' => $opponent, 'saved_at' => now()])->save();
+            $savedAt = now();
+            $order = DB::table('tip_saves')->insertGetId([
+                'matchday_id' => $matchday->id,
+                'user_id' => $user->id,
+                'created_at' => $savedAt->format('Y-m-d H:i:s.u'),
+            ]);
+
+            $tip->fill(['lech_goals' => $lech, 'opponent_goals' => $opponent, 'saved_at' => $savedAt, 'save_order' => $order, 'is_default' => false])->save();
 
             // Usuń odpowiedzi wyczyszczone przez gracza i te z rozgrywek, z których odpadł; zapisz pozostałe.
             TipAnswer::where('matchday_id', $matchday->id)->where('user_id', $user->id)

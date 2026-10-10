@@ -165,9 +165,13 @@ new #[Layout('layouts::public')] class extends Component {
         return HallOfFame::iconUrls();
     }
 
-    /** Opis wyniku w rozgrywkach: miejsce, a w pucharze etap. */
+    /** Opis wyniku w rozgrywkach: miejsce, a w pucharze etap (w pucharach europejskich zwycięzca i finał). */
     private function result(Competition $competition, ?int $place, $awards): string
     {
+        if ($competition->type->isEuropean() && in_array($place, [1, 2], true)) {
+            return $place === 1 ? __('Winner') : __('Final');
+        }
+
         if ($competition->type === CompetitionType::Cup) {
             if ($place === 1) {
                 return __('Winner');

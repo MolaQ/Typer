@@ -1,9 +1,7 @@
 <?php
 
-use App\Enums\CompetitionType;
 use App\Models\Fixture;
 use App\Models\Matchday;
-use App\Support\CupBracket;
 use App\Support\Rivals;
 use Flux\Flux;
 use Livewire\Attributes\Computed;
@@ -37,14 +35,15 @@ new class extends Component {
         }
 
         $competition = $fixture->competition;
-        $isCup = $competition->type === CompetitionType::Cup;
+        // Mecz pucharowy (Puchar Polski, faza pucharowa pucharów europejskich): zwycięzca i kolejność zapisu typu.
+        $isCup = $competition->type->decidedByTime($fixture->round);
         $matchday = Matchday::where('season_id', $competition->season_id)->where('number', $fixture->round)->first();
 
         return Rivals::fixture($fixture, $matchday, auth()->user()) + [
             'round' => $fixture->round,
             'matchday' => $matchday,
             'competition_name' => $competition->name ?: $competition->type->label(),
-            'round_label' => $isCup ? CupBracket::roundName($fixture->round) : __('Matchday :number', ['number' => $fixture->round]),
+            'round_label' => $competition->type->stageLabel($fixture->round),
             'is_cup' => $isCup,
         ];
     }

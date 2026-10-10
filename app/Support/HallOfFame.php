@@ -17,6 +17,7 @@ use Illuminate\Support\Facades\Schema;
  * zgodnie z ważnością rozgrywek (pełny tytuł z meczami i awansem):
  *   Liga Legend 1000 (premie za rundy, do tego punkty Legend z kolejek) > Ekstraklasa 500 > Puchar Polski 450
  *   > MVP 400 > Złota Piłka 360 > Złote Rękawice 330 > Liga Mistrzów 300 > Liga Europy 250 > Liga Konferencji 180
+ *   (za samo zwycięstwo; z meczami grupowymi i premiami za etapy zdobywca LM ma do 445, mniej niż Puchar Polski)
  *   > I liga 168 > II liga 144 … > podwórkowa 12.
  * Złota Liga nie daje punktów, tylko unikalne trofeum (najniżej w gablocie).
  */
@@ -35,9 +36,14 @@ final class HallOfFame
         // Puchar Polski (zaraz po Ekstraklasie): za wygraną w każdej rundzie (razem 75), zwycięzca finału osobno (375), łącznie 450.
         'cup_round_1' => 2, 'cup_round_2' => 2, 'cup_round_3' => 3, 'cup_round_4' => 5, 'cup_round_5' => 8,
         'cup_round_6' => 12, 'cup_round_7' => 18, 'cup_round_8' => 25, 'cup_winner' => 375,
-        // Ligi europejskie: zwycięzca i wygrany mecz.
-        'champions_winner' => 300, 'europa_winner' => 250, 'conference_winner' => 180,
-        'champions_win' => 3, 'europa_win' => 2, 'conference_win' => 1,
+        // Puchary europejskie (EuropeanCup): wygrana i remis w fazie grupowej, 1. miejsce w grupie, premie za etapy
+        // (narastająco: wyjście z grupy = 1/8 finału, ćwierćfinał, półfinał, finał) i zwycięstwo.
+        'champions_win' => 3, 'champions_draw' => 1.5, 'champions_group_first' => 10,
+        'champions_round_6' => 10, 'champions_round_7' => 20, 'champions_round_8' => 35, 'champions_round_9' => 55, 'champions_winner' => 300,
+        'europa_win' => 2, 'europa_draw' => 1, 'europa_group_first' => 8,
+        'europa_round_6' => 8, 'europa_round_7' => 15, 'europa_round_8' => 26, 'europa_round_9' => 42, 'europa_winner' => 250,
+        'conference_win' => 1, 'conference_draw' => 0.5, 'conference_group_first' => 6,
+        'conference_round_6' => 6, 'conference_round_7' => 10, 'conference_round_8' => 18, 'conference_round_9' => 30, 'conference_winner' => 180,
         // Liga Legend: punkty Legend z każdej kolejki (do 100) razy przelicznik (0,1, czyli do 10 HoF; panel), na bieżąco po kolejce,
         // oraz premia za przejście każdej rundy (narastająco): runda 1 = 0, 2 = 10 … 8 = 250 (awans do finału),
         // wygrana w finale 500. Zwycięzca dostaje z premii razem 1000.
@@ -127,14 +133,18 @@ final class HallOfFame
                 'league_draw' => __('Match drawn'),
             ],
             CompetitionType::Cup->label() => $cup,
-            __('European leagues') => [
-                'champions_winner' => CompetitionType::Champions->label().': '.__('winner'),
-                'europa_winner' => CompetitionType::Europa->label().': '.__('winner'),
-                'conference_winner' => CompetitionType::Conference->label().': '.__('winner'),
-                'champions_win' => CompetitionType::Champions->label().': '.__('match won'),
-                'europa_win' => CompetitionType::Europa->label().': '.__('match won'),
-                'conference_win' => CompetitionType::Conference->label().': '.__('match won'),
-            ],
+            ...collect([CompetitionType::Champions, CompetitionType::Europa, CompetitionType::Conference])
+                ->mapWithKeys(fn (CompetitionType $type) => [$type->label() => [
+                    $type->value.'_win' => __('Group stage: match won'),
+                    $type->value.'_draw' => __('Group stage: match drawn'),
+                    $type->value.'_group_first' => __('Group winner'),
+                    $type->value.'_round_6' => __('Through to the round of 16'),
+                    $type->value.'_round_7' => __('Through to the quarter-final'),
+                    $type->value.'_round_8' => __('Through to the semi-final'),
+                    $type->value.'_round_9' => __('Through to the final'),
+                    $type->value.'_winner' => __('Winner'),
+                ]])
+                ->all(),
             CompetitionType::Legends->label() => [
                 'legends_point' => __('Hall of Fame points per Legend point'),
                 ...collect(range(1, LegendsRanking::ROUNDS - 1))

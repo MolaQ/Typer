@@ -52,7 +52,7 @@ final class LegendsRanking
      * Ranking uczestników (od najlepszego) z kolejek 1..$upTo. $onlyAlive: tylko ci, którzy nie odpadli
      * przed kolejką $upTo (odpadnięci w samej kolejce $upTo zostają).
      *
-     * @return Collection<int, array{entry_id: int, team: SeasonTeam, eliminated_round: ?int, points: int, last_points: ?int, hit_points: int, bonus_points: int, tip_points: int, bonus: int, exact: int, diff_hits: int, outcome_hits: int, hof: float, tipped_at: ?string}>
+     * @return Collection<int, array{entry_id: int, team: SeasonTeam, eliminated_round: ?int, points: int, last_points: ?int, hit_points: int, bonus_points: int, tip_points: int, bonus: int, exact: int, diff_hits: int, outcome_hits: int, hof: float, tipped_at: ?string, tip_order: ?int}>
      */
     public static function for(Competition $competition, int $upTo, bool $onlyAlive = false): Collection
     {
@@ -98,6 +98,7 @@ final class LegendsRanking
                 'outcome_hits' => $own->where('outcome_hit', true)->count(),
                 'hof' => $season ? HallOfFame::teamPointsBefore($season, $team->user_id, $team->bot_id) : 0.0,
                 'tipped_at' => $lastScore?->tipped_at?->format('Y-m-d H:i:s.u'),
+                'tip_order' => $lastScore?->tip_order,
             ];
         });
 
@@ -110,9 +111,9 @@ final class LegendsRanking
                 }
             }
 
-            // Wcześniejszy typ wygrywa; brak typu na końcu, potem pozycja na liście.
-            if ($a['tipped_at'] !== $b['tipped_at']) {
-                return $a['tipped_at'] === null ? 1 : ($b['tipped_at'] === null ? -1 : $a['tipped_at'] <=> $b['tipped_at']);
+            // Wcześniej zapisany typ wygrywa (mniejszy numer zapisu); brak typu na końcu, potem pozycja na liście.
+            if ($a['tip_order'] !== $b['tip_order']) {
+                return $a['tip_order'] === null ? 1 : ($b['tip_order'] === null ? -1 : $a['tip_order'] <=> $b['tip_order']);
             }
 
             return $a['team']->position <=> $b['team']->position;

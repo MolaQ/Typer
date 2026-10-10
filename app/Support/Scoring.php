@@ -79,16 +79,17 @@ final class Scoring
     }
 
     /**
-     * Kto awansuje w pucharze przy remisie? Wcześniejszy czas typu; przy równym czasie gospodarz
-     * (wyższe rozstawienie). Czasy jako napisy "Y-m-d H:i:s.u" porównują się poprawnie.
+     * Kto awansuje przy remisie w meczu pucharowym? Wcześniej zapisany typ, czyli mniejszy numer zapisu
+     * (Tip::save_order, każdy zapis ma inny). Bot, brak typu i domyślny typ premium (null) są za wszystkimi
+     * typami ludzi; gdy obaj go nie mają, wygrywa gospodarz (wyższe rozstawienie).
      */
-    public static function homeWinsOnTime(?string $homeTippedAt, ?string $awayTippedAt): bool
+    public static function homeWinsOnTime(?int $homeOrder, ?int $awayOrder): bool
     {
-        if ($homeTippedAt === null || $awayTippedAt === null) {
-            return $awayTippedAt === null;
+        if ($homeOrder === null || $awayOrder === null) {
+            return $awayOrder === null;
         }
 
-        return $homeTippedAt <= $awayTippedAt;
+        return $homeOrder < $awayOrder;
     }
 
     private static function sign(int $value): int

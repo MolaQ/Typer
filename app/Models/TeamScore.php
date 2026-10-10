@@ -18,6 +18,7 @@ use Illuminate\Support\Carbon;
  * @property int|null $tip_lech
  * @property int|null $tip_opponent
  * @property Carbon|null $tipped_at
+ * @property int|null $tip_order numer zapisu typu (Tip::save_order), null = bot, brak typu albo domyślny typ premium
  * @property int $tip_points
  * @property bool $outcome_hit
  * @property bool $diff_hit
@@ -32,7 +33,7 @@ class TeamScore extends Model
 {
     protected $fillable = [
         'matchday_id', 'season_team_id', 'question_set',
-        'has_tip', 'tip_lech', 'tip_opponent', 'tipped_at',
+        'has_tip', 'tip_lech', 'tip_opponent', 'tipped_at', 'tip_order',
         'tip_points', 'outcome_hit', 'diff_hit', 'exact_hit',
         'offense_bonus', 'defense_bonus', 'offense_zeroed', 'defense_zeroed', 'offense',
     ];
@@ -45,6 +46,7 @@ class TeamScore extends Model
             'tip_lech' => 'integer',
             'tip_opponent' => 'integer',
             'tipped_at' => 'datetime:Y-m-d H:i:s.u',
+            'tip_order' => 'integer',
             'tip_points' => 'integer',
             'outcome_hit' => 'boolean',
             'diff_hit' => 'boolean',

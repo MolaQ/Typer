@@ -2,7 +2,6 @@
 
 use App\Actions\Competitions\BuildCompetitions;
 use App\Enums\CompetitionType;
-use App\Enums\League;
 use App\Enums\Permission;
 use App\Enums\SeasonStatus;
 use App\Models\Competition;
@@ -10,7 +9,6 @@ use App\Models\CompetitionEntry;
 use App\Models\Season;
 use App\Models\SeasonTeam;
 use App\Support\Audit;
-use App\Support\LeagueSchedule;
 use Flux\Flux;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Facades\DB;
@@ -24,8 +22,8 @@ use Livewire\Component;
  * Hall of Fame, więc admin sam wybiera uczestników z listy zespołów sezonu.
  * Gdy jest podstawa, rozgrywki można utworzyć albo uzupełnić automatycznie: ligi europejskie z tabel końcowych
  * poprzedniego sezonu, Złotą Ligę z wpłat (przyciski „Utwórz z historii” i „Uzupełnij z …”).
- * Ligi 10-zespołowe (Mistrzów, Europy, Konferencji) dostają terminarz z LeagueSchedule, a miejsca
- * ustawiają się według pozycji zespołów na liście przedsezonowej (wyżej = faworyt = gospodarz).
+ * Złota Liga (10 zespołów) dostaje terminarz z LeagueSchedule, puchary europejskie (24 zespoły) fazę grupową
+ * z EuropeanCup; miejsca ustawiają się według pozycji zespołów na liście przedsezonowej (wyżej = faworyt = gospodarz).
  * Podgląd: season-list. Zmiany: season-edit.
  */
 new class extends Component {
@@ -168,7 +166,7 @@ new class extends Component {
     {
         $competition = $this->selected;
 
-        if (!$competition || !$this->isOpen || ($competition->type->isRoundRobin() && $competition->entries_count >= League::SIZE)) {
+        if (!$competition || !$this->isOpen || ($competition->type->size() !== null && $competition->entries_count >= $competition->type->size())) {
             return collect();
         }
 
@@ -189,7 +187,7 @@ new class extends Component {
         }
 
         $history = array_values(array_diff($history, $taken));
-        $limit = 20;
+        $limit = max(20, (int) $competition->type->size());
 
         $rest = SeasonTeam::where('season_id', $this->seasonId)
             ->whereNotIn('id', array_merge($taken, $history))
@@ -218,7 +216,7 @@ new class extends Component {
         }
 
         $competition = $this->selected;
-        $free = $competition->type->isRoundRobin() ? League::SIZE - $competition->entries_count : $this->suggestions->count();
+        $free = $competition->type->size() !== null ? $competition->type->size() - $competition->entries_count : $this->suggestions->count();
         $added = [];
 
         foreach ($this->suggestions->take(max(0, $free)) as $row) {
@@ -268,9 +266,7 @@ new class extends Component {
     public function hint(CompetitionType $type): string
     {
         return match ($type) {
-            CompetitionType::Champions => __('10 teams: the winners of the 10 leagues from the previous season. Round robin, 9 rounds.'),
-            CompetitionType::Europa => __('10 teams: the second places of the 10 leagues from the previous season. Round robin, 9 rounds.'),
-            CompetitionType::Conference => __('10 teams: the third places of the 10 leagues from the previous season. Round robin, 9 rounds.'),
+            CompetitionType::Champions, CompetitionType::Europa, CompetitionType::Conference => __('24 teams: 4 groups of 6 (matchdays 1-5, round robin), the top 4 of each group play the round of 16, quarter-finals, semi-finals and the final (matchdays 6-9).'),
             CompetitionType::Legends => __('Human teams only. The fixtures of this competition are added in a later stage.'),
             CompetitionType::Golden => __('10 teams with the highest payments in the last 12 months, bots fill the free places. Round robin, 9 rounds, no Hall of Fame points.'),
             default => '',
@@ -433,8 +429,8 @@ new class extends Component {
         $competition = $this->selected;
         $team = SeasonTeam::where('season_id', $this->seasonId)->findOrFail($seasonTeamId);
 
-        if ($competition->type->isRoundRobin() && $competition->entries_count >= League::SIZE) {
-            Flux::toast(text: __('This competition already has :count teams.', ['count' => League::SIZE]), variant: 'warning');
+        if ($competition->type->size() !== null && $competition->entries_count >= $competition->type->size()) {
+            Flux::toast(text: __('This competition already has :count teams.', ['count' => $competition->type->size()]), variant: 'warning');
 
             return;
         }
@@ -495,7 +491,8 @@ new class extends Component {
 
     /**
      * Ustawia miejsca według pozycji na liście przedsezonowej (wyżej na liście = niższy numer,
-     * czyli faworyt i gospodarz) i generuje 9 kolejek z LeagueSchedule.
+     * czyli faworyt i gospodarz) i generuje terminarz: 9 kolejek z LeagueSchedule albo fazę grupową
+     * pucharów europejskich (rozstawienie 1-4 = pierwsze zespoły grup A-D, 5-8 drugie itd.).
      */
     public function generateFixtures(): void
     {
@@ -506,7 +503,7 @@ new class extends Component {
         }
 
         $competition = $this->selected;
-        abort_unless($competition?->type->isRoundRobin(), 422);
+        abort_unless($competition?->type->size() !== null, 422);
 
         if ($competition->fixtures_count > 0) {
             Flux::toast(text: __('The fixtures are already generated. Clear them first.'), variant: 'warning');
@@ -516,13 +513,13 @@ new class extends Component {
 
         $entries = $competition->entries()->with('seasonTeam:id,position')->get();
 
-        if ($entries->count() !== League::SIZE) {
-            Flux::toast(text: __('Exactly :count teams are needed to generate the fixtures.', ['count' => League::SIZE]), variant: 'warning');
+        if ($entries->count() !== $competition->type->size()) {
+            Flux::toast(text: __('Exactly :count teams are needed to generate the fixtures.', ['count' => $competition->type->size()]), variant: 'warning');
 
             return;
         }
 
-        DB::transaction(function () use ($competition, $entries): void {
+        $matches = DB::transaction(function () use ($competition, $entries): int {
             // Dwa kroki, żeby nie złamać unikalności (competition_id, seed).
             CompetitionEntry::where('competition_id', $competition->id)->increment('seed', 1000);
 
@@ -535,26 +532,10 @@ new class extends Component {
                 $entryBySeed[$seed] = $entry->id;
             }
 
-            $now = now();
-            $rows = [];
-
-            foreach (LeagueSchedule::fixtures() as $match) {
-                $rows[] = [
-                    'competition_id' => $competition->id,
-                    'round' => $match['round'],
-                    'home_seat' => $match['home'],
-                    'away_seat' => $match['away'],
-                    'home_entry_id' => $entryBySeed[$match['home']],
-                    'away_entry_id' => $entryBySeed[$match['away']],
-                    'created_at' => $now,
-                    'updated_at' => $now,
-                ];
-            }
-
-            DB::table('fixtures')->insert($rows);
+            return app(BuildCompetitions::class)->createSchedule($competition, $entryBySeed);
         });
 
-        Audit::log('competition.drawn', null, [], ['matches' => 45], $competition->name . ' (' . $this->season->title . ')');
+        Audit::log('competition.drawn', null, [], ['matches' => $matches], $competition->name . ' (' . $this->season->title . ')');
 
         $this->clearCaches();
         Flux::toast(text: __('Fixtures generated.'), variant: 'success');
@@ -805,8 +786,8 @@ new class extends Component {
                                     <div class="flex flex-wrap items-center justify-between gap-2">
                                         <flux:heading size="sm">{{ __('Proposed teams') }}</flux:heading>
                                         <flux:button size="xs" variant="primary" icon="sparkles" wire:click="addSuggestions">
-                                            {{ $selected->type->isRoundRobin()
-                                                ? __('Add :count proposed', ['count' => min(\App\Enums\League::SIZE - $selected->entries_count, $this->suggestions->count())])
+                                            {{ $selected->type->size() !== null
+                                                ? __('Add :count proposed', ['count' => min($selected->type->size() - $selected->entries_count, $this->suggestions->count())])
                                                 : __('Add all proposed') }}
                                         </flux:button>
                                     </div>
@@ -837,7 +818,7 @@ new class extends Component {
                     @endif
 
                     {{-- Terminarz --}}
-                    @if ($selected->type->isRoundRobin() && $this->isOpen)
+                    @if ($selected->type->size() !== null && $this->isOpen)
                         @can(\App\Enums\Permission::SeasonEdit->value)
                             <div class="flex flex-wrap gap-2 border-t border-zinc-200 pt-4 dark:border-zinc-700">
                                 @if ($fixed)
@@ -846,7 +827,7 @@ new class extends Component {
                                 @else
                                     <flux:button size="sm" variant="primary" icon="bolt"
                                         wire:click="generateFixtures"
-                                        :disabled="$selected->entries_count !== \App\Enums\League::SIZE">
+                                        :disabled="$selected->entries_count !== $selected->type->size()">
                                         {{ __('Generate fixtures') }}
                                     </flux:button>
                                 @endif

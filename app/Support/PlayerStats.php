@@ -102,6 +102,23 @@ final class PlayerStats
                 $row['status'] = $entry->eliminated_round
                     ? __('Knocked out in: :round', ['round' => CupBracket::roundName($entry->eliminated_round)])
                     : __('Still in the cup');
+            } elseif ($competition->type->isEuropean() && $competition instanceof Competition) {
+                // Puchary europejskie: miejsce w grupie, a po odpadnięciu etap (faza grupowa albo runda pucharowa).
+                $group = EuropeanCup::groupOf($entry->seed);
+                $table = EuropeanCup::groupTables($competition)[$group]->values();
+                $index = $table->search(fn ($r) => $r['entry_id'] === $entry->id);
+                $own = $index === false ? null : $table[$index];
+
+                $row['status'] = match (true) {
+                    $entry->eliminated_round === EuropeanCup::GROUP_ROUNDS => __('Knocked out in the group stage'),
+                    $entry->eliminated_round !== null => __('Knocked out in: :round', ['round' => EuropeanCup::stageLabel($entry->eliminated_round)]),
+                    $index === false => '—',
+                    default => __('Group :group: :place. place', ['group' => $group, 'place' => $index + 1]),
+                };
+                $row['points'] = $own['points'] ?? null;
+                foreach (['played', 'won', 'drawn', 'lost'] as $key) {
+                    $row[$key] = (int) ($own[$key] ?? 0);
+                }
             } elseif ($competition->type === CompetitionType::Legends) {
                 $row['legends'] = $competition instanceof Competition ? self::legendsPath($competition, $entry, $tipPoints) : [];
                 $last = end($row['legends']);

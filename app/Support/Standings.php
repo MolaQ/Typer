@@ -21,11 +21,17 @@ use Illuminate\Support\Collection;
 final class Standings
 {
     /**
+     * Puchary europejskie: $entryIds zawęża tabelę do jednej grupy, a $maxRound do meczów fazy grupowej.
+     *
+     * @param  array<int, int>|null  $entryIds
      * @return Collection<int, array{entry_id: int, team: SeasonTeam, played: int, won: int, drawn: int, lost: int, for: int, against: int, diff: int, points: int, exact: int, diff_hits: int, outcome_hits: int, bonus: int, hof: int}>
      */
-    public static function for(Competition $competition): Collection
+    public static function for(Competition $competition, ?array $entryIds = null, ?int $maxRound = null): Collection
     {
-        $entries = $competition->entries()->with(['seasonTeam.user:id,name,team_name', 'seasonTeam.bot:id,name'])->get();
+        $entries = $competition->entries()
+            ->when($entryIds !== null, fn ($q) => $q->whereIn('id', $entryIds))
+            ->with(['seasonTeam.user:id,name,team_name', 'seasonTeam.bot:id,name'])
+            ->get();
 
         $season = $competition->season;
         $rows = [];
@@ -40,7 +46,10 @@ final class Standings
             ];
         }
 
-        $fixtures = Fixture::where('competition_id', $competition->id)->whereNotNull('home_goals')->get();
+        $fixtures = Fixture::where('competition_id', $competition->id)
+            ->whereNotNull('home_goals')
+            ->when($maxRound !== null, fn ($q) => $q->where('round', '<=', $maxRound))
+            ->get();
 
         if ($fixtures->isEmpty()) {
             return self::sort($rows);
@@ -139,6 +148,17 @@ final class Standings
     public static function rankedEntryIds(Competition $competition): array
     {
         return self::for($competition)->pluck('entry_id')->all();
+    }
+
+    /**
+     * Ranking wierszy tabeli kryteriami ligowymi (np. wirtualna tabela zespołów z tego samego miejsca w grupach).
+     *
+     * @param  array<int|string, array<string, mixed>>  $rows
+     * @return Collection<int, array<string, mixed>>
+     */
+    public static function rank(array $rows): Collection
+    {
+        return self::sort($rows);
     }
 
     private static function sort(array $rows): Collection

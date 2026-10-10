@@ -17,6 +17,7 @@ use App\Models\Tip;
 use App\Models\User;
 use App\Support\Audit;
 use App\Support\CupBracket;
+use App\Support\EuropeanCup;
 use App\Support\HallOfFame;
 use App\Support\LegendsRanking;
 use App\Support\Roster;
@@ -133,6 +134,7 @@ class FinishSeason
             $ranked = match (true) {
                 $competition->type === CompetitionType::Cup => $this->cupPlaces($competition),
                 $competition->type === CompetitionType::Legends => $this->legendsPlaces($competition, $lastRound),
+                $competition->type->isEuropean() => EuropeanCup::finalOrder($competition),
                 default => Standings::for($competition)->map(fn ($row) => [
                     'team' => $row['team'],
                     'stats' => collect($row)->except(['team', 'entry_id'])->all(),

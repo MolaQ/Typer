@@ -11,6 +11,7 @@ use App\Models\FinalStanding;
 use App\Models\Season;
 use App\Models\SeasonTeam;
 use App\Support\CupBracket;
+use App\Support\EuropeanCup;
 use App\Support\GoldenLeague;
 use App\Support\LeagueSchedule;
 use DomainException;
@@ -295,7 +296,8 @@ class BuildCompetitions
     }
 
     /**
-     * Dodaje uczestników; terminarz tylko przy komplecie 10 zespołów (inaczej admin uzupełnia skład na stronie Rozgrywki).
+     * Dodaje uczestników; terminarz tylko przy komplecie (10 zespołów w Złotej Lidze, 24 w pucharach europejskich),
+     * inaczej admin uzupełnia skład na stronie Rozgrywki.
      *
      * @param  array<int, int>  $seatTeams
      */
@@ -307,15 +309,30 @@ class BuildCompetitions
 
         $entries = $this->createEntries($competition, $seatTeams);
 
-        if (count($entries) === League::SIZE) {
-            $rows = [];
-            foreach (LeagueSchedule::fixtures() as $match) {
-                $rows[] = $this->fixtureRow($competition, $match['round'], $match['home'], $match['away'], $entries);
-            }
-            $this->insertFixtures($rows);
+        if (count($entries) === $competition->type->size()) {
+            $this->createSchedule($competition, $entries);
         }
 
         return count($entries);
+    }
+
+    /**
+     * Terminarz rozgrywek ze stałym składem: ligi i Złota Liga każdy z każdym (LeagueSchedule),
+     * puchary europejskie faza grupowa (EuropeanCup; drabinka 1/8 finału powstaje po kolejce 5).
+     *
+     * @param  array<int, int>  $entries  seed => id wpisu
+     */
+    public function createSchedule(Competition $competition, array $entries): int
+    {
+        $schedule = $competition->type->isEuropean() ? EuropeanCup::groupFixtures() : LeagueSchedule::fixtures();
+
+        $rows = [];
+        foreach ($schedule as $match) {
+            $rows[] = $this->fixtureRow($competition, $match['round'], $match['home'], $match['away'], $entries);
+        }
+        $this->insertFixtures($rows);
+
+        return count($rows);
     }
 
     private function exists(Season $season, CompetitionType $type, ?int $tier = null): bool

@@ -33,7 +33,9 @@ it('gives 3, 1 and 0 match points', function () {
 });
 
 it('lets the earlier tip win a cup draw', function () {
-    expect(Scoring::homeWinsOnTime('2026-10-01 10:00:00.000001', '2026-10-01 10:00:00.000002'))->toBeTrue()
-        ->and(Scoring::homeWinsOnTime('2026-10-01 10:00:00.5', '2026-10-01 10:00:00.4'))->toBeFalse()
-        ->and(Scoring::homeWinsOnTime('2026-10-01 10:00:00.0', '2026-10-01 10:00:00.0'))->toBeTrue();
+    expect(Scoring::homeWinsOnTime(1, 2))->toBeTrue()
+        ->and(Scoring::homeWinsOnTime(5, 4))->toBeFalse()
+        ->and(Scoring::homeWinsOnTime(7, null))->toBeTrue()
+        ->and(Scoring::homeWinsOnTime(null, 7))->toBeFalse()
+        ->and(Scoring::homeWinsOnTime(null, null))->toBeTrue();
 });

@@ -15,6 +15,7 @@ use App\Models\Season;
 use App\Models\SeasonTeam;
 use App\Models\TeamScore;
 use App\Support\CupBracket;
+use App\Support\EuropeanCup;
 use App\Support\HallOfFame;
 use App\Support\LegendsRanking;
 use App\Support\Promotion;
@@ -24,14 +25,15 @@ use Illuminate\Support\Facades\DB;
 /**
  * Przyznaje punkty i trofea Hall of Fame za sezon (regulamin, punkt 12). Liczy się na bieżąco po każdym
  * przeliczeniu kolejki (SaveMatchdayResult) i jeszcze raz przy zakończeniu sezonu (FinishSeason).
- * W trakcie sezonu wchodzą tylko punkty za mecze (z terminarza): wygrane i remisy w ligach, wygrane
- * w ligach europejskich, wygrane rundy pucharu. Miejsca, awanse, król strzelców, Liga Legend, tytuły
+ * W trakcie sezonu wchodzą tylko punkty za mecze (z terminarza): wygrane i remisy w ligach, mecze grupowe
+ * i etapy pucharów europejskich, wygrane rundy pucharu. Miejsca, awanse, król strzelców, Liga Legend, tytuły
  * i trofea dochodzą dopiero z tabel końcowych (final_standings), czyli po zakończeniu sezonu.
  * Przeliczenie kasuje poprzednie wpisy sezonu, więc można je powtarzać (np. po zmianie punktacji w panelu).
  * Punkty bieżącego sezonu nie wpływają na kryterium HoF w tabelach tego sezonu (HallOfFame::pointsBefore).
  *  - ligi i podwórkowa (× mnożnik poziomu): wygrane i remisy, miejsca 1-3, awans, król strzelców,
  *  - Puchar Polski: wygrana w każdej rundzie, zwycięzca finału,
- *  - ligi europejskie: wygrane mecze i zwycięstwo,
+ *  - puchary europejskie: wygrane i remisy w grupie, 1. miejsce w grupie, awans do kolejnych etapów (na bieżąco),
+ *    zwycięzca finału (po zakończeniu sezonu),
  *  - Liga Legend: punkty Legend z każdej kolejki i premie za przejście rund (na bieżąco), wygrana w finale,
  *  - Złota Liga: tylko trofeum, bez punktów,
  *  - nagrody indywidualne (po zakończeniu sezonu, gracze i boty): MVP sezonu (najwięcej trafionych rozstrzygnięć,
@@ -124,18 +126,65 @@ class AwardHallOfFame
         }
     }
 
-    /** Liga Mistrzów, Europy i Konferencji: wygrane na bieżąco, tytuł po zakończeniu sezonu. */
+    /**
+     * Liga Mistrzów, Europy i Konferencji (EuropeanCup), na bieżąco:
+     *  - wygrane i remisy w fazie grupowej,
+     *  - 1. miejsce w grupie (zespoły z miejsc 1-4 drabinki 1/8 finału),
+     *  - awans do 1/8 finału, ćwierćfinału, półfinału i finału (narastająco, z obecności w meczu rundy),
+     * a po zakończeniu sezonu zwycięzca finału (punkty i trofeum).
+     */
     private function european(Competition $competition, Collection $final): void
     {
         $type = $competition->type->value;
 
-        foreach ($this->results($competition) as $result) {
-            $this->addTeam($competition, $result['team'], 'matches', $result['won'] * HallOfFame::value($type.'_win'), null, ['won' => $result['won']]);
+        foreach ($this->results($competition, EuropeanCup::GROUP_ROUNDS) as $result) {
+            $points = $result['won'] * HallOfFame::value($type.'_win') + $result['drawn'] * HallOfFame::value($type.'_draw');
+            $this->addTeam($competition, $result['team'], 'matches', $points, null, ['won' => $result['won'], 'drawn' => $result['drawn']]);
         }
 
-        $winner = $final->first();
-        if ($winner && $winner->place === 1 && ($winner->stats['played'] ?? 0) > 0) {
-            $this->add($competition, $winner, 'title', HallOfFame::value($type.'_winner'), $type);
+        $knockout = Fixture::where('competition_id', $competition->id)->where('round', '>', EuropeanCup::GROUP_ROUNDS)->get();
+
+        if ($knockout->isEmpty()) {
+            return;
+        }
+
+        $teamOfEntry = CompetitionEntry::where('competition_id', $competition->id)->pluck('season_team_id', 'id');
+        $teams = SeasonTeam::whereIn('id', $teamOfEntry->values())->get(['id', 'user_id', 'bot_id'])->keyBy('id');
+        $rounds = [];
+        $groupWinners = [];
+
+        foreach ($knockout as $fixture) {
+            foreach ([[$fixture->home_entry_id, $fixture->home_seat], [$fixture->away_entry_id, $fixture->away_seat]] as [$entryId, $seat]) {
+                if ($entryId === null) {
+                    continue;
+                }
+                $rounds[$entryId][] = $fixture->round;
+                if ($fixture->round === EuropeanCup::GROUP_ROUNDS + 1 && $seat <= count(EuropeanCup::GROUPS)) {
+                    $groupWinners[] = $entryId;
+                }
+            }
+        }
+
+        foreach ($rounds as $entryId => $reached) {
+            $team = $teams->get($teamOfEntry[$entryId] ?? 0);
+
+            if (! $team) {
+                continue;
+            }
+
+            sort($reached);
+            $points = array_sum(array_map(fn (int $round) => HallOfFame::value($type.'_round_'.$round), $reached));
+            $this->addTeam($competition, $team, 'european_stages', $points, null, ['rounds' => $reached]);
+
+            if (in_array($entryId, $groupWinners, true)) {
+                $this->addTeam($competition, $team, 'group_first', HallOfFame::value($type.'_group_first'));
+            }
+        }
+
+        // Zwycięzca: punkty i trofeum dopiero po zakończeniu sezonu.
+        $finalMatch = $knockout->first(fn (Fixture $f) => $f->round === EuropeanCup::ROUNDS && $f->winner_entry_id !== null);
+        if ($this->finished && $finalMatch && ($team = $teams->get($teamOfEntry[$finalMatch->winner_entry_id] ?? 0))) {
+            $this->addTeam($competition, $team, 'title', HallOfFame::value($type.'_winner'), $type);
         }
     }
 
@@ -145,10 +194,11 @@ class AwardHallOfFame
      *
      * @return list<array{team: SeasonTeam, won: int, drawn: int}>
      */
-    private function results(Competition $competition): array
+    private function results(Competition $competition, ?int $maxRound = null): array
     {
         $fixtures = Fixture::where('competition_id', $competition->id)
             ->whereNotNull('home_goals')->whereNotNull('away_goals')
+            ->when($maxRound !== null, fn ($q) => $q->where('round', '<=', $maxRound))
             ->get(['home_entry_id', 'away_entry_id', 'home_goals', 'away_goals']);
 
         $counts = [];

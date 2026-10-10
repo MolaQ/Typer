@@ -8,6 +8,7 @@ use App\Models\Matchday;
 use App\Models\Season;
 use App\Models\SeasonTeam;
 use App\Support\CupBracket;
+use App\Support\EuropeanCup;
 use App\Support\LegendsRanking;
 use App\Support\PlayerStats;
 use App\Support\Premium;
@@ -24,7 +25,8 @@ use Livewire\WithPagination;
  * Wyniki i tabele sezonu (dla wszystkich, także gości). Domyślnie sezon aktywny, a gdy go nie ma, ostatnio zakończony.
  * Strzałki w banerze przesuwają o jeden sezon wstecz albo do przodu (archiwum: sezony aktywne i zakończone).
  * Ligi i Liga podwórkowa: tabela + mecze wybranej kolejki. Puchar Polski: pasek rund, „Twoja droga”, karty meczów rundy
- * (partials/cup-fixture-card), objaśnienia i legenda jak w Lidze Legend.
+ * (partials/cup-fixture-card), objaśnienia i legenda jak w Lidze Legend. Puchary europejskie: pasek etapów, w kolejkach 1-5
+ * tabele grup A-D z meczami kolejki, od 1/8 finału karty meczów jak w Pucharze Polski (EuropeanCup).
  * Kliknięcie zespołu otwiera okno ze statystykami (podstawowe i premium), kliknięcie meczu okno ze szczegółami
  * (widoczność jak w podglądzie rywali: przed zamknięciem typowania, po zamknięciu i po wynikach).
  * Uwaga: nie nazywaj własności "slots" ani "rows" – Livewire rezerwuje część nazw.
@@ -220,7 +222,7 @@ new #[Layout('layouts::public')] class extends Component {
         $this->teamId = null;
 
         unset($this->season, $this->options, $this->competition, $this->isCup, $this->hasTable, $this->table,
-            $this->isLegends, $this->legends, $this->legendsHistory, $this->cupPath, $this->cupPlayed, $this->matchday, $this->matches, $this->myTeamId);
+            $this->isEuropean, $this->groupTables, $this->isLegends, $this->legends, $this->legendsHistory, $this->cupPath, $this->cupPlayed, $this->matchday, $this->matches, $this->myTeamId);
 
         $this->normalize();
         $this->resetPage('matchesPage');
@@ -242,7 +244,7 @@ new #[Layout('layouts::public')] class extends Component {
 
         $this->key = $target;
         $this->teamId = null;
-        unset($this->competition, $this->isCup, $this->hasTable, $this->table, $this->isLegends, $this->legends,
+        unset($this->competition, $this->isCup, $this->hasTable, $this->table, $this->isEuropean, $this->groupTables, $this->isLegends, $this->legends,
             $this->legendsHistory, $this->cupPath, $this->cupPlayed, $this->matches);
         $this->updatedKey();
     }
@@ -311,7 +313,25 @@ new #[Layout('layouts::public')] class extends Component {
     #[Computed]
     public function hasTable(): bool
     {
-        return $this->competition !== null && !$this->isCup && $this->competition->type !== CompetitionType::Legends;
+        return $this->competition !== null && !$this->isCup && !$this->isEuropean && $this->competition->type !== CompetitionType::Legends;
+    }
+
+    /** Liga Mistrzów, Europy albo Konferencji: grupy A-D, potem faza pucharowa (EuropeanCup). */
+    #[Computed]
+    public function isEuropean(): bool
+    {
+        return (bool) $this->competition?->type->isEuropean();
+    }
+
+    /**
+     * Puchary europejskie: tabele grup z meczów fazy grupowej (litera => wiersze Standings).
+     *
+     * @return array<string, \Illuminate\Support\Collection<int, array<string, mixed>>>
+     */
+    #[Computed]
+    public function groupTables(): array
+    {
+        return $this->isEuropean ? EuropeanCup::groupTables($this->competition) : [];
     }
 
     #[Computed]
@@ -533,7 +553,7 @@ new #[Layout('layouts::public')] class extends Component {
                     </div>
                     <div class="min-w-0 space-y-1">
                         <p class="comp-accent text-xs font-bold uppercase tracking-[0.2em]">
-                            {{ $this->season->title }} – {{ $this->isCup || $this->isLegends ? \App\Enums\KnockoutStage::labelFor($round) : __('Matchday :number', ['number' => $round]) }}
+                            {{ $this->season->title }} – {{ $this->competition->type->stageLabel($round) }}
                             @if ($archived) · {{ __('Season archive') }} @endif
                         </p>
                         <h1 class="text-3xl font-black uppercase tracking-tight sm:text-4xl">
@@ -999,7 +1019,7 @@ new #[Layout('layouts::public')] class extends Component {
                     {{-- Objaśnienia kursywą pod drabinką i legenda kolorów --}}
                     <div class="space-y-1 px-1 text-xs italic text-zinc-500">
                         <p>
-                            {{ __('The favourite plays on the left and the winner takes the better seed of the pair. A draw goes to the team that saved its tip earlier (at an equal time the higher seed), shown as “after penalties”.') }}
+                            {{ __('The favourite plays on the left and the winner takes the better seed of the pair. A draw goes to the team whose tip was saved first (every save gets its own number; bots and missing tips come last, then the higher seed), shown as “after penalties”.') }}
                             {{ __('The number next to the team is its seed in this round.') }}
                         </p>
                         <p class="flex flex-wrap gap-4 not-italic">
@@ -1011,8 +1031,13 @@ new #[Layout('layouts::public')] class extends Component {
                 </div>
             @endif
 
+            {{-- ============ Puchary europejskie: grupy A-D, potem faza pucharowa ============ --}}
+            @if ($this->isEuropean)
+                @include('partials.european-results', ['round' => $round])
+            @endif
+
             {{-- ============ Mecze kolejki / rundy ============ --}}
-            @if (!$this->isLegends && !$this->isCup)
+            @if (!$this->isLegends && !$this->isCup && !$this->isEuropean)
             <flux:card class="space-y-2 self-start">
                 <flux:heading>
                     {{ $this->isCup ? \App\Support\CupBracket::roundName($round) : __('Matchday :number', ['number' => $round]) }}

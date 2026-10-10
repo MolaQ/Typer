@@ -16,6 +16,7 @@ use App\Models\TeamScore;
 use App\Models\Tip;
 use App\Models\TipAnswer;
 use App\Models\User;
+use App\Support\EuropeanCup;
 use App\Support\LegendsRanking;
 use App\Support\Premium;
 use App\Support\Scoring;
@@ -28,9 +29,12 @@ use Illuminate\Support\Facades\DB;
  *  1. boty dostają losowy typ 0-3 : 0-3 (raz, potem zostaje zapisany), a gracze premium bez typu swój domyślny typ,
  *  2. każdy zespół dostaje dorobek (team_scores) dla każdego zestawu pytań swoich rozgrywek,
  *  3. mecze tej kolejki we wszystkich rozgrywkach dostają wynik,
- *  4. w pucharze zwycięzca wchodzi na lepsze miejsce pary w meczu następnej rundy,
+ *  4. w pucharze (i w fazie pucharowej pucharów europejskich) zwycięzca wchodzi na lepsze miejsce pary
+ *     w meczu następnej rundy, a remis rozstrzyga wcześniej zapisany typ (mniejszy numer zapisu),
  *  5. w Lidze Legend odpadają zespoły poza limitem po tej kolejce (LegendsRanking),
- *  6. kto odpadł z pucharu albo Ligi Legend, traci odpowiedzi na pytania tych rozgrywek w kolejnych kolejkach.
+ *  6. po ostatniej kolejce grupowej pucharów europejskich powstaje drabinka 1/8 finału (EuropeanCup::drawKnockout),
+ *  7. kto odpadł z pucharu, pucharu europejskiego albo Ligi Legend, traci odpowiedzi na pytania tych rozgrywek
+ *     w kolejnych kolejkach.
  * Można wywołać wielokrotnie: przeliczenie nadpisuje poprzednie wyniki tej kolejki.
  * Runda rozgrywek = numer kolejki.
  */
@@ -57,9 +61,9 @@ class ScoreMatchday
 
             // Rozgrywki sezonu i to, w których zestawach pytań gra każdy zespół.
             $competitions = Competition::where('season_id', $matchday->season_id)->get()->keyBy('id');
-            // Puchar i Liga Legend: przeliczenie kolejki cofa odpadnięcia z tej kolejki (liczymy je od nowa niżej).
+            // Puchary i Liga Legend: przeliczenie kolejki cofa odpadnięcia z tej kolejki (liczymy je od nowa niżej).
             $legends = $competitions->first(fn ($c) => $c->type === CompetitionType::Legends);
-            $knockout = $competitions->filter(fn ($c) => in_array($c->type, [CompetitionType::Cup, CompetitionType::Legends], true));
+            $knockout = $competitions->filter(fn ($c) => $c->type->isEuropean() || in_array($c->type, [CompetitionType::Cup, CompetitionType::Legends], true));
             CompetitionEntry::whereIn('competition_id', $knockout->keys())
                 ->where('eliminated_round', '>=', $matchday->number)
                 ->update(['eliminated_round' => null]);
@@ -104,8 +108,9 @@ class ScoreMatchday
                     ? Scoring::tip($tip->lech_goals, $tip->opponent_goals, $matchday->lech_goals, $matchday->opponent_goals)
                     : ['points' => 0, 'outcome' => false, 'diff' => false, 'exact' => false];
 
-                // Bot i brak typu: czas typu = godzina meczu.
+                // Bot i brak typu: czas typu = godzina meczu, bez numeru zapisu (za wszystkimi typami ludzi).
                 $tippedAt = $tip instanceof Tip ? $tip->saved_at->format('Y-m-d H:i:s.u') : $kickoff;
+                $tipOrder = $tip instanceof Tip && ! $tip->is_default ? $tip->save_order : null;
 
                 foreach (array_keys($setsOfTeam[$team->id] ?? []) as $set) {
                     // Boty i gracze bez typu nie dostają punktów z pytań.
@@ -121,6 +126,7 @@ class ScoreMatchday
                         'tip_lech' => $tip?->lech_goals,
                         'tip_opponent' => $tip?->opponent_goals,
                         'tipped_at' => $tippedAt,
+                        'tip_order' => $tipOrder,
                         'tip_points' => $tipResult['points'],
                         'outcome_hit' => $tipResult['outcome'],
                         'diff_hit' => $tipResult['diff'],
@@ -176,9 +182,9 @@ class ScoreMatchday
                     $winner = $fixture->home_entry_id;
                 } elseif ($awayGoals > $homeGoals) {
                     $winner = $fixture->away_entry_id;
-                } elseif ($competition->type === CompetitionType::Cup) {
+                } elseif ($competition->type->decidedByTime($fixture->round)) {
                     $byTime = true;
-                    $winner = Scoring::homeWinsOnTime($home['tipped_at'] ?? null, $away['tipped_at'] ?? null)
+                    $winner = Scoring::homeWinsOnTime($home['tip_order'] ?? null, $away['tip_order'] ?? null)
                         ? $fixture->home_entry_id
                         : $fixture->away_entry_id;
                 }
@@ -190,7 +196,7 @@ class ScoreMatchday
                     'decided_by_time' => $byTime,
                 ]);
 
-                if ($competition->type === CompetitionType::Cup && $winner !== null) {
+                if ($competition->type->decidedByTime($fixture->round) && $winner !== null) {
                     $this->advance($fixture, $winner);
 
                     // Przegrany odpada z pucharu po tej rundzie.
@@ -202,6 +208,13 @@ class ScoreMatchday
             }
 
             $eliminated = $legends ? LegendsRanking::eliminate($legends, $matchday->number) : 0;
+
+            // Puchary europejskie: po ostatniej kolejce grupowej drabinka 1/8 finału, miejsca 5-6 odpadają.
+            if ($matchday->number === EuropeanCup::GROUP_ROUNDS) {
+                foreach ($competitions->filter(fn ($c) => $c->type->isEuropean()) as $european) {
+                    EuropeanCup::drawKnockout($european);
+                }
+            }
 
             $this->dropAnswersOfEliminated($matchday, $knockout);
 

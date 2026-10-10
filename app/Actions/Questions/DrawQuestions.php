@@ -18,11 +18,15 @@ use Illuminate\Support\Facades\DB;
  * Uzupełnia puste miejsca w zestawach pytań kolejki losowymi pytaniami z banku
  * (regulamin, punkt 4: zestawy różnych typów rozgrywek w tej samej kolejce się nie powtarzają).
  * Istniejące miejsca zostają nietknięte, więc można najpierw ustawić część ręcznie.
- * Liga Legend dostaje w pierwszej kolejności najtrudniejsze pytania (App\Support\QuestionDifficulty).
+ * Liga Legend i puchary europejskie (wspólny zestaw zapisany jako Champions) dostają w pierwszej kolejności
+ * najtrudniejsze pytania (App\Support\QuestionDifficulty), na tym samym poziomie.
  * Jeśli w banku brakuje aktywnych pytań, nic się nie zapisuje (transakcja) i admin dostaje komunikat.
  */
 class DrawQuestions
 {
+    /** Zestawy z najtrudniejszymi pytaniami: Liga Legend i puchary europejskie (na równi). */
+    private const HARD = [CompetitionType::Legends, CompetitionType::Champions];
+
     /**
      * @param  CompetitionType|null  $type  jeden typ rozgrywek albo null = wszystkie typy sezonu
      * @return int liczba uzupełnionych miejsc
@@ -38,8 +42,8 @@ class DrawQuestions
         return DB::transaction(function () use ($matchday, $type): int {
             $types = $type ? [$type] : self::typesOfSeason($matchday->season_id);
 
-            // Liga Legend losuje pierwsza, żeby najtrudniejsze pytania nie trafiły wcześniej do innych zestawów.
-            usort($types, fn ($a, $b) => ($b === CompetitionType::Legends) <=> ($a === CompetitionType::Legends));
+            // Liga Legend i puchary europejskie losują pierwsze, żeby najtrudniejsze pytania nie trafiły wcześniej do innych zestawów.
+            usort($types, fn ($a, $b) => in_array($b, self::HARD, true) <=> in_array($a, self::HARD, true));
 
             if ($types === []) {
                 throw new DomainException(__('Approve the season first: the competitions are created on approval.'));
@@ -66,10 +70,11 @@ class DrawQuestions
                     $pool = Question::where('is_active', true)->where('side', $side->value)->pluck('id')->all();
                     $picked = [];
 
-                    // Liga Legend: najpierw losujemy spośród najtrudniejszych pytań (najmniej poprawnych odpowiedzi),
-                    // z puli dwa razy większej niż zestaw, żeby zestawy nie były co kolejkę identyczne.
-                    if ($competitionType === CompetitionType::Legends) {
-                        $hard = QuestionDifficulty::hardest(MatchdayQuestion::PER_SIDE * 2, $side->value)
+                    // Liga Legend i puchary europejskie: najpierw losujemy spośród najtrudniejszych pytań (najmniej
+                    // poprawnych odpowiedzi), z puli dwa razy większej niż oba zestawy razem, żeby zestawy nie były
+                    // co kolejkę identyczne i żeby starczyło trudnych pytań dla obu.
+                    if (in_array($competitionType, self::HARD, true)) {
+                        $hard = QuestionDifficulty::hardest(MatchdayQuestion::PER_SIDE * 2 * count(self::HARD), $side->value)
                             ->map(fn ($row) => $row['question']->id)->all();
                         $picked = QuestionPicker::pick($hard, $used, count($missing));
                     }

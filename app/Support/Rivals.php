@@ -265,7 +265,7 @@ final class Rivals
                 'virtual' => $index === 1 && $fixture->isBye(),
                 'goals' => $goals,
                 'winner' => $fixture->winner_entry_id !== null && (int) $fixture->winner_entry_id === (int) ($index === 0 ? $fixture->home_entry_id : $fixture->away_entry_id),
-                'tipped' => null, 'outcome' => null, 'tip' => null, 'tipped_at' => null, 'offense' => null, 'defense' => null, 'score' => null,
+                'tipped' => null, 'outcome' => null, 'tip' => null, 'tipped_at' => null, 'tip_order' => null, 'offense' => null, 'defense' => null, 'score' => null,
                 'stars' => null, 'stars_mode' => $starsMode,
             ];
 
@@ -276,6 +276,7 @@ final class Rivals
                 if ($tip && ($phase === self::PLAYED || ($phase === self::CLOSED && $premium))) {
                     $side['tip'] = $tip->score();
                     $side['tipped_at'] = $tip->saved_at;
+                    $side['tip_order'] = $tip->is_default ? null : $tip->save_order;
                 } elseif ($tip && $matchday && ($phase === self::CLOSED || $premium)) {
                     $side['outcome'] = self::outcome($tip, $matchday);
                 }
@@ -290,6 +291,7 @@ final class Rivals
                 $side['tipped'] = $score->has_tip;
                 $side['tip'] = $score->has_tip ? $score->tip_lech.':'.$score->tip_opponent : null;
                 $side['tipped_at'] = $score->tipped_at;
+                $side['tip_order'] = $score->tip_order;
                 $side['score'] = $score;
             }
 

@@ -205,7 +205,10 @@
                     @if ($side['tipped_at'] && $isCup)
                         <div class="{{ $mirror }} flex items-center justify-between gap-2 border-t border-lech-200/70 pt-2 text-xs dark:border-lech-800">
                             <span class="{{ $labelClass }}">{{ __('Tip saved') }}</span>
-                            <span class="tabular-nums text-zinc-500">{{ $side['tipped_at']->translatedFormat('j M, H:i:s.v') }}</span>
+                            {{-- Remis w meczu pucharowym rozstrzyga kolejność zapisu typu (numer), nie same milisekundy --}}
+                            <span class="tabular-nums text-zinc-500">
+                                {{ $side['tipped_at']->translatedFormat('j M, H:i:s') }}@if ($side['tip_order']) · {{ __('save no. :number', ['number' => $side['tip_order']]) }}@endif
+                            </span>
                         </div>
                     @endif
                 @else

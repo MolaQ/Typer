@@ -116,11 +116,12 @@ new class extends Component {
         return (bool) $this->competition?->type->isRoundRobin();
     }
 
-    /** Czy to rozgrywki z listą meczów rundy (puchar, liga szwajcarska)? */
+    /** Czy to rozgrywki z listą meczów rundy (puchar, liga szwajcarska, puchary europejskie)? */
     #[Computed]
     public function isRoundList(): bool
     {
-        return in_array($this->competition?->type, [CompetitionType::Cup, CompetitionType::Swiss], true);
+        return in_array($this->competition?->type, [CompetitionType::Cup, CompetitionType::Swiss], true)
+            || (bool) $this->competition?->type->isEuropean();
     }
 
     #[Computed]
@@ -342,7 +343,7 @@ new class extends Component {
                     <flux:select wire:model.live="round" :label="__('Round')">
                         @foreach (range(1, \App\Support\CupBracket::ROUNDS) as $number)
                             <flux:select.option :value="$number">
-                                {{ $this->competition->type === \App\Enums\CompetitionType::Cup ? $number . '. ' . \App\Support\CupBracket::roundName($number) : __('Round :number', ['number' => $number]) }}
+                                {{ $this->competition->type === \App\Enums\CompetitionType::Swiss ? __('Round :number', ['number' => $number]) : $number . '. ' . $this->competition->type->stageLabel($number) }}
                             </flux:select.option>
                         @endforeach
                     </flux:select>
@@ -428,6 +429,7 @@ new class extends Component {
         @elseif ($this->isRoundList)
             @php
                 $isCup = $this->competition->type === \App\Enums\CompetitionType::Cup;
+                $isSwiss = $this->competition->type === \App\Enums\CompetitionType::Swiss;
                 $matches = $this->roundFixtures;
             @endphp
 
@@ -440,7 +442,7 @@ new class extends Component {
                     @endif
                 </flux:text>
 
-                @if (!$isCup)
+                @if ($isSwiss)
                     @can(\App\Enums\Permission::SeasonEdit->value)
                         @if ($this->drawnRounds < \App\Actions\Competitions\DrawSwissRound::ROUNDS)
                             <flux:button variant="primary" icon="arrows-right-left" wire:click="drawRound">
@@ -454,6 +456,11 @@ new class extends Component {
             @if ($isCup)
                 <flux:text class="text-sm">
                     {{ __('The bracket is fixed: the best seat plays the worst. The winner takes the better seat of the pair, so later rounds show seat numbers until the results decide who stands there.') }}
+                </flux:text>
+            @elseif (!$isSwiss)
+                <flux:text class="text-sm">
+                    {{ __('Four groups of six teams, everyone plays everyone once. Points and tie-breakers as in the leagues.') }}
+                    {{ __('The round of 16 is drawn after the last group matchday.') }}
                 </flux:text>
             @else
                 <flux:text class="text-sm">
@@ -503,7 +510,7 @@ new class extends Component {
                     @empty
                         <flux:table.row>
                             <flux:table.cell colspan="4" class="py-10 text-center text-zinc-500">
-                                {{ $isCup ? __('No matches in this round.') : __('This round has not been drawn yet.') }}
+                                {{ $isSwiss ? __('This round has not been drawn yet.') : __('No matches in this round.') }}
                             </flux:table.cell>
                         </flux:table.row>
                     @endforelse

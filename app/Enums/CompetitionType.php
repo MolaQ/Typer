@@ -2,12 +2,16 @@
 
 namespace App\Enums;
 
+use App\Support\EuropeanCup;
+
 /**
  * Rodzaj rozgrywek w sezonie.
  *  - Tworzone automatycznie przy zatwierdzeniu sezonu: League (10 lig), Cup, Swiss, Legends
  *    (wszystkie zespoły ludzi, eliminacja po kolejkach).
  *  - Ligi europejskie i Złota Liga: przy zatwierdzeniu powstają same, gdy jest podstawa (Champions, Europa,
  *    Conference z tabel końcowych poprzedniego sezonu, Golden z wpłat), poza tym admin zarządza nimi ręcznie.
+ *  - Puchary europejskie (Champions, Europa, Conference): 24 zespoły, 4 grupy po 6, potem 1/8 finału … finał
+ *    (App\Support\EuropeanCup). Złota Liga: 10 zespołów każdy z każdym.
  * Nazwy rozgrywek to polskie nazwy własne, więc nie przechodzą przez tłumaczenia.
  */
 enum CompetitionType: string
@@ -44,22 +48,66 @@ enum CompetitionType: string
     /** Liga 10 zespołów każdy z każdym (9 kolejek, schemat z App\Support\LeagueSchedule). */
     public function isRoundRobin(): bool
     {
-        return in_array($this, [self::League, self::Champions, self::Europa, self::Conference, self::Golden], true);
+        return in_array($this, [self::League, self::Golden], true);
+    }
+
+    /** Liga Mistrzów, Europy albo Konferencji (grupy i faza pucharowa, App\Support\EuropeanCup). */
+    public function isEuropean(): bool
+    {
+        return in_array($this, [self::Champions, self::Europa, self::Conference], true);
+    }
+
+    /** Pełny skład rozgrywek ze stałym terminarzem: 10 (ligi, Złota Liga), 24 (puchary europejskie), inaczej null. */
+    public function size(): ?int
+    {
+        return match (true) {
+            $this->isRoundRobin() => League::SIZE,
+            $this->isEuropean() => EuropeanCup::TEAMS,
+            default => null,
+        };
+    }
+
+    /** Czy remis w meczu tej rundy rozstrzyga wcześniej zapisany typ (Puchar Polski, faza pucharowa pucharów europejskich)? */
+    public function decidedByTime(int $round): bool
+    {
+        return $this === self::Cup || ($this->isEuropean() && EuropeanCup::isKnockoutRound($round));
+    }
+
+    /**
+     * Nazwa kolejki (rundy) w tych rozgrywkach: etapy pucharu i Ligi Legend („1/8”, „Finał”), puchary europejskie
+     * („Faza grupowa – kolejka 2”, „1/8 finału”), ligi „Kolejka N”.
+     */
+    public function stageLabel(int $round): string
+    {
+        return match (true) {
+            $this === self::Cup, $this === self::Legends => KnockoutStage::labelFor($round),
+            $this->isEuropean() => EuropeanCup::stageLabel($round),
+            default => __('Matchday :number', ['number' => $round]),
+        };
     }
 
     /**
      * Typ, którego zestaw pytań bonusowych obowiązuje w tych rozgrywkach.
-     * 10 lig i Liga podwórkowa mają jeden wspólny zestaw (zapisany jako League).
+     * 10 lig i Liga podwórkowa mają jeden wspólny zestaw (zapisany jako League),
+     * trzy puchary europejskie też jeden (zapisany jako Champions; zespół gra tylko w jednym z nich).
      */
     public function questionSet(): self
     {
-        return $this === self::Swiss ? self::League : $this;
+        return match ($this) {
+            self::Swiss => self::League,
+            self::Europa, self::Conference => self::Champions,
+            default => $this,
+        };
     }
 
-    /** Nazwa zestawu pytań, np. "Ligi i Liga podwórkowa". */
+    /** Nazwa zestawu pytań, np. "Ligi i Liga podwórkowa", "Puchary europejskie". */
     public function questionSetLabel(): string
     {
-        return $this->questionSet() === self::League ? __('Leagues and Liga podwórkowa') : $this->label();
+        return match ($this->questionSet()) {
+            self::League => __('Leagues and Liga podwórkowa'),
+            self::Champions => __('European cups'),
+            default => $this->label(),
+        };
     }
 
     /** Ligi europejskie: miejsce 1, 2 i 3 lig 1-10 z poprzedniego sezonu (regulamin, punkt 10). */
