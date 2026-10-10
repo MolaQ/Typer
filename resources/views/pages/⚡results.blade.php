@@ -616,14 +616,16 @@ new #[Layout('layouts::public')] class extends Component {
             }
             $leagueActive = array_key_exists($this->key, $leagueOptions);
             $pill = 'inline-flex shrink-0 items-center gap-2 rounded-full px-3.5 py-1.5 text-sm font-semibold transition';
+            // Aktywna opcja: tylko obwódka w kolorze strony (lech), bez ciemnego tła.
+            $pillOn = 'text-lech-800 ring-2 ring-inset ring-lech-600 dark:text-lech-200 dark:ring-lech-400';
             $pillOff = 'text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800 dark:hover:text-white';
         @endphp
         <nav class="-mt-2 flex flex-wrap items-center gap-1 rounded-3xl border border-zinc-200 bg-white p-1 shadow-sm dark:border-zinc-700 dark:bg-zinc-900" aria-label="{{ __('Competition') }}">
             @if (count($leagueOptions) > 0)
                 <flux:dropdown position="bottom" align="start">
-                    <button type="button" class="{{ $pill }} {{ $leagueActive ? 'lech-bar' : $pillOff }}">
+                    <button type="button" class="{{ $pill }} {{ $leagueActive ? $pillOn : $pillOff }}">
                         @if ($leagueActive)
-                            <span class="size-2.5 rounded-full ring-1 ring-white/40" style="background: {{ \App\Support\CompetitionColors::for($leagueOptions[$this->key][1])['bg2'] }}"></span>
+                            <span class="size-2.5 rounded-full" style="background: {{ \App\Support\CompetitionColors::for($leagueOptions[$this->key][1])['bg2'] }}"></span>
                             {{ $leagueOptions[$this->key][0] }}
                         @else
                             {{ __('Leagues') }}
@@ -645,7 +647,7 @@ new #[Layout('layouts::public')] class extends Component {
             @endif
             @foreach ($otherOptions as $optionKey => [$optionName, $optionColor])
                 <button type="button" wire:click="$set('key', '{{ $optionKey }}')" wire:key="opt-{{ $optionKey }}"
-                    class="{{ $pill }} {{ $optionKey === $this->key ? 'lech-bar' : $pillOff }}"
+                    class="{{ $pill }} {{ $optionKey === $this->key ? $pillOn : $pillOff }}"
                     @if ($optionKey === $this->key) aria-current="true" @endif>
                     <span class="size-2.5 rounded-full" style="background: {{ \App\Support\CompetitionColors::for($optionColor)['bg2'] }}"></span>
                     {{ $optionName }}
