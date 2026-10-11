@@ -5,7 +5,8 @@
 
     Parametry: $title, $status, $rounds (liczba kolejek), $perRound (meczów w kolejce), $path (kolejka => lista meczów),
     $entryId (wpis gracza), $eliminated (kolejka odpadnięcia albo null), $stageLabel (fn(int): string),
-    $stageUrl (fn(int): string, link etykiety kolejki), $current (wybrana kolejka).
+    $stageUrl (fn(int): string, link etykiety kolejki) albo $stageAction (metoda komponentu wywoływana z numerem kolejki),
+    opcjonalnie $stageExtra (fn(int): string, tekst pod etykietą), $current (wybrana kolejka).
     Używany na /results (Liga Legend, puchary europejskie) i na /tips („Twoje ligowe mecze”).
 --}}
 <section class="lech-bar-shadow overflow-hidden rounded-2xl border border-lech-950/20 bg-white dark:border-lech-900 dark:bg-zinc-900">
@@ -24,10 +25,19 @@
                     $gone = $eliminated !== null && $stage > $eliminated;
                 @endphp
                 <li class="flex flex-col gap-1.5" wire:key="path-{{ $stage }}">
-                    <a href="{{ $stageUrl($stage) }}" wire:navigate
-                        class="{{ $stage === $current ? 'text-lech-700 dark:text-lech-300' : 'text-zinc-500 hover:text-lech-700' }} truncate text-center text-xs font-semibold uppercase tracking-wide">
-                        {{ $stageLabel($stage) }}
-                    </a>
+                    @php
+                        $stageClass = ($stage === $current ? 'text-lech-700 dark:text-lech-300' : 'text-zinc-500 hover:text-lech-700') . ' truncate text-center text-xs font-semibold uppercase tracking-wide';
+                    @endphp
+                    @if (isset($stageAction))
+                        {{-- /tips: etykieta wybiera kolejkę do typowania (zamiast kafelków kolejek) --}}
+                        <button type="button" wire:click="{{ $stageAction }}({{ $stage }})" class="{{ $stageClass }}">{{ $stageLabel($stage) }}</button>
+                    @else
+                        <a href="{{ $stageUrl($stage) }}" wire:navigate class="{{ $stageClass }}">{{ $stageLabel($stage) }}</a>
+                    @endif
+                    @if (isset($stageExtra))
+                        {{-- Dodatkowa linia pod etykietą, np. mecz Lecha w tej kolejce --}}
+                        <span class="truncate text-center text-[11px] text-zinc-500">{{ $stageExtra($stage) }}</span>
+                    @endif
                     @foreach (range(0, $perRound - 1) as $slot)
                         @php
                             $fx = $stageFixtures[$slot] ?? null;

@@ -513,8 +513,34 @@ new #[Layout('layouts::public')] class extends Component {
     </nav>
 
     @if ($tab === 'tip')
+    @if ($league = $this->myLeague)
+        {{--
+            Wybór kolejki: „Twoje ligowe mecze” (jak „Twoja droga w pucharze”). Etykieta kolejki wybiera ją do typowania,
+            pod nią mecz Lecha (wynik albo termin), karta meczu otwiera okno pojedynku.
+        --}}
+        @php
+            $matchdaysByNumber = $this->matchdays->keyBy('number');
+        @endphp
+        @include('partials.my-matches-path', [
+            'title' => __('Your league matches') . ' · ' . ($league['competition']->name ?: $league['competition']->type->label()),
+            'status' => $league['status'],
+            'rounds' => \App\Models\Matchday::PER_SEASON,
+            'perRound' => 1,
+            'path' => $league['path'],
+            'entryId' => $league['entry_id'],
+            'eliminated' => null,
+            'stageLabel' => fn (int $stage) => __('Matchday :number', ['number' => $stage]) . (($matchdaysByNumber[$stage] ?? null)?->isOpenForTips() ? ' •' : ''),
+            'stageAction' => 'openMatchday',
+            'stageExtra' => fn (int $stage) => match (true) {
+                !isset($matchdaysByNumber[$stage]) || blank($matchdaysByNumber[$stage]->opponent) => __('Match not assigned yet'),
+                $matchdaysByNumber[$stage]->lech_goals !== null => 'Lech ' . $matchdaysByNumber[$stage]->lech_goals . ':' . $matchdaysByNumber[$stage]->opponent_goals . ' ' . $matchdaysByNumber[$stage]->opponent,
+                default => $matchdaysByNumber[$stage]->opponent . ($matchdaysByNumber[$stage]->kickoff_at ? ', ' . $matchdaysByNumber[$stage]->kickoff_at->translatedFormat('j M H:i') : ''),
+            },
+            'current' => $this->number,
+        ])
+    @else
     {{--
-        Wybór kolejki: siatka 3 x 3. Kolejki z wynikiem w kolorze meczu Lecha (zielony wygrana, żółty remis,
+        Wybór kolejki (gdy gracz nie ma ligi): siatka 3 x 3. Kolejki z wynikiem w kolorze meczu Lecha (zielony wygrana, żółty remis,
         czerwony porażka), bez wyniku szare z ciemnoszarą obwódką. Kropka: zielona = typowanie otwarte.
     --}}
     <div class="grid grid-cols-3 gap-2">
@@ -561,6 +587,7 @@ new #[Layout('layouts::public')] class extends Component {
             </button>
         @endforeach
     </div>
+    @endif
 
     {{-- Tablica meczu i typ wyniku --}}
     <div class="overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
@@ -727,21 +754,6 @@ new #[Layout('layouts::public')] class extends Component {
     @endif
     @endif
 
-    {{-- Twoje ligowe mecze: wszystkie kolejki ligi zespołu, jak „Twoja droga w pucharze” --}}
-    @if ($league = $this->myLeague)
-        @include('partials.my-matches-path', [
-            'title' => __('Your league matches') . ' · ' . ($league['competition']->name ?: $league['competition']->type->label()),
-            'status' => $league['status'],
-            'rounds' => \App\Models\Matchday::PER_SEASON,
-            'perRound' => 1,
-            'path' => $league['path'],
-            'entryId' => $league['entry_id'],
-            'eliminated' => null,
-            'stageLabel' => fn (int $stage) => __('Matchday :number', ['number' => $stage]),
-            'stageUrl' => fn (int $stage) => route('results', ['season_slug' => 'sezon-' . $this->season?->number, 'competition_slug' => $league['competition']->slug(), 'round_slug' => 'kolejka-' . $stage]),
-            'current' => $this->number,
-        ])
-    @endif
     @else
         @include('partials.tips-tabs')
     @endif
