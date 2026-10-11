@@ -88,6 +88,7 @@
                                     <td class="px-3 py-1.5 text-right tabular-nums text-zinc-500">{{ $index + 1 }}.</td>
                                     <td class="max-w-44 truncate px-2 py-1.5">
                                         <button type="button" wire:click="showTeam({{ $row['team']->id }})" class="truncate hover:text-lech-700 hover:underline dark:hover:text-lech-300">{{ $row['team']->name }}</button>
+                                        <x-champion-trophies :team="$row['team']" class="ms-1" />
                                     </td>
                                     <td class="px-1.5 py-1.5 text-right tabular-nums">{{ $row['played'] }}</td>
                                     <td class="px-1.5 py-1.5 text-right tabular-nums">{{ $row['won'] }}</td>
@@ -111,13 +112,13 @@
                             @endphp
                             <button type="button" wire:click="showFixture({{ $fixture->id }})" title="{{ __('Match details') }}" wire:key="gfx-{{ $fixture->id }}"
                                 class="{{ $mine ? 'ring-2 ring-amber-400' : '' }} grid w-full grid-cols-[1fr_auto_1fr] items-center gap-2 rounded-lg bg-black/20 px-2 py-1.5 text-sm transition hover:bg-black/30">
-                                <span class="truncate text-right {{ $homeWon ? 'font-bold' : 'opacity-85' }}">{{ $fixture->home?->seasonTeam->name }}</span>
+                                <span class="flex min-w-0 items-center justify-end gap-1 {{ $homeWon ? 'font-bold' : 'opacity-85' }}"><x-champion-trophies :team="$fixture->home?->seasonTeam" :size="14" /><span class="truncate">{{ $fixture->home?->seasonTeam->name }}</span></span>
                                 @if ($fixture->isPlayed())
                                     <span class="comp-badge min-w-14 rounded-md px-2 py-0.5 text-center text-base font-black tabular-nums shadow">{{ $fixture->home_goals }}:{{ $fixture->away_goals }}</span>
                                 @else
                                     <span class="min-w-14 rounded-md border border-dashed border-current px-2 py-0.5 text-center text-base font-bold tabular-nums opacity-60">–:–</span>
                                 @endif
-                                <span class="truncate text-left {{ $awayWon ? 'font-bold' : 'opacity-85' }}">{{ $fixture->away?->seasonTeam->name }}</span>
+                                <span class="flex min-w-0 items-center gap-1 {{ $awayWon ? 'font-bold' : 'opacity-85' }}"><span class="truncate">{{ $fixture->away?->seasonTeam->name }}</span><x-champion-trophies :team="$fixture->away?->seasonTeam" :size="14" /></span>
                             </button>
                         @empty
                             <div class="px-1 text-sm opacity-80">{{ __('No matches yet.') }}</div>

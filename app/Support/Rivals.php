@@ -261,6 +261,8 @@ final class Rivals
                 'profile' => $team?->user ? route('team.show', $team->user) : null,
                 'user_id' => $team?->user_id,
                 'season_team_id' => $team?->id,
+                // Aktualne tytuły (miniatury trofeów w nagłówku okna, App\Support\Champions).
+                'trophies' => Champions::of($team),
                 'bot' => (bool) $team?->is_bot,
                 'virtual' => $index === 1 && $fixture->isBye(),
                 'goals' => $goals,

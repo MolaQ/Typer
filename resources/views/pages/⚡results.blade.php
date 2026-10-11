@@ -799,6 +799,7 @@ new #[Layout('layouts::public')] class extends Component {
                                         <td class="px-3 py-1.5 text-right tabular-nums text-zinc-500">{{ $index + 1 }}.</td>
                                         <td class="max-w-56 truncate px-2 py-1.5">
                                             <button type="button" wire:click="showTeam({{ $row['team']->id }})" class="{{ $outRound !== null ? 'line-through decoration-red-500/70 decoration-2' : '' }} truncate hover:text-lech-700 hover:underline dark:hover:text-lech-300">{{ $row['team']->name }}</button>
+                                            <x-champion-trophies :team="$row['team']" class="ms-1" />
                                             @if ($outRound !== null)
                                                 <span class="ms-1 inline-flex items-center gap-0.5 rounded-full bg-red-600 px-1.5 py-px align-middle text-[10px] font-bold uppercase tracking-wide text-white no-underline" title="{{ __('Knocked out after matchday :number', ['number' => $outRound]) }}"><flux:icon.x-mark variant="micro" class="size-3" />{{ __('Out (MD :number)', ['number' => $outRound]) }}</span>
                                             @endif
@@ -1043,15 +1044,16 @@ new #[Layout('layouts::public')] class extends Component {
                             @endphp
                             <button type="button" wire:click="showFixture({{ $fixture->id }})" title="{{ __('Match details') }}" wire:key="fx-{{ $fixture->id }}"
                                 class="{{ $mine ? 'ring-2 ring-amber-400' : '' }} grid w-full grid-cols-[1fr_auto_1fr] items-center gap-2 rounded-lg bg-black/20 px-2 py-1.5 text-sm transition hover:bg-black/30">
-                                <span class="truncate text-right {{ $homeWon ? 'font-bold' : 'opacity-85' }}">{{ $fixture->home?->seasonTeam->name ?? __('Seat :number', ['number' => $fixture->home_seat]) }}</span>
+                                <span class="flex min-w-0 items-center justify-end gap-1 {{ $homeWon ? 'font-bold' : 'opacity-85' }}"><x-champion-trophies :team="$fixture->home?->seasonTeam" :size="14" /><span class="truncate">{{ $fixture->home?->seasonTeam->name ?? __('Seat :number', ['number' => $fixture->home_seat]) }}</span></span>
                                 @if ($fixture->isPlayed())
                                     <span class="comp-badge min-w-14 rounded-md px-2 py-0.5 text-center text-base font-black tabular-nums shadow">{{ $fixture->home_goals }}:{{ $fixture->away_goals }}</span>
                                 @else
                                     <span class="min-w-14 rounded-md border border-dashed border-current px-2 py-0.5 text-center text-base font-bold tabular-nums opacity-60">–:–</span>
                                 @endif
-                                <span class="truncate text-left {{ $awayWon ? 'font-bold' : 'opacity-85' }}">
+                                <span class="flex min-w-0 items-center gap-1 text-left {{ $awayWon ? 'font-bold' : 'opacity-85' }}">
                                     @if ($fixture->away)
-                                        {{ $fixture->away->seasonTeam->name }}
+                                        <span class="truncate">{{ $fixture->away->seasonTeam->name }}</span>
+                                        <x-champion-trophies :team="$fixture->away->seasonTeam" :size="14" />
                                     @elseif ($fixture->away_seat)
                                         {{ __('Seat :number', ['number' => $fixture->away_seat]) }}
                                     @else

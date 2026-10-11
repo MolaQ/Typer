@@ -45,6 +45,11 @@
                     @else
                         <div class="truncate px-2.5 py-1 font-semibold {{ $side['virtual'] ? 'italic' : '' }}">{{ $side['name'] }}</div>
                     @endif
+                    @if (($side['trophies'] ?? []) !== [])
+                        <div class="flex px-2.5 {{ $loop->first ? 'justify-end' : '' }}">
+                            <x-champion-trophies :keys="$side['trophies']" :size="20" framed />
+                        </div>
+                    @endif
                     <div class="truncate px-2.5 text-xs text-white/70">
                         {{ $side['owner'] ?? ($side['bot'] ? __('Bot') : '') }}
                         @if ($side['winner'] && $isCup)

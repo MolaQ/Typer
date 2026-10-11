@@ -24,8 +24,9 @@
         @endphp
         <div class="{{ $rowClass }} flex items-center gap-2 border-l-4 px-2 py-1.5 {{ $loop->first ? 'border-b border-b-zinc-100 dark:border-b-zinc-800' : '' }}">
             <span class="w-7 shrink-0 rounded bg-zinc-100 py-0.5 text-center text-[10px] tabular-nums text-zinc-500 dark:bg-zinc-800">{{ $side['seat'] }}</span>
-            <span class="min-w-0 flex-1 truncate">
-                {{ $side['entry']?->seasonTeam->name ?? __('Seat :number', ['number' => $side['seat']]) }}
+            <span class="flex min-w-0 flex-1 items-center gap-1">
+                <span class="truncate">{{ $side['entry']?->seasonTeam->name ?? __('Seat :number', ['number' => $side['seat']]) }}</span>
+                <x-champion-trophies :team="$side['entry']?->seasonTeam" :size="14" />
             </span>
             @if ($won)
                 <flux:icon.chevron-double-right variant="micro" class="shrink-0 text-green-600 dark:text-green-400" />

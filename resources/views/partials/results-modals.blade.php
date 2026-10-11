@@ -18,7 +18,10 @@
                         {{ mb_strtoupper(mb_substr($team->name, 0, 1)) }}
                     </div>
                     <div class="min-w-0 space-y-1">
-                        <div class="truncate text-lg font-semibold">{{ $team->name }}</div>
+                        <div class="flex items-center gap-1.5">
+                            <span class="truncate text-lg font-semibold">{{ $team->name }}</span>
+                            <x-champion-trophies :team="$team" :size="20" />
+                        </div>
                         <div class="flex flex-wrap items-center gap-2 text-sm text-white/75">
                             @if ($team->user)
                                 <span>{{ $team->user->name }}</span>
