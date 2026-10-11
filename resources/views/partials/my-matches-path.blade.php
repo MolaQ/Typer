@@ -7,7 +7,7 @@
     $entryId (wpis gracza), $eliminated (kolejka odpadnięcia albo null), $stageLabel (fn(int): string),
     $stageUrl (fn(int): string, link etykiety kolejki) albo $stageAction (metoda komponentu wywoływana z numerem kolejki),
     opcjonalnie $stageExtra (fn(int): string, tekst pod etykietą), $current (wybrana kolejka).
-    Używany na /results (Liga Legend, puchary europejskie) i na /tips („Twoje ligowe mecze”).
+    Używany na /results (ligi, podwórkowa, Liga Legend, puchary europejskie) i na /tips („Twoje mecze ligowe”).
 --}}
 <section class="lech-bar-shadow overflow-hidden rounded-2xl border border-lech-950/20 bg-white dark:border-lech-900 dark:bg-zinc-900">
     <header class="lech-bar flex flex-wrap items-center justify-between gap-2 px-5 py-3">
