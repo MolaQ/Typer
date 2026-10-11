@@ -26,12 +26,12 @@ use Livewire\Component;
 new #[Layout('layouts::public')] class extends Component {
     public int $number = 0;
 
-    /** Zakładka: tip (typowanie), matchdays (kolejki), competitions (rozgrywki), stats (statystyki), history (historia), scalps (moje skalpy), blacklist (czarna lista). */
+    /** Zakładka: tip (typowanie), competitions (rozgrywki), stats (statystyki), history (historia), scalps (moje skalpy), blacklist (czarna lista). */
     public string $tab = 'tip';
 
     /** Zakładki w adresie po polsku: /tips/kolejka-3/statystyki (typowanie bez części zakładki). */
     private const TAB_SLUGS = [
-        'tip' => 'typ', 'matchdays' => 'kolejki', 'competitions' => 'rozgrywki',
+        'tip' => 'typ', 'competitions' => 'rozgrywki',
         'stats' => 'statystyki', 'history' => 'historia', 'scalps' => 'skalpy', 'blacklist' => 'czarna-lista',
     ];
 
@@ -283,12 +283,6 @@ new #[Layout('layouts::public')] class extends Component {
     }
 
     /* Zakładki ze statystykami (App\Support\PlayerStats). */
-
-    #[Computed]
-    public function myMatchdays(): array
-    {
-        return \App\Support\PlayerStats::matchdays(auth()->user(), $this->season);
-    }
 
     #[Computed]
     public function myCompetitions(): array
@@ -568,14 +562,12 @@ new #[Layout('layouts::public')] class extends Component {
     @php
         $tabs = [
             'tip' => ['pencil-square', __('Tipping')],
-            'matchdays' => ['calendar-days', __('My matchdays')],
             'competitions' => ['trophy', __('Competitions')],
             'stats' => ['chart-bar', __('Statistics')],
             'history' => ['clock', __('History and records')],
             'scalps' => ['fire', __('My scalps')],
             'blacklist' => ['no-symbol', __('Blacklist')],
         ];
-        $missingCount = collect($this->myMatchdays)->where('open', true)->where('missing', true)->count();
         $played = $this->matchday->status === \App\Enums\MatchdayStatus::Played;
     @endphp
 
@@ -586,9 +578,6 @@ new #[Layout('layouts::public')] class extends Component {
                 class="{{ $tab === $key ? 'bg-white text-lech-800 shadow-sm dark:bg-zinc-900 dark:text-lech-300' : 'text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200' }} flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-2 text-sm font-medium transition">
                 <flux:icon :name="$icon" variant="micro" />
                 {{ $label }}
-                @if ($key === 'matchdays' && $missingCount > 0)
-                    <span class="rounded-full bg-amber-500 px-1.5 text-xs font-bold text-white">{{ $missingCount }}</span>
-                @endif
                 @if (in_array($key, ['scalps', 'blacklist'], true))
                     <flux:icon.sparkles variant="micro" class="text-purple-500" />
                 @endif

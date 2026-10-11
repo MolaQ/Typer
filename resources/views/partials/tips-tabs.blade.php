@@ -1,58 +1,9 @@
-{{-- Zakładki strony „Moje typy” poza typowaniem: kolejki, rozgrywki, statystyki, historia (App\Support\PlayerStats). --}}
+{{-- Zakładki strony „Moje typy” poza typowaniem: rozgrywki, statystyki, historia (App\Support\PlayerStats). --}}
 @php
     $isPremium = \App\Support\Premium::isActive(auth()->user());
 @endphp
 
-@if ($tab === 'matchdays')
-    <flux:card class="space-y-3">
-        <flux:heading>{{ __('My matchdays') }}</flux:heading>
-        <div class="divide-y divide-zinc-100 dark:divide-zinc-700">
-            @foreach ($this->myMatchdays as $row)
-                @php
-                    $matchday = $row['matchday'];
-                    $lechPlayed = $matchday->status === \App\Enums\MatchdayStatus::Played && $matchday->lech_goals !== null;
-                    // Wynik meczu Lecha: zielony wygrana, żółty remis, czerwony porażka.
-                    $lechResultClass = !$lechPlayed ? '' : match ($matchday->lech_goals <=> $matchday->opponent_goals) {
-                        1 => 'bg-green-500 text-white',
-                        0 => 'bg-yellow-300 text-yellow-950',
-                        default => 'bg-red-500 text-white',
-                    };
-                @endphp
-                <div class="flex flex-wrap items-center gap-3 py-2 text-sm" wire:key="md-{{ $matchday->id }}">
-                    <span class="w-6 text-right tabular-nums text-zinc-500">{{ $matchday->number }}.</span>
-                    <div class="min-w-0 flex-1">
-                        <div class="font-medium">{{ filled($matchday->opponent) ? $matchday->fixture : __('not set yet') }}</div>
-                        <div class="text-xs text-zinc-500">{{ $matchday->kickoff_at ? $matchday->kickoff_at->translatedFormat('j F, H:i') : '' }}</div>
-                    </div>
-
-                    {{-- Wynik prawdziwego meczu (gospodarz pierwszy, jak w nazwie meczu) --}}
-                    @if ($lechPlayed)
-                        <span class="{{ $lechResultClass }} inline-flex min-w-12 justify-center rounded-md px-2 py-0.5 text-sm font-black tabular-nums" title="{{ __('Lech match result') }}">
-                            {{ $matchday->is_home ? $matchday->lech_goals . ':' . $matchday->opponent_goals : $matchday->opponent_goals . ':' . $matchday->lech_goals }}
-                        </span>
-                    @endif
-
-                    @if ($row['tip'])
-                        <flux:badge size="sm">{{ $row['tip'] }}{{ $row['default'] ? ' (' . __('default') . ')' : '' }}</flux:badge>
-                    @elseif ($row['open'])
-                        <flux:badge size="sm" color="amber">{{ __('Waiting for your tip') }}</flux:badge>
-                    @elseif ($row['missing'])
-                        <flux:badge size="sm" color="red">{{ __('No tip') }}</flux:badge>
-                    @endif
-
-                    @if ($row['points'] !== null)
-                        <span class="w-16 text-right font-semibold tabular-nums">
-                            {{ __(':points pts', ['points' => $row['points']]) }}@if ($row['exact']) ★@endif
-                        </span>
-                    @endif
-
-                    <flux:button size="xs" variant="ghost" icon="arrow-right" wire:click="openMatchday({{ $matchday->number }})"
-                        :aria-label="__('Open')" />
-                </div>
-            @endforeach
-        </div>
-    </flux:card>
-@elseif ($tab === 'competitions')
+@if ($tab === 'competitions')
     @php
         $trophyIcons = \App\Support\HallOfFame::iconUrls();
         // Kolor kafelka meczu według punktów za typ w tej kolejce: 3 niebieski, 2 zielony, 1 żółty, 0 czerwony.
@@ -63,6 +14,9 @@
             0 => 'border-red-300 bg-red-50 dark:border-red-500/40 dark:bg-red-500/10',
         ];
         $outcomeClasses = ['W' => 'bg-green-600', 'D' => 'bg-zinc-400', 'L' => 'bg-red-600'];
+        // Forma w nagłówku: zielona W (wygrana), żółta R (remis), czerwona P (porażka).
+        $formClasses = ['W' => 'bg-green-500 text-white', 'D' => 'bg-yellow-400 text-yellow-950', 'L' => 'bg-red-600 text-white'];
+        $formLetters = ['W' => 'W', 'D' => 'R', 'L' => 'P'];
     @endphp
 
     <div class="flex flex-wrap items-center gap-3 text-xs text-zinc-500">
@@ -90,8 +44,14 @@
                 @if ($row['points'] !== null)
                     <div class="text-right">
                         <div class="text-xl font-bold tabular-nums text-white">{{ __(':points pts', ['points' => $row['points']]) }}</div>
-                        <div class="text-xs text-lech-200">
-                            {{ __(':won W, :drawn D, :lost L', ['won' => $row['won'], 'drawn' => $row['drawn'], 'lost' => $row['lost']]) }}
+                        {{-- Forma: plakietka na każdy rozegrany mecz w kolejności kolejek (W wygrana, R remis, P porażka) --}}
+                        <div class="mt-1 flex flex-wrap justify-end gap-1">
+                            @foreach ($row['matches'] as $formMatch)
+                                @if ($formMatch['outcome'])
+                                    <span class="{{ $formClasses[$formMatch['outcome']] }} flex size-5 items-center justify-center rounded text-[11px] font-black"
+                                        title="{{ $row['type']->stageLabel($formMatch['round']) }}: {{ $formMatch['score'] }}">{{ $formLetters[$formMatch['outcome']] }}</span>
+                                @endif
+                            @endforeach
                         </div>
                     </div>
                 @endif
