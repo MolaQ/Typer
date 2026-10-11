@@ -68,7 +68,7 @@ final class LegendsLeague
             $losses[$loser] = ($losses[$loser] ?? 0) + 1;
         }
 
-        return array_values(array_map('intval', array_keys(array_filter($losses, fn (int $count) => $count >= self::LOSSES_OUT))));
+        return array_map('intval', array_keys(array_filter($losses, fn (int $count) => $count >= self::LOSSES_OUT)));
     }
 
     /**
@@ -133,7 +133,7 @@ final class LegendsLeague
                 'away_entry_id' => $pair[1],
                 'created_at' => $now,
                 'updated_at' => $now,
-            ], self::pairs(array_map('intval', $ranked)));
+            ], self::pairs(array_values(array_map('intval', $ranked))));
 
             foreach (array_chunk($rows, 500) as $chunk) {
                 DB::table('fixtures')->insert($chunk);

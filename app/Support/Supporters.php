@@ -34,6 +34,6 @@ final class Supporters
             ->orderBy('last_paid_at')
             ->orderBy('user_id')
             ->get()
-            ->map(fn ($row) => ['user_id' => (int) $row->user_id, 'total' => (int) $row->total, 'last_paid_at' => (string) $row->last_paid_at]);
+            ->map(fn ($row) => ['user_id' => (int) $row->user_id, 'total' => (int) $row->getAttribute('total'), 'last_paid_at' => (string) $row->getAttribute('last_paid_at')]);
     }
 }

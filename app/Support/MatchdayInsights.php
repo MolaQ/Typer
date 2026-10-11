@@ -20,7 +20,7 @@ final class MatchdayInsights
      * Statystyki typów kolejki. Po wyniku dochodzą trafienia i najczęstsze wyniki.
      *
      * @return array{count: int, lech: int, draw: int, opponent: int, avg_lech: ?float, avg_opponent: ?float,
-     *   exact: ?int, outcome: ?int, diff: ?int, popular: list<array{score: string, count: int}>, exact_count: ?int}
+     *   exact: ?int, outcome: ?int, diff: ?int, popular: array<int, array{score: string, count: int}>, exact_count: ?int}
      */
     public static function tips(Matchday $matchday): array
     {
@@ -84,7 +84,7 @@ final class MatchdayInsights
 
             $out[$type->value] ??= ['label' => $type->questionSetLabel(), 'sides' => [QuestionSide::Offensive->value => [], QuestionSide::Defensive->value => []]];
             $out[$type->value]['sides'][$slot->side->value][] = [
-                'text' => (string) $slot->question?->text,
+                'text' => (string) $slot->question?->getAttribute('text'),
                 'correct' => $slot->correct_answer,
                 'answers' => $answers,
                 'yes' => $yes,
