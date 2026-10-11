@@ -2,7 +2,7 @@
     Pojedynek dwóch zespołów #LechTYPER (uniwersalne okno pages::home.duel-modal, zdarzenie „show-duel”):
     rozgrywki i runda, tablica wyniku, mecz Lecha z tej kolejki, rozliczenie obu stron i informacja o widoczności na dole.
     Parametry: $card (Rivals::fixture + round + matchday), $competitionName, $roundLabel, $isCup.
-    Kolory wartości: App\Support\Tone i komponent x-tone-tile (te same progi w całym serwisie).
+    Rozliczenie po wynikach w barwach strony (paleta lech), przed wynikami kafelki x-tone-tile.
 --}}
 @php
     $phase = $card['phase'];
@@ -19,6 +19,9 @@
     };
     // Etykiety wierszy rozliczenia: jednolite tło.
     $labelClass = 'rounded-md bg-lech-50 px-2 py-0.5 text-xs font-medium text-lech-800 dark:bg-lech-900/40 dark:text-lech-200';
+    // Wartości w rozliczeniu: barwy strony (granat Lecha), zero i brak przygaszone.
+    $siteTile = 'inline-flex h-8 items-center justify-center rounded-lg bg-lech-700 px-2 font-bold tabular-nums text-white shadow-sm dark:bg-lech-600';
+    $mutedTile = 'inline-flex h-8 items-center justify-center rounded-lg bg-lech-100 px-2 font-bold tabular-nums text-lech-400 dark:bg-lech-900/50 dark:text-lech-500';
 @endphp
 <div class="space-y-5">
     <div class="flex flex-wrap items-center justify-between gap-2">
@@ -127,26 +130,28 @@
                     @php
                         $score = $side['score'];
                         $rivalDefense = (int) ($other['score']?->defense_bonus ?? 0);
-                        $tipTone = $score->has_tip ? \App\Support\Tone::tipPoints($score->tip_points) : 'red';
                         $hits = [[__('Outcome'), $score->outcome_hit], [__('Goal difference'), $score->diff_hit], [__('Exact score'), $score->exact_hit]];
                     @endphp
 
-                    {{-- Typ i punkty za typ: ten sam kolor --}}
+                    {{-- Typ i punkty za typ: kafelki w barwach strony (granat Lecha), brak typu wyszarzony --}}
                     <dl class="space-y-1.5">
                         <div class="{{ $mirror }} flex items-center justify-between gap-2">
                             <dt class="{{ $labelClass }}">{{ __('Tip') }}</dt>
-                            <dd><x-tone-tile :tone="$tipTone" class="{{ $tileWidth }}">{{ $score->has_tip ? ($side['tip'] ?? '—') : '—' }}</x-tone-tile></dd>
+                            <dd class="{{ $tileWidth }} {{ $score->has_tip ? $siteTile : $mutedTile }}">{{ $score->has_tip ? ($side['tip'] ?? '—') : '—' }}</dd>
                         </div>
                         <div class="{{ $mirror }} flex items-center justify-between gap-2">
                             <dt class="{{ $labelClass }}">{{ __('Points for the tip') }}</dt>
-                            <dd><x-tone-tile :tone="$tipTone" class="{{ $tileWidth }}">{{ $score->tip_points }}/3</x-tone-tile></dd>
+                            <dd class="{{ $tileWidth }} {{ $score->tip_points > 0 ? $siteTile : $mutedTile }}">{{ $score->tip_points }}/3</dd>
                         </div>
                     </dl>
 
-                    {{-- Za co były punkty w typie: trzy kafelki jednakowej szerokości w jednej linii --}}
-                    <div class="grid grid-cols-3 gap-1">
+                    {{-- Za co były punkty w typie (regulamin: po 1 pkt): trzy wskaźniki z ikoną, trafiony wypełniony, chybiony przygaszony --}}
+                    <div class="grid grid-cols-3 gap-1.5">
                         @foreach ($hits as [$hitLabel, $hit])
-                            <x-tone-tile :tone="$hit ? 'blue' : 'zinc'" class="w-full truncate px-1 text-[11px] font-semibold">{{ $hitLabel }}</x-tone-tile>
+                            <div class="{{ $hit ? 'border-lech-600 bg-lech-600 text-white shadow-sm dark:border-lech-500 dark:bg-lech-600' : 'border-dashed border-lech-200 bg-white/60 text-lech-300 dark:border-lech-800 dark:bg-transparent dark:text-lech-700' }} flex flex-col items-center gap-0.5 rounded-lg border px-1 py-1.5 text-center">
+                                <flux:icon :name="$hit ? 'check-circle' : 'x-circle'" variant="mini" class="size-4" />
+                                <span class="w-full truncate text-[10px] font-semibold leading-tight">{{ $hitLabel }}</span>
+                            </div>
                         @endforeach
                     </div>
 
@@ -158,7 +163,7 @@
                                     <span class="{{ $labelClass }}">{{ $bonusLabel }}</span>
                                     <div class="{{ $mirror }} flex items-center gap-2">
                                         <x-answer-stars :states="$bonusStars" :mode="$side['stars_mode']" />
-                                        <x-tone-tile :tone="\App\Support\Tone::bonus((int) $score->{$bonusField})" class="{{ $tileWidth }}">{{ $score->{$bonusField} }}</x-tone-tile>
+                                        <span class="{{ $tileWidth }} {{ (int) $score->{$bonusField} > 0 ? $siteTile : $mutedTile }}">{{ $score->{$bonusField} }}</span>
                                     </div>
                                 </div>
                             @endforeach
@@ -168,34 +173,31 @@
                     {{--
                         Skąd wzięły się bramki (regulamin: max(0, typ + bonus ofensywny − bonus defensywny rywala)).
                         Lewa strona: Typ + Bonus − Obrona = Bramki, prawa: Bramki = Typ + Bonus − Obrona, więc bramki stoją przy środku.
+                        Składniki w jasnym odcieniu Lecha, bramki w gradiencie banera (lech-bar).
                     --}}
                     @php
-                        $terms = [
-                            [__('Tip'), $score->tip_points, \App\Support\Tone::tipPoints($score->tip_points)],
-                            ['+', null, null],
-                            [__('Offensive bonus'), $score->offense_bonus, \App\Support\Tone::bonus($score->offense_bonus)],
-                        ];
+                        $terms = [[__('Tip'), $score->tip_points, 'term'], ['+', null, null], [__('Offensive bonus'), $score->offense_bonus, 'term']];
                         if (!$other['virtual']) {
                             $terms[] = ['−', null, null];
-                            $terms[] = [__('Rival\'s defence'), $rivalDefense, \App\Support\Tone::rivalDefense($rivalDefense)];
+                            $terms[] = [__('Rival\'s defence'), $rivalDefense, 'term'];
                         }
-                        $goalsTerm = [__('Goals'), $side['goals'], \App\Support\Tone::goals($side['goals']), true];
-                        $terms = $left
-                            ? [...$terms, ['=', null, null], $goalsTerm]
-                            : [$goalsTerm, ['=', null, null], ...$terms];
+                        $goalsTerm = [__('Goals'), $side['goals'], 'goals'];
+                        $terms = $left ? [...$terms, ['=', null, null], $goalsTerm] : [$goalsTerm, ['=', null, null], ...$terms];
                     @endphp
                     <div class="border-t border-lech-200/70 pt-3 dark:border-lech-800">
                         <div class="flex items-start justify-center gap-1">
                             @foreach ($terms as $term)
                                 @if ($term[2] === null)
-                                    <span class="flex h-7 items-center text-lg font-bold text-zinc-400">{{ $term[0] }}</span>
-                                @else
-                                    @php
-                                        $isGoals = $term[3] ?? false;
-                                    @endphp
+                                    <span class="flex h-8 items-center text-lg font-bold text-lech-400 dark:text-lech-500">{{ $term[0] }}</span>
+                                @elseif ($term[2] === 'goals')
                                     <div class="flex w-12 flex-col items-center gap-1 text-center">
-                                        <x-tone-tile :tone="$term[2]" class="w-full {{ $isGoals ? 'text-base' : '' }}">{{ $term[1] ?? '—' }}</x-tone-tile>
-                                        <span class="text-[10px] leading-tight {{ $isGoals ? 'font-bold text-lech-800 dark:text-lech-200' : 'text-zinc-500' }}">{{ $term[0] }}</span>
+                                        <span class="lech-bar flex h-8 w-full items-center justify-center rounded-lg text-base font-black tabular-nums shadow-sm">{{ $term[1] ?? '—' }}</span>
+                                        <span class="text-[10px] font-bold leading-tight text-lech-800 dark:text-lech-200">{{ $term[0] }}</span>
+                                    </div>
+                                @else
+                                    <div class="flex w-12 flex-col items-center gap-1 text-center">
+                                        <span class="flex h-8 w-full items-center justify-center rounded-lg bg-lech-100 font-bold tabular-nums text-lech-900 ring-1 ring-lech-200 dark:bg-lech-900/60 dark:text-lech-100 dark:ring-lech-800">{{ $term[1] ?? '—' }}</span>
+                                        <span class="text-[10px] leading-tight text-zinc-500">{{ $term[0] }}</span>
                                     </div>
                                 @endif
                             @endforeach

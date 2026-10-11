@@ -13,21 +13,21 @@
             1 => 'border-yellow-300 bg-yellow-50 dark:border-yellow-500/40 dark:bg-yellow-500/10',
             0 => 'border-red-300 bg-red-50 dark:border-red-500/40 dark:bg-red-500/10',
         ];
-        $outcomeClasses = ['W' => 'bg-green-600', 'D' => 'bg-zinc-400', 'L' => 'bg-red-600'];
         // Forma w nagłówku: zielona W (wygrana), żółta R (remis), czerwona P (porażka).
         $formClasses = ['W' => 'bg-green-500 text-white', 'D' => 'bg-yellow-400 text-yellow-950', 'L' => 'bg-red-600 text-white'];
         $formLetters = ['W' => 'W', 'D' => 'R', 'L' => 'P'];
     @endphp
 
-    <div class="flex flex-wrap items-center gap-3 text-xs text-zinc-500">
-        <span>{{ __('Points for the tip in the matchday') }}:</span>
-        @foreach ([3 => 'bg-blue-400', 2 => 'bg-green-400', 1 => 'bg-yellow-400', 0 => 'bg-red-400'] as $points => $dot)
-            <span class="flex items-center gap-1"><span class="{{ $dot }} size-2.5 rounded-full"></span>{{ $points }}</span>
-        @endforeach
-        <span class="flex items-center gap-1"><span class="size-2.5 rounded-full bg-zinc-300"></span>{{ __('no tip or not played') }}</span>
-    </div>
-
-    @forelse ($this->myCompetitions as $row)
+    {{--
+        Kafelki meczów: kolumna na kolejkę (9 w rzędzie na dużym ekranie, po 3 na mniejszych), w Lidze Legend dwa mecze
+        jedna pod drugim. Kolejki bez meczu: szare „odpadł” po odpadnięciu, inaczej puste miejsce na przyszły mecz.
+        Puchar Polski na końcu listy.
+    --}}
+    @forelse (collect($this->myCompetitions)->sortBy(fn ($row) => $row['type'] === \App\Enums\CompetitionType::Cup ? 1 : 0)->values() as $row)
+        @php
+            $perRound = $row['type'] === \App\Enums\CompetitionType::Legends ? 2 : 1;
+            $byRound = collect($row['matches'])->groupBy('round');
+        @endphp
         <section class="overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-700 dark:bg-zinc-900" wire:key="comp-{{ $loop->index }}">
             <div class="lech-bar flex flex-wrap items-center gap-3 px-4 py-3">
                 <span class="flex size-10 shrink-0 items-center justify-center rounded-xl bg-white shadow-xs dark:bg-zinc-800">
@@ -57,49 +57,49 @@
                 @endif
             </div>
 
-            @if (count($row['matches']) > 0)
-                <div class="grid grid-cols-2 gap-2 p-4 sm:grid-cols-3">
-                    @foreach ($row['matches'] as $match)
-                        {{-- Kliknięcie otwiera uniwersalne okno pojedynku (pages::home.duel-modal) --}}
-                        <button type="button" wire:click="$dispatch('show-duel', { id: {{ $match['fixture_id'] }} })" title="{{ __('Match details') }}"
-                            class="{{ $match['tip_points'] !== null ? $tipClasses[$match['tip_points']] : 'border-zinc-200 dark:border-zinc-700' }} block w-full space-y-1 rounded-xl border p-2.5 text-left text-sm transition hover:shadow-md"
-                            wire:key="cm-{{ $loop->parent->index }}-{{ $match['round'] }}">
-                            <div class="flex items-center justify-between gap-2 text-xs text-zinc-500">
-                                <span>{{ $row['type']->stageLabel($match['round']) }}</span>
-                                @if ($match['tip_points'] !== null)
-                                    <span class="font-semibold">{{ __(':points pts', ['points' => $match['tip_points']]) }}</span>
-                                @endif
-                            </div>
-                            <div class="truncate font-medium">{{ $match['rival'] }}</div>
-                            <div class="flex items-center gap-2">
-                                @if ($match['outcome'])
-                                    <span class="{{ $outcomeClasses[$match['outcome']] }} flex size-5 items-center justify-center rounded text-[10px] font-bold text-white">{{ __($match['outcome']) }}</span>
-                                @endif
-                                <span class="font-semibold tabular-nums">{{ $match['score'] ?? '–' }}</span>
-                            </div>
-                        </button>
-                    @endforeach
-                    @if ($row['eliminated_round'] && $row['eliminated_round'] < \App\Models\Matchday::PER_SEASON)
-                        {{-- Szare kafelki rund, których zespół już nie zagra, bo odpadł z rozgrywek (puchary, Liga Legend) --}}
-                        @foreach (range($row['eliminated_round'] + 1, \App\Models\Matchday::PER_SEASON) as $round)
-                            <div class="block w-full space-y-1 rounded-xl border border-zinc-500 bg-zinc-100 p-2.5 text-sm dark:border-zinc-500 dark:bg-zinc-800" wire:key="out-{{ $loop->parent->index }}-{{ $round }}">
-                                <div class="text-xs text-zinc-500">{{ $row['type']->stageLabel($round) }}</div>
-                                <div class="flex items-center justify-center gap-1.5 text-zinc-600 dark:text-zinc-300">
-                                    <flux:icon.x-circle class="size-5 shrink-0" />
-                                    <span class="truncate font-medium">{{ __('Team eliminated') }}</span>
+            <div class="grid grid-cols-3 gap-2 p-3 lg:grid-cols-9">
+                @foreach (range(1, \App\Models\Matchday::PER_SEASON) as $round)
+                    @php
+                        $roundMatches = $byRound->get($round, collect())->values();
+                        $gone = $row['eliminated_round'] && $round > $row['eliminated_round'];
+                    @endphp
+                    <div class="flex min-w-0 flex-col gap-1.5" wire:key="cr-{{ $loop->parent->index }}-{{ $round }}">
+                        <div class="truncate text-center text-[11px] font-semibold uppercase tracking-wide text-zinc-500" title="{{ $row['type']->stageLabel($round) }}">{{ $row['type']->stageLabel($round) }}</div>
+                        @foreach (range(0, $perRound - 1) as $slot)
+                            @php
+                                $match = $roundMatches[$slot] ?? null;
+                            @endphp
+                            @if ($match)
+                                {{-- Kliknięcie otwiera uniwersalne okno pojedynku (pages::home.duel-modal) --}}
+                                <button type="button" wire:click="$dispatch('show-duel', { id: {{ $match['fixture_id'] }} })" title="{{ __('Match details') }}"
+                                    class="{{ $match['tip_points'] !== null ? $tipClasses[$match['tip_points']] : 'border-zinc-200 dark:border-zinc-700' }} flex min-w-0 flex-1 flex-col items-center gap-0.5 rounded-xl border px-1.5 py-2 text-center text-sm transition hover:shadow-md">
+                                    <span class="w-full truncate text-xs font-medium">{{ $match['rival'] }}</span>
+                                    <span class="flex items-center gap-1">
+                                        @if ($match['outcome'])
+                                            <span class="{{ $formClasses[$match['outcome']] }} flex size-5 items-center justify-center rounded text-[10px] font-black">{{ $formLetters[$match['outcome']] }}</span>
+                                        @endif
+                                        <span class="font-bold tabular-nums">{{ $match['score'] ?? '–:–' }}</span>
+                                    </span>
+                                    @if ($match['tip_points'] !== null)
+                                        <span class="text-[11px] text-zinc-500">{{ __(':points pts', ['points' => $match['tip_points']]) }}</span>
+                                    @endif
+                                </button>
+                            @elseif ($gone)
+                                {{-- Zespół już odpadł z rozgrywek (puchary, Liga Legend) --}}
+                                <div class="flex flex-1 flex-col items-center justify-center gap-0.5 rounded-xl border border-zinc-400 bg-zinc-100 px-1.5 py-2 text-center text-zinc-500 dark:border-zinc-600 dark:bg-zinc-800">
+                                    <flux:icon.x-circle variant="micro" />
+                                    <span class="w-full truncate text-[11px] font-medium">{{ __('Team eliminated') }}</span>
                                 </div>
-                                <div class="flex items-center gap-2">
-                                    <span class="flex size-5 items-center justify-center rounded bg-zinc-600 text-[10px] font-bold text-zinc-100">−</span>
+                            @else
+                                {{-- Mecz jeszcze nieznany (przyszła kolejka albo runda) --}}
+                                <div class="flex flex-1 items-center justify-center rounded-xl border border-dashed border-zinc-300 px-1.5 py-2 text-zinc-300 dark:border-zinc-700 dark:text-zinc-600">
+                                    <span class="font-bold">–:–</span>
                                 </div>
-                            </div>
+                            @endif
                         @endforeach
-                    @endif
-                </div>
-            @else
-                <div class="px-4 py-3">
-                    <flux:text size="sm">{{ __('No matches yet.') }}</flux:text>
-                </div>
-            @endif
+                    </div>
+                @endforeach
+            </div>
         </section>
     @empty
         <flux:card>
