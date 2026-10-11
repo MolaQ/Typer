@@ -111,87 +111,12 @@
     @php
         $data = $this->myStats;
         $stats = $data['mine'];
-        $avg = $data['average'];
         $fmt = fn($v, $d = 1) => $v === null ? '—' : rtrim(rtrim(number_format((float) $v, $d, ',', ' '), '0'), ',');
-        $optimismLabel = match (true) {
-            $stats['optimism'] === null => __('Optimist or pessimist'),
-            $stats['optimism'] > 0.25 => __('Optimist'),
-            $stats['optimism'] < -0.25 => __('Pessimist'),
-            default => __('Realist'),
-        };
         $extras = $this->myExtras;
         $trophyIcons = \App\Support\HallOfFame::iconUrls();
-        $optimismColor = $stats['optimism'] === null ? 'zinc' : (abs($stats['optimism']) <= 0.25 ? 'green' : (abs($stats['optimism']) <= 0.75 ? 'yellow' : 'red'));
-        // Czas typowania przed pierwszym gwizdkiem: dni i godziny, godziny i minuty albo same minuty.
-        $leadFmt = function (?float $hours): string {
-            if ($hours === null) {
-                return '—';
-            }
-            $minutes = (int) round($hours * 60);
-
-            return match (true) {
-                $minutes >= 1440 => intdiv($minutes, 1440) . ' d ' . intdiv($minutes % 1440, 60) . ' h',
-                $minutes >= 60 => intdiv($minutes, 60) . ' h ' . ($minutes % 60) . ' min',
-                default => $minutes . ' min',
-            };
-        };
-        // Skalpy: liczba rywali z lepszym bilansem (gracze i boty), procent wśród innych graczy.
-        $scalpList = \App\Support\PlayerStats::scalps(auth()->user());
-        $scalpCount = count($scalpList);
-        $humanRivals = \App\Support\PlayerStats::humanRivals(auth()->user());
-        $scalpPercent = $humanRivals > 0 ? (int) round(collect($scalpList)->where('bot', false)->count() / $humanRivals * 100) : 0;
-        $scalpColor = $scalpCount === 0 ? 'zinc' : ($scalpPercent >= 30 ? 'green' : ($scalpPercent >= 10 ? 'yellow' : 'red'));
-        // [etykieta, wartość, podpis, wartość do porównania, klucz średniej, stały kolor, odwrócone porównanie]
-        $tiles = [
-            [__('Tips'), $stats['tips'] . ' / ' . $stats['scored'], __('No tip: :count', ['count' => $stats['missing']]), $stats['tips_ratio'], 'tips_ratio'],
-            [__('Perfect tips (Koziołki)'), $stats['exact'], __('Exact scores'), $stats['exact'], 'exact'],
-            [__('Accuracy'), $stats['accuracy'] !== null ? $stats['accuracy'] . '%' : '—', __('Correct outcomes: :count', ['count' => $stats['outcome']]), $stats['accuracy'], 'accuracy'],
-            [__('Goal differences'), $stats['diff'], __('Correct goal differences'), $stats['diff'], 'diff'],
-            [__('Average for the tip'), $fmt($stats['avg_tip'], 2), __('Points: :points', ['points' => $stats['tip_points']]), $stats['avg_tip'], 'avg_tip'],
-            [__('Average offensive bonus'), $fmt($stats['avg_offense'], 2), __('Per question set'), $stats['avg_offense'], 'avg_offense'],
-            [__('Average defensive bonus'), $fmt($stats['avg_defense'], 2), __('Zeroed sets: :count', ['count' => $stats['zeroed']]), $stats['avg_defense'], 'avg_defense'],
-            [__('Outcome streak'), $stats['outcome_streak'], __('Best: :count', ['count' => $stats['outcome_streak_best']]), $stats['outcome_streak_best'], 'outcome_streak_best'],
-            [__('Matches'), $stats['won'] . '–' . $stats['drawn'] . '–' . $stats['lost'], __('Won, drawn, lost'), $stats['win_ratio'], 'win_ratio'],
-            [__('Goals'), $stats['for'] . ':' . $stats['against'], __('Most in a match: :count', ['count' => $stats['record_goals']]), $stats['for'], 'for'],
-            [__('Unbeaten run'), $stats['unbeaten'], __('Best: :count', ['count' => $stats['unbeaten_best']]), $stats['unbeaten_best'], 'unbeaten_best'],
-            [__('Winning streak'), $stats['wins'], __('Best: :count', ['count' => $stats['wins_best']]), $stats['wins_best'], 'wins_best'],
-            [__('Offensive questions'), $stats['q_offense'] !== null ? $stats['q_offense'] . '%' : '—', __('Correct answers'), $stats['q_offense'], 'q_offense'],
-            [__('Defensive questions'), $stats['q_defense'] !== null ? $stats['q_defense'] . '%' : '—', __('Correct answers'), $stats['q_defense'], 'q_defense'],
-            // Optymista: im bliżej prawdziwych wyników (0), tym lepiej, dlatego kolor z odchylenia, nie ze średniej.
-            [$optimismLabel, $stats['optimism'] === null ? '—' : ($stats['optimism'] > 0 ? '+' : '') . $fmt($stats['optimism'], 2), __('Lech goals: your tips compared with the real matches'), null, 'optimism', $optimismColor],
-            [__('Tipping ahead'), $leadFmt($stats['lead_hours']), __('Average before kick-off (players: :time)', ['time' => $leadFmt($avg['lead_hours'] ?? null)]), $stats['lead_hours'], 'lead_hours'],
-            [__('Best matchday'), $stats['best_matchday'] ? __(':points pts', ['points' => $stats['best_matchday']['points']]) : '—', $stats['best_matchday'] ? __('Matchday :number: tip + offensive and defensive bonus', ['number' => $stats['best_matchday']['number']]) : __('Tip + offensive and defensive bonus'), $stats['best_points'], 'best_points'],
-            [__('My scalps'), $scalpCount, __(':percent% of the players', ['percent' => $scalpPercent]), null, 'scalps', $scalpColor],
-            [__('Iron fist'), $stats['iron'], __('Your offensive bonus beat the rival\'s tip and both bonuses'), $stats['iron'], 'iron'],
-            [__('Bricklayer'), $stats['mason'], __('Wins where your defensive bonus beat the rival\'s attack'), $stats['mason'], 'mason'],
-            [__('Wizard'), $stats['wizard'], __('Wins despite 0 points for the tip'), $stats['wizard'], 'wizard'],
-            // Pechowiec: mniej znaczy lepiej, więc porównanie odwrócone.
-            [__('Unlucky'), $stats['unlucky'], __('Losses despite a Koziołek'), -$stats['unlucky'], 'unlucky', null, true],
-        ];
-        $tileClasses = [
-            'green' => 'border-green-300 bg-green-50 dark:border-green-500/40 dark:bg-green-500/10',
-            'yellow' => 'border-yellow-300 bg-yellow-50 dark:border-yellow-500/40 dark:bg-yellow-500/10',
-            'red' => 'border-red-300 bg-red-50 dark:border-red-500/40 dark:bg-red-500/10',
-            'zinc' => 'border-zinc-200 dark:border-zinc-700',
-        ];
     @endphp
 
-    <flux:text size="sm">{{ __('Colours compare you with the average of all players: green above, yellow within 15%, red below.') }}</flux:text>
-
-    <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-        @foreach ($tiles as $tile)
-            @php
-                [$label, $value, $hint, $compare, $avgKey] = $tile;
-                $average = isset($avg[$avgKey]) ? (($tile[6] ?? false) ? -$avg[$avgKey] : $avg[$avgKey]) : null;
-                $color = $tile[5] ?? ($stats['scored'] > 0 ? \App\Support\PlayerStats::color($compare === null ? null : (float) $compare, $average) : 'zinc');
-            @endphp
-            <div class="{{ $tileClasses[$color] }} space-y-1 rounded-xl border p-4" wire:key="tile-{{ $avgKey }}">
-                <flux:text size="sm">{{ $label }}</flux:text>
-                <p class="text-2xl font-bold tabular-nums">{{ $value }}</p>
-                <flux:text size="sm" class="text-zinc-500">{{ $hint }}</flux:text>
-            </div>
-        @endforeach
-    </div>
+    @include('partials.player-stats-tiles', ['data' => $data, 'user' => auth()->user()])
 
     <flux:card class="space-y-2">
         <div class="flex items-center gap-2">
@@ -224,7 +149,7 @@
             </div>
         @endif
     </flux:card>
-    <div class="grid gap-4 md:grid-cols-2">
+    <div class="grid gap-4 md:grid-cols-3">
         <flux:card class="space-y-3">
             <flux:heading>{{ __('Favourite tips (all seasons)') }}</flux:heading>
             @foreach (['mine' => __('Yours'), 'all' => __('All players')] as $key => $label)
@@ -254,10 +179,8 @@
                 <flux:text>{{ __('Available after the first settled matchday.') }}</flux:text>
             @endif
         </flux:card>
-    </div>
 
-    {{-- Statystyki premium: najczęstszy typ w rozgrywkach i najtrudniejsze pytania --}}
-    <div class="grid gap-4 md:grid-cols-2">
+        {{-- Premium: najczęstszy typ w rozgrywkach --}}
         <flux:card class="space-y-3">
             <div class="flex items-center gap-2">
                 <flux:heading>{{ __('Favourite tip in each competition') }}</flux:heading>
@@ -285,7 +208,10 @@
                 @endforelse
             @endif
         </flux:card>
+    </div>
 
+    {{-- Premium na dole: najtrudniejsze i najłatwiejsze pytania (po 5, QuestionDifficulty) --}}
+    <div class="grid gap-4 md:grid-cols-2">
         <flux:card class="space-y-3">
             <div class="flex items-center gap-2">
                 <flux:heading>{{ __('The hardest questions') }}</flux:heading>
@@ -306,6 +232,29 @@
                     <flux:text>{{ __('Not enough answers yet.') }}</flux:text>
                 @endforelse
                 <flux:text size="sm" class="text-xs text-zinc-500">{{ __('Share of correct answers. These questions go to Liga Legend first.') }}</flux:text>
+            @endif
+        </flux:card>
+
+        <flux:card class="space-y-3">
+            <div class="flex items-center gap-2">
+                <flux:heading>{{ __('The easiest questions') }}</flux:heading>
+                <x-premium-badge />
+            </div>
+            @if (!$isPremium)
+                <flux:text size="sm">
+                    {{ __('Premium shows the questions with the most correct answers.') }}
+                    <flux:link :href="route('support')" wire:navigate>{{ __('See premium') }}</flux:link>
+                </flux:text>
+            @else
+                @forelse ($extras['easiest'] as $row)
+                    <div class="flex items-start gap-3 text-sm" wire:key="easy-{{ $row['question']->id }}">
+                        <span class="min-w-0 flex-1">{{ $row['question']->text }}</span>
+                        <span class="shrink-0 font-semibold tabular-nums text-green-600 dark:text-green-400">{{ $fmt($row['rate'], 1) }}%</span>
+                    </div>
+                @empty
+                    <flux:text>{{ __('Not enough answers yet.') }}</flux:text>
+                @endforelse
+                <flux:text size="sm" class="text-xs text-zinc-500">{{ __('Share of correct answers.') }}</flux:text>
             @endif
         </flux:card>
     </div>
@@ -367,17 +316,7 @@
         </div>
 
         @if (!\App\Support\Premium::isActive(auth()->user()))
-            <div class="relative overflow-hidden rounded-2xl border border-purple-200 p-6 dark:border-purple-500/30">
-                <div class="space-y-2 blur-sm select-none" aria-hidden="true">
-                    @foreach (range(1, 4) as $i)
-                        <div class="h-12 rounded-xl bg-purple-100 dark:bg-purple-500/20"></div>
-                    @endforeach
-                </div>
-                <div class="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-white/60 p-6 text-center dark:bg-zinc-900/60">
-                    <flux:text>{{ __('See whose scalps you have collected with premium.') }}</flux:text>
-                    <flux:button size="sm" variant="primary" :href="route('support')" wire:navigate>{{ __('From 5 zł a week') }}</flux:button>
-                </div>
-            </div>
+            <x-premium-lock :title="__('My scalps')" :text="__('With premium you see the rivals you beat more often than they beat you, all seasons and competitions together.')" />
         @elseif (count($this->myScalps) === 0)
             <flux:card>
                 <flux:text>{{ __('No scalps yet. Win more matches than you lose against a player and they will appear here.') }}</flux:text>

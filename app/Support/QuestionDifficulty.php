@@ -46,6 +46,22 @@ final class QuestionDifficulty
      */
     public static function hardest(int $limit, ?string $side = null): Collection
     {
+        return self::ranked($limit, $side, 'asc');
+    }
+
+    /**
+     * Najłatwiejsze aktywne pytania (najwyższy odsetek poprawnych odpowiedzi).
+     *
+     * @return Collection<int, array{question: Question, answers: int, correct: int, rate: float}>
+     */
+    public static function easiest(int $limit, ?string $side = null): Collection
+    {
+        return self::ranked($limit, $side, 'desc');
+    }
+
+    /** @return Collection<int, array{question: Question, answers: int, correct: int, rate: float}> */
+    private static function ranked(int $limit, ?string $side, string $direction): Collection
+    {
         $rates = self::rates()->filter(fn ($r) => $r['answers'] >= self::MIN_ANSWERS);
 
         if ($rates->isEmpty()) {
@@ -59,7 +75,7 @@ final class QuestionDifficulty
             ->keyBy('id');
 
         return $rates->only($questions->keys()->all())
-            ->sortBy([['rate', 'asc'], ['answers', 'desc']])
+            ->sortBy([['rate', $direction], ['answers', 'desc']])
             ->take($limit)
             ->map(fn ($r, $id) => ['question' => $questions[$id]] + $r)
             ->values();

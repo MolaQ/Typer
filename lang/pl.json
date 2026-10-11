@@ -1388,5 +1388,13 @@
     "While you tip: how the other players tip the score and answer the questions": "Podczas typowania: jak inni gracze typują wynik i odpowiadają na pytania",
     "With premium you see live how the other players tip this match and how they answer each question.": "Z premium widzisz na żywo, jak inni gracze typują ten mecz i jak odpowiadają na każde pytanie.",
     "You get 0 points for that matchday. The first time you open a matchday, the tip 0:0 is saved for you, so change it before kick-off.": "Dostajesz 0 punktów za tę kolejkę. Przy pierwszym otwarciu kolejki zapisujemy Ci typ 0:0, więc zmień go przed pierwszym gwizdkiem.",
-    "yes :percent%": "tak :percent%"
+    "yes :percent%": "tak :percent%",
+    ":won% wins, :drawn% draws, :lost% losses": ":won% zwycięstw, :drawn% remisów, :lost% porażek",
+    "Wins where your defensive bonus beat the rival's tip points and offensive bonus": "Wygrane, w których Twój bonus defensywny przewyższył punkty za typ i bonus ofensywny rywala",
+    "Colours: red below 35%, yellow from 35% to 65%, green above 65%. The percentage is a share (e.g. 3 of 4 tips = 75%) or the result compared with the best player in the game (e.g. 1 Koziołek when the best has 3 = 33%).": "Kolory: czerwony poniżej 35%, żółty od 35% do 65%, zielony powyżej 65%. Procent to udział (np. 3 z 4 typów = 75%) albo wynik w porównaniu z najlepszym graczem w serwisie (np. 1 Koziołek, gdy najlepszy ma 3 = 33%).",
+    "The easiest questions": "Najłatwiejsze pytania",
+    "Premium shows the questions with the most correct answers.": "Premium pokazuje pytania z największą liczbą poprawnych odpowiedzi.",
+    "Share of correct answers.": "Odsetek poprawnych odpowiedzi.",
+    "With premium you see the rivals you beat more often than they beat you, all seasons and competitions together.": "Z premium widzisz rywali, których pokonujesz częściej, niż oni Ciebie, ze wszystkich sezonów i rozgrywek razem.",
+    "Your own statistics are free in My tips. With premium you also see the statistics of other players.": "Swoje statystyki widzisz za darmo w zakładce Moje typy. Z premium widzisz też statystyki innych graczy."
 }

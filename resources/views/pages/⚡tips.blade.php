@@ -296,7 +296,7 @@ new #[Layout('layouts::public')] class extends Component {
         return \App\Support\PlayerStats::season(auth()->user(), $this->season);
     }
 
-    /** Ciekawostki: ulubione typy, najlepszy sezon, a dla premium typy w rozgrywkach i najtrudniejsze pytania. */
+    /** Ciekawostki: ulubione typy, najlepszy sezon, a dla premium typy w rozgrywkach, najtrudniejsze i najłatwiejsze pytania. */
     #[Computed]
     public function myExtras(): array
     {
@@ -307,6 +307,7 @@ new #[Layout('layouts::public')] class extends Component {
             'best_season' => \App\Support\PlayerStats::bestSeason(auth()->user()),
             'competitions' => $premium && $this->season ? \App\Support\PlayerStats::competitionFavourites($this->season) : [],
             'hardest' => $premium ? \App\Support\QuestionDifficulty::hardest(5) : collect(),
+            'easiest' => $premium ? \App\Support\QuestionDifficulty::easiest(5) : collect(),
         ];
     }
 

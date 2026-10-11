@@ -64,6 +64,16 @@ new #[Layout('layouts::public')] class extends Component {
         }, \App\Support\PlayerStats::competitions($this->user, $season));
     }
 
+    /** Statystyki sezonu: swoje widzi każdy, cudze tylko premium (null = zablokowane albo brak sezonu). */
+    #[Computed]
+    public function seasonStats(): ?array
+    {
+        $viewer = auth()->user();
+        $allowed = $viewer && ($viewer->id === $this->user->id || \App\Support\Premium::isActive($viewer));
+
+        return $allowed && $this->currentSeason ? \App\Support\PlayerStats::season($this->user, $this->currentSeason) : null;
+    }
+
     #[Computed]
     public function awards()
     {
@@ -240,6 +250,21 @@ new #[Layout('layouts::public')] class extends Component {
                     </a>
                 @endforeach
             </div>
+        </flux:card>
+    @endif
+
+    {{-- Statystyki sezonu (jak zakładka Statystyki na /tips): swoje dla każdego, cudze w premium --}}
+    @if ($this->currentSeason)
+        <flux:card class="space-y-4">
+            <div class="flex items-center justify-between gap-2">
+                <flux:heading size="lg">{{ __('Statistics') }}</flux:heading>
+                <flux:badge color="zinc">{{ $this->currentSeason->title }}</flux:badge>
+            </div>
+            @if ($this->seasonStats)
+                @include('partials.player-stats-tiles', ['data' => $this->seasonStats, 'user' => $user])
+            @else
+                <x-premium-lock :title="__('Statistics')" :text="__('Your own statistics are free in My tips. With premium you also see the statistics of other players.')" />
+            @endif
         </flux:card>
     @endif
 

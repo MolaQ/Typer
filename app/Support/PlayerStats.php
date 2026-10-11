@@ -178,9 +178,10 @@ final class PlayerStats
     }
 
     /**
-     * Statystyki sezonu gracza, a obok średnie wszystkich graczy (do kolorów kafelków).
+     * Statystyki sezonu gracza, a obok średnie i maksima wszystkich graczy (maksimum = 100% przy kolorach kafelków,
+     * dla optymizmu największe odchylenie od zera).
      *
-     * @return array{mine: array<string, mixed>, average: array<string, float>, rank: ?array{place: int, count: int}}
+     * @return array{mine: array<string, mixed>, average: array<string, float>, max: array<string, float>, rank: ?array{place: int, count: int}}
      */
     public static function season(User $user, Season $season): array
     {
@@ -189,11 +190,13 @@ final class PlayerStats
         $mine = $team ? ($all[$team->id] ?? self::empty()) : self::empty();
 
         $average = [];
+        $max = [];
         if ($all !== []) {
             foreach (array_keys(self::empty()) as $key) {
                 if ($key !== 'best_matchday' && (is_numeric($mine[$key] ?? null) || ($mine[$key] ?? null) === null)) {
                     $values = array_filter(array_column($all, $key), fn ($v) => $v !== null && is_numeric($v));
                     $average[$key] = $values === [] ? 0.0 : array_sum($values) / count($values);
+                    $max[$key] = $values === [] ? 0.0 : (float) ($key === 'optimism' ? max(array_map('abs', $values)) : max($values));
                 }
             }
         }
@@ -208,7 +211,7 @@ final class PlayerStats
             ];
         }
 
-        return ['mine' => $mine, 'average' => $average, 'rank' => $rank];
+        return ['mine' => $mine, 'average' => $average, 'max' => $max, 'rank' => $rank];
     }
 
     /**
@@ -433,6 +436,55 @@ final class PlayerStats
         };
     }
 
+    /**
+     * Procent do koloru kafelka: udział (np. oddane typy 3/4 = 75%) albo wynik względem najlepszego gracza
+     * w serwisie (np. Koziołki 1 przy maksimum 3 = 33%). $inverse: mniej znaczy lepiej (np. Pechowiec).
+     */
+    public static function percent(int|float|null $value, int|float|null $max, bool $inverse = false): ?float
+    {
+        if ($value === null || $max === null) {
+            return null;
+        }
+
+        if ($max <= 0) {
+            return $inverse ? 100.0 : null;
+        }
+
+        $share = min(100, max(0, $value / $max * 100));
+
+        return $inverse ? 100 - $share : $share;
+    }
+
+    /** Kolor kafelka z procentu: czerwony poniżej 35%, żółty od 35% do 65%, zielony powyżej 65%. */
+    public static function percentColor(?float $percent): string
+    {
+        return match (true) {
+            $percent === null => 'zinc',
+            $percent < 35 => 'red',
+            $percent <= 65 => 'yellow',
+            default => 'green',
+        };
+    }
+
+    /** Czas przed pierwszym gwizdkiem w pełnych minutach: „1 d 3 h 25 min”, „3 h 5 min”, „25 min”. */
+    public static function formatLead(?int $minutes): string
+    {
+        if ($minutes === null) {
+            return '—';
+        }
+
+        $parts = [];
+        if ($minutes >= 1440) {
+            $parts[] = intdiv($minutes, 1440).' d';
+        }
+        if ($minutes >= 60) {
+            $parts[] = intdiv($minutes % 1440, 60).' h';
+        }
+        $parts[] = ($minutes % 60).' min';
+
+        return implode(' ', $parts);
+    }
+
     /** @var array<int, array<int, array<string, mixed>>> */
     private static array $seasonCache = [];
 
@@ -492,7 +544,7 @@ final class PlayerStats
                 'q_defense' => $questions[$userOfTeam[$teamId]]['defensive'] ?? null,
                 // Optymizm: o ile goli Lecha średnio typujemy więcej (+) albo mniej (−) niż padło naprawdę.
                 'optimism' => $tips > 0 ? round($tipped->avg(fn ($r) => $r->tip_lech - $r->real_lech), 2) : null,
-                'lead_hours' => $leads[$userOfTeam[$teamId]] ?? null,
+                'lead_minutes' => $leads[$userOfTeam[$teamId]] ?? null,
                 'best_matchday' => $best = self::bestMatchday($all),
                 'best_points' => $best['points'] ?? null,
             ] + ($duels[$teamId] ?? self::noDuels()) + $m;
@@ -527,9 +579,9 @@ final class PlayerStats
     }
 
     /**
-     * Średni czas zapisu typu przed pierwszym gwizdkiem w godzinach: id gracza => godziny (bez typów domyślnych).
+     * Średni czas zapisu typu przed pierwszym gwizdkiem w pełnych minutach: id gracza => minuty (bez typów domyślnych).
      *
-     * @return array<int, float>
+     * @return array<int, int>
      */
     private static function leadTimes(Season $season): array
     {
@@ -541,7 +593,7 @@ final class PlayerStats
             ->get(['tips.user_id', 'tips.saved_at', 'matchdays.kickoff_at']);
 
         return $tips->groupBy('user_id')
-            ->map(fn ($rows) => round($rows->avg(fn ($t) => max(0, Carbon::parse($t->kickoff_at)->getTimestamp() - Carbon::parse($t->saved_at)->getTimestamp()) / 3600), 1))
+            ->map(fn ($rows) => (int) round($rows->avg(fn ($t) => max(0, Carbon::parse($t->kickoff_at)->getTimestamp() - Carbon::parse($t->saved_at)->getTimestamp()) / 60)))
             ->all();
     }
 
@@ -570,7 +622,7 @@ final class PlayerStats
             'scored' => 0, 'tips' => 0, 'tips_ratio' => null, 'missing' => 0, 'exact' => 0, 'diff' => 0, 'outcome' => 0,
             'accuracy' => null, 'tip_points' => 0, 'avg_tip' => null, 'avg_offense' => null, 'avg_defense' => null,
             'zeroed' => 0, 'outcome_streak' => 0, 'outcome_streak_best' => 0,
-            'q_offense' => null, 'q_defense' => null, 'optimism' => null, 'lead_hours' => null, 'best_matchday' => null,
+            'q_offense' => null, 'q_defense' => null, 'optimism' => null, 'lead_minutes' => null, 'best_matchday' => null,
             'best_points' => null,
         ] + self::noDuels() + self::matchSummary([]);
     }

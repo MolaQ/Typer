@@ -92,7 +92,7 @@
                             $extra[] = [__('Offensive questions'), $stats['q_offense'] !== null ? $stats['q_offense'] . '%' : '—', __('Correct answers')];
                             $extra[] = [__('Defensive questions'), $stats['q_defense'] !== null ? $stats['q_defense'] . '%' : '—', __('Correct answers')];
                             $extra[] = [__('Optimist or pessimist'), $stats['optimism'] === null ? '—' : ($stats['optimism'] > 0 ? '+' : '') . $fmt($stats['optimism'], 2), __('Lech goals: tips compared with the real matches')];
-                            $extra[] = [__('Tipping ahead'), $stats['lead_hours'] === null ? '—' : $fmt($stats['lead_hours'], 1) . ' h', __('Average time before kick-off')];
+                            $extra[] = [__('Tipping ahead'), \App\Support\PlayerStats::formatLead($stats['lead_minutes']), __('Average time before kick-off')];
                             $extra[] = [__('Best matchday'), $stats['best_matchday'] ? __(':points pts', ['points' => $stats['best_matchday']['points']]) : '—', $stats['best_matchday'] ? __('Matchday :number', ['number' => $stats['best_matchday']['number']]) : ''];
                             $extra[] = [__('Favourite tip'), $card['favourite']['score'] ?? '—', $card['favourite'] ? __(':count of :total tips', ['count' => $card['favourite']['count'], 'total' => $card['favourite']['total']]) : ''];
                         }
