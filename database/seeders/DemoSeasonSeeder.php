@@ -32,7 +32,7 @@ use Illuminate\Support\Facades\DB;
  *     (Players::eligible(), w kolejności rejestracji), potem boty do pełnych 100 miejsc w ligach.
  *  4. ApproveSeason::handle() dopisuje resztę botów z puli (min. 512 zespołów) i przez BuildCompetitions
  *     tworzy wszystkie rozgrywki z uczestnikami według kolejności listy i terminarzami: 10 lig (każda po 9 kolejek),
- *     Puchar Polski (drabinka 512), Ligę podwórkową (runda 1), Ligę Legend, a przy wpłatach Złotą Ligę.
+ *     Puchar Polski (drabinka 512), Ligę podwórkową (runda 1), i Ligę Legend.
  *  5. Aktywacja sezonu (status Active), wpis w dzienniku (Audit::log) i w informacjach systemowych (SystemFeed).
  *  6. DrawQuestions::handle() losuje pytania bonusowe do każdej kolejki z banku (QuestionsSeeder).
  *

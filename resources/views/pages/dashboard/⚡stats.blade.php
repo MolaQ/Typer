@@ -1,9 +1,7 @@
 <?php
 
-use App\Actions\Competitions\BuildCompetitions;
 use App\Actions\Competitions\DrawSwissRound;
 use App\Actions\Questions\DrawQuestions;
-use App\Enums\CompetitionType;
 use App\Enums\MatchdayStatus;
 use App\Enums\Permission;
 use App\Models\Competition;
@@ -81,22 +79,6 @@ new class extends Component {
 
         unset($this->alerts);
         Flux::toast(text: __(':count questions drawn.', ['count' => $filled]), variant: 'success');
-    }
-
-    /** Tworzy Złotą Ligę z proponowanym składem (wpłaty z 12 miesięcy, GoldenLeague) i terminarzem. */
-    public function buildGolden(int $seasonId): void
-    {
-        abort_unless(auth()->user()->can(Permission::SeasonEdit->value), 403);
-
-        $season = Season::findOrFail($seasonId);
-        $created = DB::transaction(fn (): int => app(BuildCompetitions::class)->buildGolden($season));
-
-        if ($created > 0) {
-            Audit::log('competition.created', null, [], ['type' => CompetitionType::Golden->label()], $season->title);
-        }
-
-        unset($this->alerts);
-        Flux::toast(text: $created > 0 ? __('Złota Liga created.') : __('Złota Liga already exists.'), variant: $created > 0 ? 'success' : 'warning');
     }
 
     /** Losuje kolejną rundę Ligi podwórkowej (runda 1 z listy, dalsze z klasyfikacji). */

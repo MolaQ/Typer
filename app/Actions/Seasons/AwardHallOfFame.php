@@ -35,7 +35,6 @@ use Illuminate\Support\Facades\DB;
  *  - puchary europejskie: wygrane i remisy w grupie, 1. miejsce w grupie, awans do kolejnych etapów (na bieżąco),
  *    zwycięzca finału (po zakończeniu sezonu),
  *  - Liga Legend: punkty Legend z każdej kolejki i premie za przejście rund (na bieżąco), wygrana w finale,
- *  - Złota Liga: tylko trofeum, bez punktów,
  *  - nagrody indywidualne (po zakończeniu sezonu, gracze i boty): MVP sezonu (najwięcej trafionych rozstrzygnięć,
  *    potem dokładne wyniki, potem różnice), Złota Piłka (najwięcej goli w sezonie ze wszystkich rozgrywek: ofensywa,
  *    czyli punkty za typ + bonus ofensywny, z każdego zestawu pytań zespołu) i Złote Rękawice (najwięcej punktów
@@ -71,7 +70,6 @@ class AwardHallOfFame
                     CompetitionType::Champions, CompetitionType::Europa, CompetitionType::Conference => $this->european($competition, $final),
                     CompetitionType::Cup => $this->cup($competition),
                     CompetitionType::Legends => $this->legends($competition, $final),
-                    CompetitionType::Golden => $this->golden($competition, $final),
                 };
             }
 
@@ -312,16 +310,6 @@ class AwardHallOfFame
             if ($winnerTeamId === $team->id) {
                 $this->addTeam($competition, $team, 'legends_winner', HallOfFame::value('legends_winner'), CompetitionType::Legends->value);
             }
-        }
-    }
-
-    /** Złota Liga: tylko unikalne trofeum dla zwycięzcy, bez punktów (regulamin). */
-    private function golden(Competition $competition, Collection $final): void
-    {
-        $winner = $final->first();
-
-        if ($winner && ($winner->stats['played'] ?? 0) > 0) {
-            $this->add($competition, $winner, 'golden_title', 0, CompetitionType::Golden->value);
         }
     }
 

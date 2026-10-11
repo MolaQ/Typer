@@ -205,7 +205,7 @@ new class extends Component {
     <flux:card class="space-y-6">
         <div class="space-y-1">
             <flux:heading size="lg">{{ __('Point values') }}</flux:heading>
-            <flux:text>{{ __('League points are multiplied by the league multiplier. Złota Liga gives only a trophy, no points.') }}</flux:text>
+            <flux:text>{{ __('League points are multiplied by the league multiplier.') }}</flux:text>
         </div>
 
         @foreach (\App\Support\HallOfFame::groups() as $group => $fields)

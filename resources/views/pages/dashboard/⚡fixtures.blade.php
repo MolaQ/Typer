@@ -517,7 +517,7 @@ new class extends Component {
                 </flux:table.rows>
             </flux:table>
 
-            {{-- ============ Rozgrywki ręczne bez stałego terminarza (Liga Legend, Złota Liga) ============ --}}
+            {{-- ============ Rozgrywki ręczne bez stałego terminarza (Liga Legend) ============ --}}
         @else
             <flux:card class="space-y-3">
                 <flux:heading>{{ $this->competition->name }}</flux:heading>

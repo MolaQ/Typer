@@ -9,7 +9,7 @@ use Illuminate\Support\Facades\Schema;
 
 /**
  * Barwy rozgrywek: tło (gradient bg1 -> bg2), akcent (obwódki, litery, korona, ramka trofeum) i tekst na tle.
- * Klucz to Competition::trophyKey() (league_1 … league_11, cup, champions, europa, conference, legends, golden),
+ * Klucz to Competition::trophyKey() (league_1 … league_11, cup, champions, europa, conference, legends),
  * więc barwy są spójne z trofeami. Domyślne wartości poniżej, zmiany z panelu (dashboard/competition-colors)
  * w tabeli competition_colors. Zasada: tła bez żółtego, pomarańczowego i czerwonego, złoto tylko jako akcent.
  * Użycie w widokach: style="{{ CompetitionColors::style($key) }}" i klasy comp-banner, comp-badge, comp-chip (app.css).
@@ -34,7 +34,6 @@ class CompetitionColors
         'europa' => ['bg1' => '#0f141c', 'bg2' => '#2b3442', 'accent' => '#f97316', 'ink' => '#ffffff'],
         'conference' => ['bg1' => '#022c22', 'bg2' => '#047857', 'accent' => '#a3e635', 'ink' => '#ffffff'],
         'legends' => ['bg1' => '#071a2b', 'bg2' => '#0e6e80', 'accent' => '#a5f3fc', 'ink' => '#ffffff'],
-        'golden' => ['bg1' => '#000000', 'bg2' => '#1f1b16', 'accent' => '#d4af37', 'ink' => '#f5e6b3'],
     ];
 
     /** Rozgrywki z przerywaną („kredową”) obwódką: Liga podwórkowa. */
@@ -45,7 +44,7 @@ class CompetitionColors
 
     /**
      * Kolejność rozgrywek na stronie wyników i w panelu: ligi od Ekstraklasy do podwórkowej, Puchar Polski,
-     * ligi europejskie (LM, LE, LK), Liga Legend, Złota Liga.
+     * ligi europejskie (LM, LE, LK), Liga Legend.
      *
      * @return array<int, string>
      */
@@ -76,7 +75,6 @@ class CompetitionColors
             'europa' => 'Liga Europy',
             'conference' => 'Liga Konferencji',
             'legends' => 'Liga Legend',
-            'golden' => 'Złota Liga',
         ];
     }
 

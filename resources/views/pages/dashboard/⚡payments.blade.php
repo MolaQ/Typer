@@ -4,7 +4,7 @@ use App\Actions\Payments\CompletePayment;
 use App\Models\Payment;
 use App\Models\User;
 use App\Support\Audit;
-use App\Support\GoldenLeague;
+use App\Support\Supporters;
 use App\Support\Premium;
 use App\Support\Przelewy24;
 use Flux\Flux;
@@ -17,7 +17,7 @@ use Livewire\WithPagination;
 
 /**
  * Wpłaty i premium (etap 15): lista wpłat (Przelewy24 i ręczne), dopisanie wpłaty (np. przelew na konto),
- * zaksięgowanie wiszącej wpłaty, ręczne nadanie albo odebranie premium oraz podgląd rankingu Złotej Ligi
+ * zaksięgowanie wiszącej wpłaty, ręczne nadanie albo odebranie premium oraz podgląd rankingu wspierających
  * (suma wpłat z 12 miesięcy). Tylko Admin.
  */
 new class extends Component {
@@ -79,11 +79,11 @@ new class extends Component {
         return User::where('premium_until', '>', now())->orderBy('premium_until')->get(['id', 'name', 'email', 'team_name', 'premium_until']);
     }
 
-    /** Ranking Złotej Ligi na dziś: 15 pierwszych (do składu wchodzi 10 z listy sezonu). */
+    /** Ranking wspierających na dziś: 15 pierwszych (suma wpłat z 12 miesięcy). */
     #[Computed]
-    public function golden()
+    public function supporters()
     {
-        $ranking = GoldenLeague::ranking()->take(15);
+        $ranking = Supporters::ranking()->take(15);
         $users = User::whereIn('id', $ranking->pluck('user_id'))->get(['id', 'name', 'team_name'])->keyBy('id');
 
         return $ranking->map(fn($row) => $row + ['user' => $users->get($row['user_id'])]);
@@ -173,7 +173,7 @@ new class extends Component {
             'status' => Payment::PENDING,
             'source' => 'manual',
             'premium_days' => $isPremium ? Premium::PLANS[$this->plan][1] : Premium::daysFor($amount),
-            // Dzisiejsza data z bieżącą godziną, wcześniejsza na koniec dnia (kolejność w rankingu Złotej Ligi).
+            // Dzisiejsza data z bieżącą godziną, wcześniejsza na koniec dnia (kolejność w rankingu wspierających).
             'paid_at' => Carbon::parse($this->paidAt)->isToday() ? now() : Carbon::parse($this->paidAt)->endOfDay(),
             'note' => $this->note ?: null,
             'created_by' => auth()->id(),
@@ -270,7 +270,7 @@ new class extends Component {
 
     private function clearCaches(): void
     {
-        unset($this->payments, $this->premiumUsers, $this->golden, $this->selectedUser, $this->userResults);
+        unset($this->payments, $this->premiumUsers, $this->supporters, $this->selectedUser, $this->userResults);
     }
 }; ?>
 
@@ -389,16 +389,14 @@ new class extends Component {
                 @endforelse
             </flux:card>
 
-            {{-- Złota Liga --}}
+            {{-- Najwięksi wspierający --}}
             <flux:card class="space-y-3">
                 <div>
-                    <flux:heading>{{ __('Złota Liga ranking') }}</flux:heading>
-                    <flux:text class="text-xs">
-                        {{ __('Payments in the last 12 months. The top 10 teams from the season list play when the season is approved.') }}
-                    </flux:text>
+                    <flux:heading>{{ __('Top supporters') }}</flux:heading>
+                    <flux:text class="text-xs">{{ __('Payments in the last 12 months.') }}</flux:text>
                 </div>
-                @forelse ($this->golden as $row)
-                    <div class="flex items-center gap-2 text-sm" wire:key="golden-{{ $row['user_id'] }}">
+                @forelse ($this->supporters as $row)
+                    <div class="flex items-center gap-2 text-sm" wire:key="supporter-{{ $row['user_id'] }}">
                         <span class="w-6 text-right tabular-nums text-zinc-500">{{ $loop->iteration }}.</span>
                         <span class="min-w-0 flex-1 truncate">{{ $row['user']?->team_name ?: $row['user']?->name }}</span>
                         <span class="tabular-nums">{{ \App\Models\Payment::money($row['total']) }}</span>

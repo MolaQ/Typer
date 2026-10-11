@@ -7,7 +7,7 @@
         ['clock', __('A default tip when you forget to tip')],
         ['chart-bar', __('Your exact place among the players')],
         ['pencil-square', __('Team name change without approval')],
-        ['star', __('Every payment counts towards Złota Liga')],
+        ['star', __('Every payment supports the development of LechTYPER')],
     ];
 @endphp
 

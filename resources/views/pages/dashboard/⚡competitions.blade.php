@@ -18,11 +18,11 @@ use Livewire\Component;
 
 /**
  * Rozgrywki tworzone ręcznie (regulamin, punkty 7 i 10): Liga Mistrzów, Liga Europy, Liga Konferencji,
- * Liga Legend i Złota Liga. Ich skład zależy od wyników poprzedniego sezonu, wpłat i punktów
+ * i Liga Legend. Ich skład zależy od wyników poprzedniego sezonu i punktów
  * Hall of Fame, więc admin sam wybiera uczestników z listy zespołów sezonu.
  * Gdy jest podstawa, rozgrywki można utworzyć albo uzupełnić automatycznie: ligi europejskie z tabel końcowych
  * poprzedniego sezonu, Złotą Ligę z wpłat (przyciski „Utwórz z historii” i „Uzupełnij z …”).
- * Złota Liga (10 zespołów) dostaje terminarz z LeagueSchedule, puchary europejskie (24 zespoły) fazę grupową
+ * Puchary europejskie (24 zespoły) dostają fazę grupową
  * z EuropeanCup; miejsca ustawiają się według pozycji zespołów na liście przedsezonowej (wyżej = faworyt = gospodarz).
  * Podgląd: season-list. Zmiany: season-edit.
  */
@@ -155,7 +155,7 @@ new class extends Component {
 
     /**
      * Proponowane zespoły do wybranych rozgrywek (do 20), żeby nie szukać ich ręcznie:
-     *  - najpierw skład z historii (ligi europejskie: miejsca 1/2/3 lig z poprzedniego sezonu, Złota Liga: wpłacający),
+     *  - najpierw skład z historii (ligi europejskie: miejsca 1/2/3 lig z poprzedniego sezonu),
      *  - potem czołówka listy przedsezonowej (Liga Legend: tylko zespoły ludzi).
      * W ligach europejskich zespół może grać tylko w jednej z nich, więc znika z propozycji wszystkich trzech.
      *
@@ -179,12 +179,6 @@ new class extends Component {
         $history = $competition->type === CompetitionType::Legends
             ? []
             : array_values(app(BuildCompetitions::class)->historySeats($this->season, $competition->type));
-
-        // Złota Liga: z historii tylko wpłacający gracze (boty uzupełniają czołówka listy).
-        if ($competition->type === CompetitionType::Golden && $history !== []) {
-            $humans = SeasonTeam::whereIn('id', $history)->whereNotNull('user_id')->pluck('id')->all();
-            $history = array_values(array_intersect($history, $humans));
-        }
 
         $history = array_values(array_diff($history, $taken));
         $limit = max(20, (int) $competition->type->size());
@@ -242,7 +236,7 @@ new class extends Component {
         return $this->season ? app(BuildCompetitions::class)->previousSeason($this->season) : null;
     }
 
-    /** Rozgrywki, których sezon nie ma, a które mają skład w historii (ligi europejskie, Złota Liga z wpłat). */
+    /** Rozgrywki, których sezon nie ma, a które mają skład w historii (ligi europejskie). */
     #[Computed]
     public function missingFromHistory(): array
     {
@@ -268,7 +262,6 @@ new class extends Component {
         return match ($type) {
             CompetitionType::Champions, CompetitionType::Europa, CompetitionType::Conference => __('24 teams: 4 groups of 6 (matchdays 1-5, round robin), the top 4 of each group play the round of 16, quarter-finals, semi-finals and the final (matchdays 6-9).'),
             CompetitionType::Legends => __('Human teams only. The fixtures of this competition are added in a later stage.'),
-            CompetitionType::Golden => __('10 teams with the highest payments in the last 12 months, bots fill the free places. Round robin, 9 rounds, no Hall of Fame points.'),
             default => '',
         };
     }
@@ -348,7 +341,7 @@ new class extends Component {
         Flux::toast(text: __('Created from history: :count.', ['count' => $created]), variant: 'success');
     }
 
-    /** Uzupełnia puste rozgrywki składem z historii (ligi europejskie: poprzedni sezon, Złota Liga: wpłaty). */
+    /** Uzupełnia puste rozgrywki składem z historii (ligi europejskie: poprzedni sezon). */
     public function fillFromHistory(BuildCompetitions $build): void
     {
         $this->authorizeAbility(Permission::SeasonEdit);
@@ -614,7 +607,7 @@ new class extends Component {
         <div>
             <flux:heading size="xl" level="1">{{ __('Competitions') }}</flux:heading>
             <flux:subheading>
-                {{ __('European leagues, Liga Legend and Złota Liga are created by hand and filled with teams from the list.') }}
+                {{ __('European leagues and Liga Legend are created by hand and filled with teams from the list.') }}
             </flux:subheading>
         </div>
 
@@ -749,14 +742,10 @@ new class extends Component {
                                 @can(\App\Enums\Permission::SeasonEdit->value)
                                     <div>
                                         <flux:button size="sm" icon="sparkles" wire:click="fillFromHistory">
-                                            {{ $selected->type === \App\Enums\CompetitionType::Golden ? __('Fill from payments') : __('Fill from :season', ['season' => $this->previousSeason?->title]) }}
+                                            {{ __('Fill from :season', ['season' => $this->previousSeason?->title]) }}
                                         </flux:button>
                                     </div>
                                 @endcan
-                            @elseif ($this->isOpen && $selected->type === \App\Enums\CompetitionType::Golden)
-                                <flux:text class="text-sm text-zinc-500">
-                                    {{ __('No payments in the last 12 months from teams on the list, so add the teams by hand.') }}
-                                </flux:text>
                             @endif
                         @endforelse
                     </div>
@@ -800,7 +789,7 @@ new class extends Component {
                                                 <span class="min-w-0 flex-1 truncate">{{ $row['team']->name }}</span>
                                                 @if ($row['history'])
                                                     <flux:badge size="sm" color="amber">
-                                                        {{ $selected->type === \App\Enums\CompetitionType::Golden ? __('Payments') : __('Previous season') }}
+                                                        {{ __('Previous season') }}
                                                     </flux:badge>
                                                 @endif
                                                 <span class="text-xs text-zinc-400">#{{ $row['team']->position }} &middot; {{ $row['team']->league->label() }}</span>

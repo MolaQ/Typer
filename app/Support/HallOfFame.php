@@ -19,7 +19,6 @@ use Illuminate\Support\Facades\Schema;
  *   > MVP 400 > Złota Piłka 360 > Złote Rękawice 330 > Liga Mistrzów 300 > Liga Europy 250 > Liga Konferencji 180
  *   (za samo zwycięstwo; z meczami grupowymi i premiami za etapy zdobywca LM ma do 445, mniej niż Puchar Polski)
  *   > I liga 168 > II liga 144 … > podwórkowa 12.
- * Złota Liga nie daje punktów, tylko unikalne trofeum (najniżej w gablocie).
  */
 final class HallOfFame
 {
@@ -163,7 +162,7 @@ final class HallOfFame
     /**
      * Trofea do gabloty: klucz => nazwa, w kolejności ważności (tak je pokazujemy):
      * Liga Legend, Ekstraklasa, Puchar Polski, MVP, Złota Piłka, Złote Rękawice, Liga Mistrzów, Liga Europy,
-     * Liga Konferencji, ligi od I ligi do podwórkowej, królowie strzelców lig (od Ekstraklasy), Złota Liga.
+     * Liga Konferencji, ligi od I ligi do podwórkowej, królowie strzelców lig (od Ekstraklasy).
      *
      * @return array<string, string>
      */
@@ -186,7 +185,6 @@ final class HallOfFame
         foreach (League::cases() as $league) {
             $out['top_scorer_'.$league->value] = __('Top scorer: :league', ['league' => $league->label()]);
         }
-        $out[CompetitionType::Golden->value] = CompetitionType::Golden->label();
 
         return $out;
     }

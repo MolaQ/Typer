@@ -271,7 +271,7 @@ new #[Layout('layouts::public')] class extends Component {
             return [];
         }
 
-        // Kolejność: ligi od Ekstraklasy do podwórkowej, Puchar Polski, LM, LE, LK, Liga Legend, Złota Liga.
+        // Kolejność: ligi od Ekstraklasy do podwórkowej, Puchar Polski, LM, LE, LK, Liga Legend.
         $options = [];
         $competitions = Competition::where('season_id', $this->season->id)->orderBy('id')->get()
             ->sortBy(fn(Competition $c) => \App\Support\CompetitionColors::rank($c->trophyKey()));

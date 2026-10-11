@@ -2,7 +2,7 @@
 
 use App\Models\Payment;
 use App\Support\Audit;
-use App\Support\GoldenLeague;
+use App\Support\Supporters;
 use App\Support\Premium;
 use App\Support\Przelewy24;
 use Flux\Flux;
@@ -71,11 +71,11 @@ new #[Layout('layouts::public')] class extends Component {
         return auth()->check() ? Payment::where('user_id', auth()->id())->latest()->limit(10)->get() : collect();
     }
 
-    /** Suma wpłat gracza z 12 miesięcy i miejsce w rankingu Złotej Ligi. @return array{total: int, rank: ?int} */
+    /** Suma wpłat gracza z 12 miesięcy i miejsce w rankingu wspierających. @return array{total: int, rank: ?int} */
     #[Computed]
-    public function golden(): array
+    public function supporter(): array
     {
-        $ranking = GoldenLeague::ranking()->values();
+        $ranking = Supporters::ranking()->values();
         $index = $ranking->search(fn($row) => $row['user_id'] === auth()->id());
 
         return [
@@ -169,7 +169,7 @@ new #[Layout('layouts::public')] class extends Component {
 
 <div class="mx-auto flex w-full max-w-6xl flex-col gap-6">
     <x-page-banner :title="__('Premium and support')"
-        :subtitle="__('Tipping is always free. Premium gives extras, and every payment counts towards a place in Złota Liga.')" />
+        :subtitle="__('Tipping is always free. Premium gives extras and supports the development of LechTYPER.')" />
 
     {{-- Powrót z Przelewy24 --}}
     @if ($this->returnedPayment)
@@ -229,9 +229,9 @@ new #[Layout('layouts::public')] class extends Component {
             @endif
 
             <flux:text class="text-sm">
-                {{ __('Your payments in the last 12 months: :amount.', ['amount' => \App\Models\Payment::money($this->golden['total'])]) }}
-                @if ($this->golden['rank'])
-                    {{ __('Złota Liga ranking: :rank. place (the top 10 play in the next season).', ['rank' => $this->golden['rank']]) }}
+                {{ __('Your payments in the last 12 months: :amount.', ['amount' => \App\Models\Payment::money($this->supporter['total'])]) }}
+                @if ($this->supporter['rank'])
+                    {{ __('Supporters ranking: :rank. place.', ['rank' => $this->supporter['rank']]) }}
                 @endif
             </flux:text>
         </flux:card>
@@ -266,7 +266,7 @@ new #[Layout('layouts::public')] class extends Component {
     <flux:card class="space-y-3">
         <flux:heading size="lg">{{ __('Support') }}</flux:heading>
         <flux:text class="text-sm">
-            {{ __('Any amount from 5 zł. You get premium for the highest price list option the amount covers, and the whole amount counts towards Złota Liga.') }}
+            {{ __('Any amount from 5 zł. You get premium for the highest price list option the amount covers.') }}
         </flux:text>
 
         @auth

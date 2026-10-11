@@ -12,7 +12,7 @@ use App\Models\TeamScore;
 use Illuminate\Support\Collection;
 
 /**
- * Tabela rozgrywek ligowych (ligi, podwórkowa, ligi europejskie, Złota Liga) z rozegranych meczów.
+ * Tabela rozgrywek ligowych (ligi, podwórkowa, grupy pucharów europejskich) z rozegranych meczów.
  * Kryteria (regulamin, punkt 4): punkty, bilans goli, bramki strzelone, wygrane, remisy,
  * dokładne typy, trafione różnice, trafione rozstrzygnięcia, bonusy, punkty Hall of Fame
  * (stan na początku sezonu, HallOfFame::pointsBefore), a na końcu pozycja na liście przedsezonowej.

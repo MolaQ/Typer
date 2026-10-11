@@ -12,7 +12,6 @@ use App\Models\Season;
 use App\Models\SeasonTeam;
 use App\Support\CupBracket;
 use App\Support\EuropeanCup;
-use App\Support\GoldenLeague;
 use App\Support\LeagueSchedule;
 use DomainException;
 use Illuminate\Support\Facades\DB;
@@ -24,11 +23,10 @@ use Illuminate\Support\Facades\DB;
  *  - Ligę podwórkową (miejsca od 101, system szwajcarski: pary losuje się rundami),
  *  - Ligę Legend (wszystkie zespoły ludzi),
  *  - ligi europejskie z tabel końcowych poprzedniego sezonu (gdy taki jest),
- *  - Złotą Ligę tworzy admin z powiadomienia (propozycja składu z wpłat z 12 miesięcy, GoldenLeague).
  * Można wywołać wielokrotnie: rozgrywki, które już istnieją, są pomijane (przycisk
  * "Wygeneruj brakujące rozgrywki" na stronie Terminarz).
  *
- * @return array{leagues: int, league_fixtures: int, cup_fixtures: int, swiss_entries: int, legends_entries: int, european: int, golden: int}
+ * @return array{leagues: int, league_fixtures: int, cup_fixtures: int, swiss_entries: int, legends_entries: int, european: int}
  */
 class BuildCompetitions
 {
@@ -41,7 +39,7 @@ class BuildCompetitions
                 throw new DomainException(__('Not enough bots. Run: php artisan db:seed --class=BotsSeeder'));
             }
 
-            $stats = ['leagues' => 0, 'league_fixtures' => 0, 'cup_fixtures' => 0, 'swiss_entries' => 0, 'legends_entries' => 0, 'european' => 0, 'golden' => 0];
+            $stats = ['leagues' => 0, 'league_fixtures' => 0, 'cup_fixtures' => 0, 'swiss_entries' => 0, 'legends_entries' => 0, 'european' => 0];
 
             // --- 10 lig ---
             foreach (League::cases() as $league) {
@@ -149,9 +147,6 @@ class BuildCompetitions
             // --- Ligi europejskie z tabel końcowych poprzedniego sezonu ---
             $stats['european'] = $this->buildEuropean($season);
 
-            // --- Złota Liga z wpłat: nie automatycznie. Admin dostaje powiadomienie z propozycją składu
-            // (AdminAlerts::golden) i zatwierdza ją przyciskiem albo zmienia skład na stronie Rozgrywki. ---
-
             return $stats;
         });
     }
@@ -193,49 +188,24 @@ class BuildCompetitions
         return $created;
     }
 
-    /** Złota Liga ze składem z wpłat (GoldenLeague). Pomijana, gdy już istnieje albo nikt z listy nie wspierał. */
-    public function buildGolden(Season $season): int
-    {
-        if ($this->exists($season, CompetitionType::Golden)) {
-            return 0;
-        }
-
-        $seatTeams = GoldenLeague::seats($season);
-
-        if ($seatTeams === []) {
-            return 0;
-        }
-
-        $competition = Competition::create([
-            'season_id' => $season->id,
-            'type' => CompetitionType::Golden,
-            'tier' => null,
-            'name' => CompetitionType::Golden->label(),
-        ]);
-
-        $this->fillRoundRobin($competition, $seatTeams);
-
-        return 1;
-    }
-
-    /** Brakujące rozgrywki z podstawą w historii: ligi europejskie i Złota Liga (strona Rozgrywki). */
+    /** Brakujące rozgrywki z podstawą w historii: ligi europejskie (strona Rozgrywki). */
     public function buildFromHistory(Season $season): int
     {
-        return DB::transaction(fn (): int => $this->buildEuropean($season) + $this->buildGolden($season));
+        return DB::transaction(fn (): int => $this->buildEuropean($season));
     }
 
     /**
-     * Skład z historii dla rozgrywek ręcznych: ligi europejskie z tabel poprzedniego sezonu, Złota Liga z wpłat.
+     * Skład z historii dla rozgrywek ręcznych: ligi europejskie z tabel poprzedniego sezonu.
      *
      * @return array<int, int> seed => id zespołu z listy
      */
     public function historySeats(Season $season, CompetitionType $type): array
     {
-        return $type === CompetitionType::Golden ? GoldenLeague::seats($season) : $this->europeanSeats($season, $type);
+        return $this->europeanSeats($season, $type);
     }
 
     /**
-     * Uzupełnia puste rozgrywki ręczne składem z historii (np. utworzone, zanim był poprzedni sezon albo wpłaty).
+     * Uzupełnia puste rozgrywki ręczne składem z historii (np. utworzone, zanim był poprzedni sezon).
      * Zwraca liczbę dodanych zespołów.
      */
     public function fillFromHistory(Competition $competition): int
@@ -296,7 +266,7 @@ class BuildCompetitions
     }
 
     /**
-     * Dodaje uczestników; terminarz tylko przy komplecie (10 zespołów w Złotej Lidze, 24 w pucharach europejskich),
+     * Dodaje uczestników; terminarz tylko przy komplecie (24 w pucharach europejskich),
      * inaczej admin uzupełnia skład na stronie Rozgrywki.
      *
      * @param  array<int, int>  $seatTeams
@@ -317,7 +287,7 @@ class BuildCompetitions
     }
 
     /**
-     * Terminarz rozgrywek ze stałym składem: ligi i Złota Liga każdy z każdym (LeagueSchedule),
+     * Terminarz rozgrywek ze stałym składem: ligi każdy z każdym (LeagueSchedule),
      * puchary europejskie faza grupowa (EuropeanCup; drabinka 1/8 finału powstaje po kolejce 5).
      *
      * @param  array<int, int>  $entries  seed => id wpisu

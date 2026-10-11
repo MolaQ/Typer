@@ -8,10 +8,10 @@ use App\Support\EuropeanCup;
  * Rodzaj rozgrywek w sezonie.
  *  - Tworzone automatycznie przy zatwierdzeniu sezonu: League (10 lig), Cup, Swiss, Legends
  *    (wszystkie zespoły ludzi, eliminacja po kolejkach).
- *  - Ligi europejskie i Złota Liga: przy zatwierdzeniu powstają same, gdy jest podstawa (Champions, Europa,
- *    Conference z tabel końcowych poprzedniego sezonu, Golden z wpłat), poza tym admin zarządza nimi ręcznie.
+ *  - Ligi europejskie: przy zatwierdzeniu powstają same, gdy jest podstawa (Champions, Europa,
+ *    Conference z tabel końcowych poprzedniego sezonu), poza tym admin zarządza nimi ręcznie.
  *  - Puchary europejskie (Champions, Europa, Conference): 24 zespoły, 4 grupy po 6, potem 1/8 finału … finał
- *    (App\Support\EuropeanCup). Złota Liga: 10 zespołów każdy z każdym.
+ *    (App\Support\EuropeanCup).
  * Nazwy rozgrywek to polskie nazwy własne, więc nie przechodzą przez tłumaczenia.
  */
 enum CompetitionType: string
@@ -23,7 +23,6 @@ enum CompetitionType: string
     case Europa = 'europa';
     case Conference = 'conference';
     case Legends = 'legends';
-    case Golden = 'golden';
 
     public function label(): string
     {
@@ -35,7 +34,6 @@ enum CompetitionType: string
             self::Europa => 'Liga Europy',
             self::Conference => 'Liga Konferencji',
             self::Legends => 'Liga Legend',
-            self::Golden => 'Złota Liga',
         };
     }
 
@@ -48,7 +46,7 @@ enum CompetitionType: string
     /** Liga 10 zespołów każdy z każdym (9 kolejek, schemat z App\Support\LeagueSchedule). */
     public function isRoundRobin(): bool
     {
-        return in_array($this, [self::League, self::Golden], true);
+        return $this === self::League;
     }
 
     /** Liga Mistrzów, Europy albo Konferencji (grupy i faza pucharowa, App\Support\EuropeanCup). */
@@ -57,7 +55,7 @@ enum CompetitionType: string
         return in_array($this, [self::Champions, self::Europa, self::Conference], true);
     }
 
-    /** Pełny skład rozgrywek ze stałym terminarzem: 10 (ligi, Złota Liga), 24 (puchary europejskie), inaczej null. */
+    /** Pełny skład rozgrywek ze stałym terminarzem: 10 (ligi), 24 (puchary europejskie), inaczej null. */
     public function size(): ?int
     {
         return match (true) {
@@ -124,7 +122,7 @@ enum CompetitionType: string
     /** @return array<int, self> */
     public static function manual(): array
     {
-        return [self::Champions, self::Europa, self::Conference, self::Golden];
+        return [self::Champions, self::Europa, self::Conference];
     }
 
     /** Typy tworzone i usuwane razem z zatwierdzeniem sezonu. */
