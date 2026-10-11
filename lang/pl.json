@@ -1401,5 +1401,6 @@
     "Still playing: :left of :count": "W grze: :left z :count",
     "Current holder: :title": "Aktualny triumfator: :title",
     "Up :count places": "W górę o :count",
-    "Down :count places": "W dół o :count"
+    "Down :count places": "W dół o :count",
+    "Not on the season list": "Bez miejsca na liście sezonu"
 }

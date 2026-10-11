@@ -828,17 +828,20 @@ new #[Layout('layouts::public')] class extends Component {
                                     @endphp
                                     <tr wire:key="row-{{ $row['entry_id'] }}"
                                         class="{{ $zoneClass }} border-b border-zinc-100 last:border-b-0 dark:border-zinc-700/50 {{ $this->highlighted($row['team']->id) ? 'bg-amber-50 font-semibold dark:bg-amber-900/20' : '' }}">
-                                        {{-- Miejsce i zmiana po kolejce: zielony trójkąt w górę, czerwony w dół (liczba miejsc w podpowiedzi) --}}
+                                        {{-- Miejsce, a po prawej zmiana po kolejce: zielony trójkąt w górę, czerwony w dół (liczba miejsc w podpowiedzi) --}}
                                         <td class="px-2 py-1.5 text-right tabular-nums text-zinc-500">
                                             <span class="inline-flex items-center justify-end gap-1">
-                                                @if ($outRound !== null)
-                                                    <span title="{{ __('Knocked out after matchday :number', ['number' => $outRound]) }}" class="text-zinc-400"><flux:icon.arrow-right-start-on-rectangle variant="micro" class="size-3.5" /></span>
-                                                @elseif ($move > 0)
-                                                    <span title="{{ __('Up :count places', ['count' => $move]) }}" class="flex items-center text-[10px] font-semibold text-green-600 dark:text-green-400"><svg class="size-2.5" viewBox="0 0 10 10" aria-hidden="true"><path d="M5 1 9.5 9h-9z" fill="currentColor" /></svg>{{ $move }}</span>
-                                                @elseif ($move < 0)
-                                                    <span title="{{ __('Down :count places', ['count' => -$move]) }}" class="flex items-center text-[10px] font-semibold text-red-600 dark:text-red-400"><svg class="size-2.5" viewBox="0 0 10 10" aria-hidden="true"><path d="M5 9 .5 1h9z" fill="currentColor" /></svg>{{ -$move }}</span>
-                                                @endif
                                                 <span>{{ $index + 1 }}.</span>
+                                                @if ($outRound !== null)
+                                                    <span title="{{ __('Knocked out after matchday :number', ['number' => $outRound]) }}" class="flex w-5 text-zinc-400"><flux:icon.arrow-right-start-on-rectangle variant="micro" class="size-3.5" /></span>
+                                                @elseif ($move > 0)
+                                                    <span title="{{ __('Up :count places', ['count' => $move]) }}" class="flex w-5 items-center text-[10px] font-semibold text-green-600 dark:text-green-400"><svg class="size-2.5" viewBox="0 0 10 10" aria-hidden="true"><path d="M5 1 9.5 9h-9z" fill="currentColor" /></svg>{{ $move }}</span>
+                                                @elseif ($move < 0)
+                                                    <span title="{{ __('Down :count places', ['count' => -$move]) }}" class="flex w-5 items-center text-[10px] font-semibold text-red-600 dark:text-red-400"><svg class="size-2.5" viewBox="0 0 10 10" aria-hidden="true"><path d="M5 9 .5 1h9z" fill="currentColor" /></svg>{{ -$move }}</span>
+                                                @else
+                                                    {{-- Puste miejsce o szerokości trójkąta, żeby numery stały w jednej kolumnie --}}
+                                                    <span class="w-5"></span>
+                                                @endif
                                             </span>
                                         </td>
                                         <td class="max-w-56 truncate px-2 py-1.5">

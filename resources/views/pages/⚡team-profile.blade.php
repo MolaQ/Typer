@@ -29,11 +29,34 @@ new #[Layout('layouts::public')] class extends Component {
         return $this->view()->title($this->user->team_name ?: $this->user->name);
     }
 
-    /** Sezon do sekcji „Rozgrywki w sezonie”: aktywny, a bez niego ostatnio zakończony. */
+    /** Sezon do sekcji „Rozgrywki w sezonie”: aktywny albo zatwierdzony (przed startem), a bez nich ostatnio zakończony. */
     #[Computed]
     public function currentSeason(): ?Season
     {
-        return Season::current() ?? Season::where('status', \App\Enums\SeasonStatus::Finished->value)->orderByDesc('number')->first();
+        return Season::whereIn('status', [\App\Enums\SeasonStatus::Active->value, \App\Enums\SeasonStatus::Approved->value])->orderByDesc('number')->first()
+            ?? Season::where('status', \App\Enums\SeasonStatus::Finished->value)->orderByDesc('number')->first();
+    }
+
+    /**
+     * Liga, w której zespół gra w sezonie (z miejsca na liście, także gdy dołączył w trakcie sezonu i nie ma jeszcze meczów),
+     * z linkiem do tabeli z wyróżnionym zespołem. Null: brak miejsca na liście sezonu.
+     *
+     * @return array{label: string, url: ?string}|null
+     */
+    #[Computed]
+    public function currentLeague(): ?array
+    {
+        $season = $this->currentSeason;
+        $team = $season ? \App\Models\SeasonTeam::where('season_id', $season->id)->where('user_id', $this->user->id)->first() : null;
+
+        if (!$season || !$team) {
+            return null;
+        }
+
+        $league = \App\Enums\League::forPosition((int) $team->position);
+        $row = collect($this->seasonCompetitions)->first(fn ($r) => in_array($r['type'], [CompetitionType::League, CompetitionType::Swiss], true));
+
+        return ['label' => $row['name'] ?? $league->label(), 'url' => $row['url'] ?? null];
     }
 
     /**
@@ -205,7 +228,20 @@ new #[Layout('layouts::public')] class extends Component {
         </a>
 
         <x-slot:aside>
-            <div class="flex gap-6 rounded-xl bg-white/10 px-5 py-3">
+            <div class="flex flex-wrap gap-6 rounded-xl bg-white/10 px-5 py-3">
+                {{-- Aktualna liga zespołu (z listy sezonu), link do tabeli --}}
+                <div class="text-right">
+                    <p class="text-xs uppercase tracking-widest text-lech-200">{{ $this->currentSeason ? __('League') . ' · ' . $this->currentSeason->title : __('League') }}</p>
+                    @if ($this->currentLeague)
+                        @if ($this->currentLeague['url'])
+                            <a href="{{ $this->currentLeague['url'] }}" wire:navigate class="text-2xl font-bold hover:underline">{{ $this->currentLeague['label'] }}</a>
+                        @else
+                            <p class="text-2xl font-bold">{{ $this->currentLeague['label'] }}</p>
+                        @endif
+                    @else
+                        <p class="text-base font-semibold text-lech-100">{{ __('Not on the season list') }}</p>
+                    @endif
+                </div>
                 <div class="text-right">
                     <p class="text-xs uppercase tracking-widest text-lech-200">{{ __('Hall of Fame points') }}</p>
                     <p class="text-2xl font-bold tabular-nums">{{ \App\Support\HallOfFame::format($this->total) }}</p>
