@@ -449,15 +449,6 @@ new #[Layout('layouts::public')] class extends Component {
             ->keyBy(fn($score) => $score->question_set->value);
     }
 
-    /** Ile pytań łącznie i ile już ma odpowiedź (do paska postępu). */
-    public function progress(): array
-    {
-        $ids = collect($this->sets)->flatMap(fn($s) => collect($s['sides'])->flatten(1)->pluck('id'));
-        $answered = $ids->filter(fn($id) => in_array($this->answers[$id] ?? '', ['0', '1'], true))->count();
-
-        return [$answered, $ids->count()];
-    }
-
     /* ==================================================================
      | AKCJE
      * ================================================================*/
@@ -808,10 +799,6 @@ new #[Layout('layouts::public')] class extends Component {
             <flux:text>{{ __('The bonus questions for this matchday are not ready yet.') }}</flux:text>
         </flux:card>
     @else
-    @php
-        $progress = $this->progress();
-        $percent = $progress[1] > 0 ? round($progress[0] / $progress[1] * 100) : 0;
-    @endphp
 
     {{--
         Zestawy pytań: najwyżej cztery, po dwa w wierszu (na telefonie jeden pod drugim). Karta w barwach rozgrywek,
@@ -887,31 +874,6 @@ new #[Layout('layouts::public')] class extends Component {
     @endforeach
     </div>
 
-    {{-- Pasek na dole ekranu: postęp odpowiedzi i stan zapisu automatycznego (bez przycisku) --}}
-    <div class="sticky bottom-4 z-10 flex flex-wrap items-center gap-4 rounded-2xl border border-zinc-200 bg-white/90 px-5 py-3 shadow-lg backdrop-blur dark:border-zinc-700 dark:bg-zinc-900/90">
-        <div class="min-w-48 flex-1 space-y-1">
-            <div class="text-xs text-zinc-500">
-                {{ __('Answered :done of :total questions. Unanswered questions score nothing.', ['done' => $progress[0], 'total' => $progress[1]]) }}
-            </div>
-            <div class="h-2 overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-700">
-                <div class="h-full rounded-full bg-linear-to-r from-lech-500 to-lech-700 transition-all" style="width: {{ $percent }}%"></div>
-            </div>
-        </div>
-        @if ($this->isOpen)
-            <div class="flex items-center gap-2 text-sm">
-                <span wire:loading class="text-zinc-500">{{ __('Saving...') }}</span>
-                <span wire:loading.remove class="flex items-center gap-1 font-medium text-green-700 dark:text-green-400">
-                    @if ($savedTime !== '')
-                        <flux:icon.check-circle variant="mini" /> {{ __('Saved at :time', ['time' => $savedTime]) }}
-                    @else
-                        <span class="text-zinc-500">{{ __('Changes are saved automatically.') }}</span>
-                    @endif
-                </span>
-            </div>
-        @else
-            <flux:text size="sm">{{ __('Tipping for this matchday is closed.') }}</flux:text>
-        @endif
-    </div>
     @endif
     @endif
 
