@@ -125,21 +125,6 @@ final class Standings
         return null;
     }
 
-    /** Ligi 1-10: miejsca 1-3 dają start w Lidze Mistrzów, Europy i Konferencji następnego sezonu. */
-    public static function europeanBadge(Competition $competition, int $place): ?string
-    {
-        if ($competition->type !== CompetitionType::League) {
-            return null;
-        }
-
-        return match ($place) {
-            1 => 'LM',
-            2 => 'LE',
-            3 => 'LK',
-            default => null,
-        };
-    }
-
     /**
      * Id wpisów od najlepszego (klasyfikacja do losowania kolejnej rundy Ligi podwórkowej).
      *

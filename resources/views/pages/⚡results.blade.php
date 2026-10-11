@@ -782,28 +782,25 @@ new #[Layout('layouts::public')] class extends Component {
                                 @foreach ($this->table as $index => $row)
                                     @php
                                         $zone = \App\Support\Standings::zone($this->competition, $index + 1, $this->table->count());
-                                        $badge = \App\Support\Standings::europeanBadge($this->competition, $index + 1);
                                         $zoneClass = match ($zone) {
                                             'up' => 'border-l-4 border-l-green-500',
                                             'down' => 'border-l-4 border-l-red-500',
                                             default => 'border-l-4 border-l-transparent',
                                         };
-                                        // Liga Legend: zespół, który odpadł, zostaje w tabeli wyszarzony.
+                                        // Liga Legend: zespół, który odpadł, zostaje w tabeli: czerwony pasek z lewej, ukośne szare paski w tle,
+                                        // przekreślona nazwa i plakietka z kolejką odpadnięcia.
                                         $outRound = $this->legendsOut[$row['entry_id']] ?? null;
                                         if ($outRound !== null) {
-                                            $zoneClass .= ' text-zinc-400 dark:text-zinc-500';
+                                            $zoneClass = 'border-l-4 border-l-red-600 text-zinc-400 dark:text-zinc-500 bg-[repeating-linear-gradient(135deg,rgba(113,113,122,0.10)_0_6px,transparent_6px_12px)]';
                                         }
                                     @endphp
                                     <tr wire:key="row-{{ $row['entry_id'] }}"
                                         class="{{ $zoneClass }} border-b border-zinc-100 last:border-b-0 dark:border-zinc-700/50 {{ $this->highlighted($row['team']->id) ? 'bg-amber-50 font-semibold dark:bg-amber-900/20' : '' }}">
                                         <td class="px-3 py-1.5 text-right tabular-nums text-zinc-500">{{ $index + 1 }}.</td>
                                         <td class="max-w-56 truncate px-2 py-1.5">
-                                            <button type="button" wire:click="showTeam({{ $row['team']->id }})" class="truncate hover:text-lech-700 hover:underline dark:hover:text-lech-300">{{ $row['team']->name }}</button>
-                                            @if ($badge)
-                                                <span class="ms-1 rounded bg-blue-100 px-1 text-[10px] font-semibold text-blue-700 dark:bg-blue-900/40 dark:text-blue-300">{{ $badge }}</span>
-                                            @endif
+                                            <button type="button" wire:click="showTeam({{ $row['team']->id }})" class="{{ $outRound !== null ? 'line-through decoration-red-500/70 decoration-2' : '' }} truncate hover:text-lech-700 hover:underline dark:hover:text-lech-300">{{ $row['team']->name }}</button>
                                             @if ($outRound !== null)
-                                                <span class="ms-1 rounded bg-zinc-100 px-1 text-[10px] font-semibold text-zinc-500 dark:bg-zinc-800" title="{{ __('Knocked out after matchday :number', ['number' => $outRound]) }}">{{ __('Out (MD :number)', ['number' => $outRound]) }}</span>
+                                                <span class="ms-1 inline-flex items-center gap-0.5 rounded-full bg-red-600 px-1.5 py-px align-middle text-[10px] font-bold uppercase tracking-wide text-white no-underline" title="{{ __('Knocked out after matchday :number', ['number' => $outRound]) }}"><flux:icon.x-mark variant="micro" class="size-3" />{{ __('Out (MD :number)', ['number' => $outRound]) }}</span>
                                             @endif
                                         </td>
                                         <td class="px-1.5 py-1.5 text-right tabular-nums">{{ $row['played'] }}</td>
@@ -824,15 +821,29 @@ new #[Layout('layouts::public')] class extends Component {
                     @if ($this->isLegends || in_array($this->competition->type, [\App\Enums\CompetitionType::League, \App\Enums\CompetitionType::Swiss], true))
                         <footer class="space-y-1.5 px-2 pb-1.5 pt-2.5 text-xs">
                             @if ($this->isLegends)
+                                @php
+                                    $outCount = count($this->legendsOut);
+                                @endphp
+                                <p class="flex flex-wrap items-center gap-x-4 gap-y-1 opacity-95">
+                                    <span class="flex items-center gap-1"><span class="inline-block h-3 w-1 bg-red-600"></span>{{ __('Knocked out (two losses in one matchday)') }}</span>
+                                    <span class="font-semibold">{{ __('Still playing: :left of :count', ['left' => $this->table->count() - $outCount, 'count' => $this->table->count()]) }}</span>
+                                </p>
                                 <p class="italic opacity-85">
                                     {{ __('Every matchday each team plays two duels: 1-2, 2-3 … and the first with the last (matchday 1 from the list, then by the table). Two losses in one matchday knock the team out; its results stay in the table. After matchday 9 the top of the whole table wins.') }}
                                 </p>
                             @else
+                                {{-- Legenda tylko dla stref, które są w tej lidze: z Ekstraklasy nie ma awansu, z podwórkowej spadku --}}
+                                @php
+                                    $isSwiss = $this->competition->type === \App\Enums\CompetitionType::Swiss;
+                                    $hasPromotion = $isSwiss || (int) $this->competition->tier > 1;
+                                    $hasRelegation = !$isSwiss;
+                                @endphp
                                 <p class="flex flex-wrap gap-4 opacity-90">
-                                    <span class="flex items-center gap-1"><span class="inline-block h-3 w-1 bg-green-500"></span>{{ __('Promotion') }}</span>
-                                    @if ($this->competition->type === \App\Enums\CompetitionType::League)
+                                    @if ($hasPromotion)
+                                        <span class="flex items-center gap-1"><span class="inline-block h-3 w-1 bg-green-500"></span>{{ __('Promotion') }}</span>
+                                    @endif
+                                    @if ($hasRelegation)
                                         <span class="flex items-center gap-1"><span class="inline-block h-3 w-1 bg-red-500"></span>{{ __('Relegation') }}</span>
-                                        <span>{{ __('LM, LE, LK: Liga Mistrzów, Europy and Konferencji next season') }}</span>
                                     @endif
                                 </p>
                             @endif

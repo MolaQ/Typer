@@ -466,23 +466,10 @@ final class PlayerStats
         };
     }
 
-    /** Czas przed pierwszym gwizdkiem w pełnych minutach: „1 d 3 h 25 min”, „3 h 5 min”, „25 min”. */
+    /** Średni czas przed pierwszym gwizdkiem w pełnych minutach, zawsze w minutach (2 h = „120 min”). */
     public static function formatLead(?int $minutes): string
     {
-        if ($minutes === null) {
-            return '—';
-        }
-
-        $parts = [];
-        if ($minutes >= 1440) {
-            $parts[] = intdiv($minutes, 1440).' d';
-        }
-        if ($minutes >= 60) {
-            $parts[] = intdiv($minutes % 1440, 60).' h';
-        }
-        $parts[] = ($minutes % 60).' min';
-
-        return implode(' ', $parts);
+        return $minutes === null ? '—' : number_format($minutes, 0, ',', ' ').' min';
     }
 
     /** @var array<int, array<int, array<string, mixed>>> */
