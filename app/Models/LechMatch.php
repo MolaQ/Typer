@@ -33,7 +33,11 @@ class LechMatch extends Model
         ];
     }
 
-    /** Kolejka, do której mecz jest przypisany (najwyżej jedna). */
+    /**
+     * Kolejka, do której mecz jest przypisany (najwyżej jedna).
+     *
+     * @return HasOne<Matchday, $this>
+     */
     public function matchday(): HasOne
     {
         return $this->hasOne(Matchday::class);

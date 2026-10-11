@@ -57,6 +57,7 @@ class Matchday extends Model
         ];
     }
 
+    /** @return BelongsTo<LechMatch, $this> */
     public function lechMatch(): BelongsTo
     {
         return $this->belongsTo(LechMatch::class);

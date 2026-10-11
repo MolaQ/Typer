@@ -83,7 +83,7 @@ final class EuropeanQualification
         $saved = DB::table('european_qualification_order')->orderBy('position')->pluck('key')->all();
         $order = array_values(array_intersect($saved, self::DEFAULT_ORDER));
 
-        return array_values(array_merge($order, array_diff(self::DEFAULT_ORDER, $order)));
+        return array_merge($order, array_values(array_diff(self::DEFAULT_ORDER, $order)));
     }
 
     /** @param  list<string>  $order */
@@ -154,7 +154,7 @@ final class EuropeanQualification
         $humans = array_filter($list, fn (array $row) => $row['human']);
         $bots = array_filter($list, fn (array $row) => ! $row['human']);
 
-        return array_map(fn (array $row) => ['team' => $row['team'], 'reason' => $row['reason']], array_values([...$humans, ...$bots]));
+        return array_map(fn (array $row) => ['team' => $row['team'], 'reason' => $row['reason']], [...$humans, ...$bots]);
     }
 
     /**
@@ -202,13 +202,14 @@ final class EuropeanQualification
         }
 
         // Reszta: ligi od Ekstraklasy według miejsca, potem Liga podwórkowa.
-        $tiers = $competitions->mapWithKeys(fn (Competition $c) => [$c->id => match ($c->type) {
-            CompetitionType::League => (int) $c->tier,
-            CompetitionType::Swiss => 11,
-            default => null,
-        }])->filter(fn (?int $tier) => $tier !== null);
+        $tiers = [];
+        foreach ($competitions as $competition) {
+            if ($competition->type === CompetitionType::League || $competition->type === CompetitionType::Swiss) {
+                $tiers[$competition->id] = $competition->type === CompetitionType::Swiss ? 11 : (int) $competition->tier;
+            }
+        }
 
-        $fill = $standings->filter(fn (FinalStanding $s) => $tiers->has($s->competition_id))
+        $fill = $standings->filter(fn (FinalStanding $s) => isset($tiers[$s->competition_id]))
             ->sortBy(fn (FinalStanding $s) => [$tiers[$s->competition_id], $s->place]);
 
         foreach ($fill as $row) {

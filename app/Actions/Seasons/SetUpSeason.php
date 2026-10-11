@@ -6,6 +6,7 @@ use App\Actions\Questions\DrawQuestions;
 use App\Enums\League;
 use App\Enums\SeasonStatus;
 use App\Models\Bot;
+use App\Models\Matchday;
 use App\Models\Season;
 use App\Models\SeasonTeam;
 use App\Support\Audit;
@@ -68,7 +69,7 @@ class SetUpSeason
             $approved = $this->approve->handle($season);
 
             $questions = 0;
-            foreach ($season->matchdays()->get() as $matchday) {
+            foreach (Matchday::where('season_id', $season->id)->orderBy('number')->get() as $matchday) {
                 try {
                     $questions += $this->drawQuestions->handle($matchday);
                 } catch (DomainException) {
