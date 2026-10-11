@@ -1105,7 +1105,7 @@ parameters:
 			path: app/Support/QuestionDifficulty.php
 
 		-
-			message: '#^Method App\\Support\\QuestionDifficulty\:\:hardest\(\) should return Illuminate\\Support\\Collection\<int, array\{question\: App\\Models\\Question, answers\: int, correct\: int, rate\: float\}\> but returns Illuminate\\Support\\Collection\<int, array\{answers\: int, correct\: int, rate\: float, question\: App\\Models\\Question\|null\}\>\.$#'
+			message: '#^Method App\\Support\\QuestionDifficulty\:\:ranked\(\) should return Illuminate\\Support\\Collection\<int, array\{question\: App\\Models\\Question, answers\: int, correct\: int, rate\: float\}\> but returns Illuminate\\Support\\Collection\<int, array\{answers\: int, correct\: int, rate\: float, question\: App\\Models\\Question\|null\}\>\.$#'
 			identifier: return.type
 			count: 1
 			path: app/Support/QuestionDifficulty.php

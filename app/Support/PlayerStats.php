@@ -196,7 +196,7 @@ final class PlayerStats
                 if ($key !== 'best_matchday' && (is_numeric($mine[$key] ?? null) || ($mine[$key] ?? null) === null)) {
                     $values = array_filter(array_column($all, $key), fn ($v) => $v !== null && is_numeric($v));
                     $average[$key] = $values === [] ? 0.0 : array_sum($values) / count($values);
-                    $max[$key] = $values === [] ? 0.0 : (float) ($key === 'optimism' ? max(array_map('abs', $values)) : max($values));
+                    $max[$key] = $values === [] ? 0.0 : (float) ($key === 'optimism' ? max(array_map(fn ($v) => abs((float) $v), $values)) : max($values));
                 }
             }
         }

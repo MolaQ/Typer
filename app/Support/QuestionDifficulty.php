@@ -59,7 +59,10 @@ final class QuestionDifficulty
         return self::ranked($limit, $side, 'desc');
     }
 
-    /** @return Collection<int, array{question: Question, answers: int, correct: int, rate: float}> */
+    /**
+     * @param  'asc'|'desc'  $direction
+     * @return Collection<int, array{question: Question, answers: int, correct: int, rate: float}>
+     */
     private static function ranked(int $limit, ?string $side, string $direction): Collection
     {
         $rates = self::rates()->filter(fn ($r) => $r['answers'] >= self::MIN_ANSWERS);
