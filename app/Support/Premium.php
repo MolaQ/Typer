@@ -8,7 +8,7 @@ use Carbon\CarbonInterface;
 
 /**
  * Premium (regulamin, punkt 11): rola z datą wygaśnięcia. Typowanie jest zawsze darmowe, premium daje
- * tylko dodatki (np. domyślny typ). Nowa wpłata przedłuża premium. Cegiełka (wsparcie dowolną kwotą) daje
+ * tylko dodatki (np. podgląd rywali i statystyki typów). Nowa wpłata przedłuża premium. Cegiełka (wsparcie dowolną kwotą) daje
  * premium według najwyższej opcji cennika, na którą wystarcza kwoty. Admin może nadać premium ręcznie.
  */
 final class Premium
@@ -113,11 +113,5 @@ final class Premium
         }
 
         return $users->count();
-    }
-
-    /** Domyślny typ gracza premium (regulamin: 0:0, dopóki go nie ustawi). @return array{0: int, 1: int} */
-    public static function defaultTip(User $user): array
-    {
-        return [(int) ($user->default_tip_lech ?? 0), (int) ($user->default_tip_opponent ?? 0)];
     }
 }

@@ -4,7 +4,7 @@
     $active = \App\Support\Premium::isActive($user);
     $benefits = [
         ['eye', __('Rival preview: their outcome while tipping is open, the exact tip after it closes')],
-        ['clock', __('A default tip when you forget to tip')],
+        ['chart-bar', __('While you tip: how the other players tip the score and answer the questions')],
         ['chart-bar', __('Your exact place among the players')],
         ['pencil-square', __('Team name change without approval')],
         ['star', __('Every payment supports the development of LechTYPER')],

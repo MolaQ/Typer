@@ -4,7 +4,6 @@ namespace App\Actions\Results;
 
 use App\Enums\CompetitionType;
 use App\Enums\QuestionSide;
-use App\Enums\RoleName;
 use App\Models\BotTip;
 use App\Models\Competition;
 use App\Models\CompetitionEntry;
@@ -15,7 +14,6 @@ use App\Models\SeasonTeam;
 use App\Models\TeamScore;
 use App\Models\Tip;
 use App\Models\TipAnswer;
-use App\Models\User;
 use App\Support\EuropeanCup;
 use App\Support\LegendsLeague;
 use App\Support\Premium;
@@ -56,9 +54,6 @@ class ScoreMatchday
             $kickoff = ($matchday->kickoff_at ?? now())->format('Y-m-d H:i:s.u');
 
             $teams = SeasonTeam::where('season_id', $matchday->season_id)->get(['id', 'user_id']);
-
-            // Gracze premium bez typu dostają swój domyślny typ (regulamin, punkt 11).
-            $this->premiumDefaults($matchday, $teams->whereNotNull('user_id')->pluck('user_id')->all());
 
             // Rozgrywki sezonu i to, w których zestawach pytań gra każdy zespół.
             $competitions = Competition::where('season_id', $matchday->season_id)->get()->keyBy('id');
@@ -268,36 +263,5 @@ class ScoreMatchday
         }
 
         $next->update($next->home_seat === $seat ? ['home_entry_id' => $winnerEntryId] : ['away_entry_id' => $winnerEntryId]);
-    }
-
-    /**
-     * Domyślny typ premium (regulamin, punkt 11): gracz, który w chwili meczu ma aktywne premium i nie wytypował,
-     * dostaje swój domyślny typ (0:0, dopóki go nie ustawi), bez odpowiedzi na pytania. Czas typu = godzina meczu.
-     *
-     * @param  array<int, int>  $userIds  gracze z listy sezonu
-     */
-    private function premiumDefaults(Matchday $matchday, array $userIds): void
-    {
-        $kickoff = $matchday->kickoff_at ?? now();
-        $tipped = Tip::where('matchday_id', $matchday->id)->pluck('user_id')->all();
-
-        $users = User::whereIn('id', array_diff($userIds, $tipped))
-            // Premium z datą ważną w chwili meczu albo bezterminowe (rola Premium bez daty).
-            ->where(fn ($q) => $q->where('premium_until', '>', $kickoff)
-                ->orWhere(fn ($w) => $w->whereNull('premium_until')->whereHas('roles', fn ($r) => $r->where('name', RoleName::Premium->value))))
-            ->get(['id', 'premium_until', 'default_tip_lech', 'default_tip_opponent']);
-
-        foreach ($users as $user) {
-            [$lech, $opponent] = Premium::defaultTip($user);
-
-            Tip::create([
-                'matchday_id' => $matchday->id,
-                'user_id' => $user->id,
-                'lech_goals' => $lech,
-                'opponent_goals' => $opponent,
-                'is_default' => true,
-                'saved_at' => $kickoff,
-            ]);
-        }
     }
 }

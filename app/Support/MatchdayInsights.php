@@ -100,6 +100,21 @@ final class MatchdayInsights
         return $out;
     }
 
+    /**
+     * Odpowiedzi graczy na pytania kolejki (premium na stronie typowania, także przed pierwszym gwizdkiem).
+     *
+     * @return array<int, array{answers: int, yes: int}> id pytania kolejki => liczba odpowiedzi i „tak”
+     */
+    public static function answerShares(Matchday $matchday): array
+    {
+        return DB::table('tip_answers')->where('matchday_id', $matchday->id)
+            ->selectRaw('matchday_question_id, count(*) as answers, sum(case when answer then 1 else 0 end) as yes')
+            ->groupBy('matchday_question_id')
+            ->get()
+            ->mapWithKeys(fn ($row) => [(int) $row->matchday_question_id => ['answers' => (int) $row->answers, 'yes' => (int) $row->yes]])
+            ->all();
+    }
+
     /** Procent zaokrąglony do całości, null przy braku danych. */
     private static function percent(int $part, int $total): ?int
     {

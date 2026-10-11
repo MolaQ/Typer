@@ -1376,5 +1376,17 @@
     "Match postponed: :fixture (matchday :number)": "Mecz przełożony: :fixture (kolejka :number)",
     "Not in any matchday": "Bez kolejki",
     "Table": "Tabela",
-    ":count match|:count matches": "{1} :count mecz|[2,4] :count mecze|[5,*] :count meczów"
+    ":count match|:count matches": "{1} :count mecz|[2,4] :count mecze|[5,*] :count meczów",
+    ":count tip|:count tips": "{1} :count typ|[2,4] :count typy|[5,*] :count typów",
+    "A preview of your rivals’ tips, statistics from the other players’ tips while you tip, your exact place among the players, team name changes without approval and more statistics. Plans start at 5 zł a week.": "Podgląd typów rywali, statystyki typów innych graczy podczas typowania, dokładne miejsce wśród graczy, zmiana nazwy zespołu bez akceptacji i więcej statystyk. Plany od 5 zł tygodniowo.",
+    "Answers of the other players": "Odpowiedzi innych graczy",
+    "How the others tip": "Jak typują inni",
+    "Most popular": "Najczęstsze",
+    "One goal less": "Jeden gol mniej",
+    "One goal more": "Jeden gol więcej",
+    "Premium: statistics from the other players’ tips while you tip, a rival preview, a team name change without approval and a badge. A new payment extends it.": "Premium: statystyki typów innych graczy podczas typowania, podgląd rywali, zmiana nazwy zespołu bez akceptacji i plakietka. Nowa wpłata przedłuża premium.",
+    "While you tip: how the other players tip the score and answer the questions": "Podczas typowania: jak inni gracze typują wynik i odpowiadają na pytania",
+    "With premium you see live how the other players tip this match and how they answer each question.": "Z premium widzisz na żywo, jak inni gracze typują ten mecz i jak odpowiadają na każde pytanie.",
+    "You get 0 points for that matchday. The first time you open a matchday, the tip 0:0 is saved for you, so change it before kick-off.": "Dostajesz 0 punktów za tę kolejkę. Przy pierwszym otwarciu kolejki zapisujemy Ci typ 0:0, więc zmień go przed pierwszym gwizdkiem.",
+    "yes :percent%": "tak :percent%"
 }

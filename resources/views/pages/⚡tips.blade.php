@@ -59,6 +59,7 @@ new #[Layout('layouts::public')] class extends Component {
         }
 
         $this->loadTip();
+        $this->ensureTip();
     }
 
     public function render(): View
@@ -87,14 +88,31 @@ new #[Layout('layouts::public')] class extends Component {
     public function updatedTab(): void
     {
         $this->syncUrl();
+        $this->ensureTip();
+    }
+
+    /**
+     * Pierwsze otwarcie zakładki Typowanie dla otwartej kolejki zapisuje typ 0:0 (bez odpowiedzi).
+     * Gracz zmienia go przyciskami, a numer zapisu (remisy w pucharach) liczy się od ostatniej zmiany.
+     */
+    private function ensureTip(): void
+    {
+        if ($this->tab !== 'tip' || !$this->canPlay || !$this->isOpen || $this->tip !== null || !$this->matchday?->isFilled()) {
+            return;
+        }
+
+        $this->lech = '0';
+        $this->opponent = '0';
+        $this->autosave();
     }
 
     public function updatedNumber(): void
     {
         $this->syncUrl();
 
-        unset($this->matchday, $this->tip, $this->isOpen, $this->sets, $this->scores);
+        unset($this->matchday, $this->tip, $this->isOpen, $this->sets, $this->scores, $this->crowd, $this->crowdAnswers);
         $this->loadTip();
+        $this->ensureTip();
 
         // Panel rywali po prawej pokazuje tę samą kolejkę.
         $this->dispatch('matchday-selected', number: $this->number);
@@ -365,6 +383,58 @@ new #[Layout('layouts::public')] class extends Component {
         return \App\Support\Premium::isActive(auth()->user()) ? \App\Support\PlayerStats::scalps(auth()->user(), blacklist: true) : [];
     }
 
+    /** Czy gracz ma aktywne premium (statystyki typów innych graczy). */
+    #[Computed]
+    public function premium(): bool
+    {
+        return \App\Support\Premium::isActive(auth()->user());
+    }
+
+    /** Premium: jak typują inni gracze (rozkład Lech / remis / rywal, najczęstsze typy), także przed pierwszym gwizdkiem. */
+    #[Computed]
+    public function crowd(): ?array
+    {
+        return $this->premium && $this->matchday ? \App\Support\MatchdayInsights::tips($this->matchday) : null;
+    }
+
+    /**
+     * Premium: odpowiedzi innych graczy na pytania kolejki (id pytania => [odpowiedzi, „tak”]).
+     *
+     * @return array<int, array{answers: int, yes: int}>
+     */
+    #[Computed]
+    public function crowdAnswers(): array
+    {
+        return $this->premium && $this->matchday ? \App\Support\MatchdayInsights::answerShares($this->matchday) : [];
+    }
+
+    /**
+     * Barwy kart zestawów pytań (klucz CompetitionColors): liga gracza, Puchar Polski, jego puchar europejski, Liga Legend.
+     *
+     * @return array<string, string> wartość typu zestawu => klucz barw
+     */
+    #[Computed]
+    public function setColors(): array
+    {
+        $colors = [
+            \App\Enums\CompetitionType::League->value => 'league_1',
+            \App\Enums\CompetitionType::Cup->value => 'cup',
+            \App\Enums\CompetitionType::Champions->value => 'champions',
+            \App\Enums\CompetitionType::Legends->value => 'legends',
+        ];
+        $teamId = $this->season ? SeasonTeam::where('season_id', $this->season->id)->where('user_id', auth()->id())->value('id') : null;
+
+        if ($teamId) {
+            foreach (\App\Models\CompetitionEntry::with('competition')->where('season_team_id', $teamId)->get() as $entry) {
+                if ($entry->competition) {
+                    $colors[$entry->competition->type->questionSet()->value] = $entry->competition->trophyKey();
+                }
+            }
+        }
+
+        return $colors;
+    }
+
     /** Rozliczenie kolejki po wpisaniu wyniku: zestaw pytań (wartość typu) => TeamScore. */
     #[Computed]
     public function scores()
@@ -406,6 +476,29 @@ new #[Layout('layouts::public')] class extends Component {
     /** Zmiana liczby goli rywala: poprawiamy wartość i zapisujemy typ. */
     public function updatedOpponent(): void
     {
+        $this->autosave();
+    }
+
+    /** Przyciski + / − pod liczbą goli Lecha ('lech') albo rywala ('opponent'). */
+    public function bump(string $side, int $delta): void
+    {
+        if (!in_array($side, ['lech', 'opponent'], true) || !$this->isOpen) {
+            return;
+        }
+
+        $this->{$side} = (string) max(0, min(TipRules::MAX_GOALS, (int) $this->{$side} + ($delta > 0 ? 1 : -1)));
+        $this->autosave();
+    }
+
+    /** Szybki wynik jednym kliknięciem (np. 2:1). */
+    public function pick(int $lech, int $opponent): void
+    {
+        if (!$this->isOpen) {
+            return;
+        }
+
+        $this->lech = (string) max(0, min(TipRules::MAX_GOALS, $lech));
+        $this->opponent = (string) max(0, min(TipRules::MAX_GOALS, $opponent));
         $this->autosave();
     }
 
@@ -455,8 +548,8 @@ new #[Layout('layouts::public')] class extends Component {
             return;
         }
 
-        // Odświeżamy wyliczone dane (typ, zestawy), ale nie pola formularza, żeby nie przeskakiwały pod kursorem.
-        unset($this->tip, $this->sets);
+        // Odświeżamy wyliczone dane (typ, zestawy, statystyki premium), ale nie pola formularza.
+        unset($this->tip, $this->sets, $this->crowd, $this->crowdAnswers);
         $this->savedTime = now()->format('H:i:s');
     }
 }; ?>
@@ -610,22 +703,41 @@ new #[Layout('layouts::public')] class extends Component {
             @if (!$this->matchday->isFilled())
                 <flux:text>{{ __('The opponent and date are not set yet, so tipping is not open.') }}</flux:text>
             @else
-                {{-- Wynik: zawsze z perspektywy Lecha (Lech : rywal), bez względu na gospodarza. --}}
+                {{--
+                    Tablica wyniku jak na stadionie (zawsze Lech : rywal). Bez wpisywania: przyciski + / − nad i pod cyfrą
+                    oraz szybkie wyniki jednym kliknięciem. Każde kliknięcie zapisuje typ.
+                --}}
+                @php
+                    $boardBtn = 'flex h-11 w-20 items-center justify-center rounded-xl border border-zinc-300 bg-white text-2xl font-black text-lech-800 shadow-sm transition active:scale-95 hover:bg-lech-50 disabled:opacity-40 dark:border-zinc-600 dark:bg-zinc-800 dark:text-lech-200 dark:hover:bg-zinc-700';
+                    $quickScores = [[0, 0], [1, 0], [2, 0], [2, 1], [3, 1], [1, 1], [2, 2], [0, 1], [1, 2]];
+                @endphp
                 <div class="grid grid-cols-[1fr_auto_1fr] items-center gap-3 sm:gap-6">
-                    <div class="flex flex-col items-end gap-2 text-right">
-                        <span class="text-sm font-semibold sm:text-base">Lech Poznań</span>
-                        <input type="number" min="0" max="{{ \App\Support\TipRules::MAX_GOALS }}" wire:model.live.debounce.500ms="lech" @disabled(! $this->isOpen)
-                            aria-label="Lech Poznań"
-                            class="h-16 w-20 rounded-xl border border-zinc-300 bg-zinc-50 text-center text-3xl font-bold tabular-nums shadow-inner focus:border-lech-500 focus:outline-none focus:ring-4 focus:ring-lech-500/20 disabled:opacity-60 dark:border-zinc-600 dark:bg-zinc-800">
-                    </div>
-                    <span class="pt-7 text-3xl font-bold text-zinc-400">:</span>
-                    <div class="flex flex-col items-start gap-2">
-                        <span class="truncate text-sm font-semibold sm:text-base">{{ $this->matchday->opponent }}</span>
-                        <input type="number" min="0" max="{{ \App\Support\TipRules::MAX_GOALS }}" wire:model.live.debounce.500ms="opponent" @disabled(! $this->isOpen)
-                            aria-label="{{ $this->matchday->opponent }}"
-                            class="h-16 w-20 rounded-xl border border-zinc-300 bg-zinc-50 text-center text-3xl font-bold tabular-nums shadow-inner focus:border-lech-500 focus:outline-none focus:ring-4 focus:ring-lech-500/20 disabled:opacity-60 dark:border-zinc-600 dark:bg-zinc-800">
-                    </div>
+                    @foreach (['lech' => 'Lech Poznań', 'opponent' => $this->matchday->opponent] as $boardSide => $boardTeam)
+                        @if ($boardSide === 'opponent')
+                            <span class="pt-6 text-4xl font-black text-zinc-400">:</span>
+                        @endif
+                        <div class="flex flex-col items-center gap-2" wire:key="board-{{ $boardSide }}">
+                            <span class="w-full truncate text-center text-sm font-bold sm:text-base">{{ $boardTeam }}</span>
+                            <button type="button" wire:click="bump('{{ $boardSide }}', 1)" @disabled(!$this->isOpen) class="{{ $boardBtn }}" aria-label="{{ __('One goal more') }}">+</button>
+                            <span class="lech-banner flex h-20 w-20 items-center justify-center rounded-2xl text-5xl font-black tabular-nums shadow-inner">{{ $this->{$boardSide} === '' ? 0 : $this->{$boardSide} }}</span>
+                            <button type="button" wire:click="bump('{{ $boardSide }}', -1)" @disabled(!$this->isOpen || (int) $this->{$boardSide} === 0) class="{{ $boardBtn }}" aria-label="{{ __('One goal less') }}">−</button>
+                        </div>
+                    @endforeach
                 </div>
+
+                @if ($this->isOpen)
+                    <div class="flex flex-wrap justify-center gap-1.5">
+                        @foreach ($quickScores as [$quickLech, $quickOpp])
+                            @php
+                                $quickOn = (int) $this->lech === $quickLech && (int) $this->opponent === $quickOpp;
+                            @endphp
+                            <button type="button" wire:click="pick({{ $quickLech }}, {{ $quickOpp }})"
+                                class="{{ $quickOn ? 'border-lech-600 bg-lech-700 text-white' : 'border-zinc-300 text-zinc-700 hover:border-lech-400 dark:border-zinc-600 dark:text-zinc-200' }} rounded-full border px-3 py-1 text-sm font-bold tabular-nums transition">
+                                {{ $quickLech }}:{{ $quickOpp }}
+                            </button>
+                        @endforeach
+                    </div>
+                @endif
 
                 @if ($played)
                     <div class="flex flex-wrap items-center justify-center gap-2 text-sm">
@@ -649,18 +761,43 @@ new #[Layout('layouts::public')] class extends Component {
                         </flux:text>
                     @else
                         <flux:text size="sm">{{ __('You have not tipped this matchday yet.') }}</flux:text>
-                        @if (\App\Support\Premium::isActive(auth()->user()))
-                            @php
-                                $defaultTip = \App\Support\Premium::defaultTip(auth()->user());
-                            @endphp
-                            <flux:text size="sm" class="mt-1 flex flex-wrap items-center justify-center gap-1">
-                                <x-premium-badge />
-                                {{ __('Premium: without a tip your default tip :score will be used.', ['score' => $defaultTip[0] . ':' . $defaultTip[1]]) }}
-                                <flux:link :href="route('support')" wire:navigate>{{ __('Change') }}</flux:link>
-                            </flux:text>
-                        @endif
                     @endif
                 </div>
+
+                {{-- Premium: jak typują inni gracze (na żywo, także przed pierwszym gwizdkiem) --}}
+                @if ($this->premium && $this->crowd)
+                    @php
+                        $crowd = $this->crowd;
+                        $crowdPct = fn (int $part) => $crowd['count'] > 0 ? (int) round($part / $crowd['count'] * 100) : 0;
+                    @endphp
+                    <div class="space-y-2 rounded-xl border border-purple-200 bg-purple-50/60 p-3 dark:border-purple-500/30 dark:bg-purple-500/10">
+                        <div class="flex flex-wrap items-center justify-between gap-2 text-xs font-semibold uppercase tracking-wide text-purple-700 dark:text-purple-300">
+                            <span class="flex items-center gap-1"><flux:icon.sparkles variant="micro" />{{ __('How the others tip') }}</span>
+                            <span class="tabular-nums">{{ trans_choice(':count tip|:count tips', $crowd['count'], ['count' => $crowd['count']]) }}</span>
+                        </div>
+                        @if ($crowd['count'] > 0)
+                            <div class="flex h-6 overflow-hidden rounded-full text-[11px] font-bold text-white">
+                                @foreach ([['lech', 'bg-lech-700', 'Lech'], ['draw', 'bg-zinc-400', __('Draw result')], ['opponent', 'bg-zinc-700', $this->matchday->opponent]] as [$crowdPart, $crowdColor, $crowdLabel])
+                                    @if ($crowd[$crowdPart] > 0)
+                                        <span class="{{ $crowdColor }} flex items-center justify-center" style="width: {{ $crowdPct($crowd[$crowdPart]) }}%" title="{{ $crowdLabel }}: {{ $crowd[$crowdPart] }}">{{ $crowdPct($crowd[$crowdPart]) }}%</span>
+                                    @endif
+                                @endforeach
+                            </div>
+                            <div class="flex flex-wrap items-center justify-between gap-2 text-xs text-zinc-600 dark:text-zinc-300">
+                                <span>Lech {{ $crowdPct($crowd['lech']) }}% · {{ __('Draw result') }} {{ $crowdPct($crowd['draw']) }}% · {{ $this->matchday->opponent }} {{ $crowdPct($crowd['opponent']) }}%</span>
+                                <span class="flex flex-wrap gap-1">
+                                    {{ __('Most popular') }}:
+                                    @foreach ($crowd['popular'] as $popular)
+                                        <span class="rounded bg-white px-1.5 font-bold tabular-nums dark:bg-zinc-800">{{ $popular['score'] }} ×{{ $popular['count'] }}</span>
+                                    @endforeach
+                                </span>
+                            </div>
+                        @endif
+                    </div>
+                @elseif (!$this->premium)
+                    <x-premium-lock :title="__('How the others tip')"
+                        :text="__('With premium you see live how the other players tip this match and how they answer each question.')" />
+                @endif
             @endif
         </div>
     </div>
@@ -676,55 +813,79 @@ new #[Layout('layouts::public')] class extends Component {
         $percent = $progress[1] > 0 ? round($progress[0] / $progress[1] * 100) : 0;
     @endphp
 
+    {{--
+        Zestawy pytań: najwyżej cztery, po dwa w wierszu (na telefonie jeden pod drugim). Karta w barwach rozgrywek,
+        w niej zakładki Atak / Obrona z licznikami, pytanie w jednym wierszu i trzy przyciski ✓ / – / ✗.
+        Premium widzi pod pytaniem odsetek odpowiedzi „tak” innych graczy.
+    --}}
+    <div class="grid gap-4 lg:grid-cols-2">
     @foreach ($this->sets as $set)
-    <section class="overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-700 dark:bg-zinc-900" wire:key="set-{{ $set['type']->value }}">
-        <div class="flex flex-wrap items-center justify-between gap-2 border-b border-zinc-100 bg-zinc-50/70 px-5 py-3 dark:border-zinc-800 dark:bg-zinc-800/40">
-            <h2 class="flex items-center gap-2 text-base font-semibold">
-                <flux:icon.question-mark-circle variant="mini" class="text-lech-600 dark:text-lech-300" />
-                {{ $set['type']->questionSetLabel() }}
-            </h2>
+        @php
+            $setKey = $this->setColors[$set['type']->value] ?? 'league_1';
+            $setIds = collect($set['sides'])->flatten(1)->pluck('id');
+            $setDone = $setIds->filter(fn ($id) => in_array($answers[$id] ?? '', ['0', '1'], true))->count();
+            $setScore = $this->scores->get($set['type']->value);
+        @endphp
+        <section class="overflow-hidden rounded-2xl p-1 shadow-md" wire:key="set-{{ $set['type']->value }}" x-data="{ side: 'offensive' }"
+            style="{{ \App\Support\CompetitionColors::style($setKey) }} background-image: linear-gradient(140deg, var(--c-bg1), var(--c-bg2)); color: var(--c-ink); border: 2px solid var(--c-accent);">
+            <header class="flex flex-wrap items-center justify-between gap-2 px-3 pb-2 pt-2">
+                <h2 class="text-sm font-black uppercase tracking-[0.15em]">{{ $set['type']->questionSetLabel() }}</h2>
+                @if ($setScore)
+                    <span class="flex gap-1.5 text-xs font-bold">
+                        <span class="comp-badge rounded-md px-2 py-0.5">{{ __('Offence: :points', ['points' => $setScore->offense]) }}</span>
+                        <span class="comp-badge rounded-md px-2 py-0.5">{{ __('Defence: :points', ['points' => $setScore->defense_bonus]) }}</span>
+                    </span>
+                @else
+                    <span class="comp-accent text-xs font-bold tabular-nums">{{ $setDone }}/{{ $setIds->count() }}</span>
+                @endif
+            </header>
 
-            @if ($score = $this->scores->get($set['type']->value))
-                <div class="flex flex-wrap gap-2">
-                    <flux:badge color="green">
-                        {{ __('Offence: :points', ['points' => $score->offense]) }}{{ $score->offense_zeroed ? ' (' . __('bonus zeroed') . ')' : '' }}
-                    </flux:badge>
-                    <flux:badge color="blue">
-                        {{ __('Defence: :points', ['points' => $score->defense_bonus]) }}{{ $score->defense_zeroed ? ' (' . __('bonus zeroed') . ')' : '' }}
-                    </flux:badge>
-                </div>
-            @endif
-        </div>
-
-        <div class="grid gap-6 p-5 md:grid-cols-2">
-            @foreach ($set['sides'] as $sideValue => $items)
-            @php
-                $side = \App\Enums\QuestionSide::from($sideValue);
-            @endphp
-            <div class="space-y-3">
-                <flux:badge :color="$side->color()">{{ $side->label() }}</flux:badge>
-
-                @foreach ($items as $item)
-                    <div class="space-y-2 rounded-xl border border-zinc-200 p-3 transition hover:border-lech-300 dark:border-zinc-700 dark:hover:border-lech-500/50"
-                        wire:key="q-{{ $item->id }}">
-                        <div class="flex gap-2 text-sm font-medium text-zinc-800 dark:text-zinc-100">
-                            <span class="flex size-5 shrink-0 items-center justify-center rounded-full bg-zinc-100 text-xs text-zinc-500 dark:bg-zinc-800">{{ $item->position }}</span>
-                            <span>{{ $item->question->text }}</span>
-                        </div>
-                        @if ($item->correct_answer === null && $played)
-                            <flux:text size="sm" class="text-amber-600 dark:text-amber-400">{{ __('Question cancelled: answers do not count.') }}</flux:text>
-                        @endif
-                        {{-- Po rozliczeniu: wybrana odpowiedź zielona (dobra) albo czerwona (zła). --}}
-                        <x-answer-toggle :model="'answers.' . $item->id" :value="$answers[$item->id] ?? ''"
-                            :disabled="! $this->isOpen"
-                            :result="$played ? $item->correct_answer : null" />
-                    </div>
+            {{-- Zakładki Atak / Obrona z licznikiem odpowiedzi --}}
+            <div class="flex gap-1 px-2 pb-2">
+                @foreach ($set['sides'] as $sideValue => $items)
+                    @php
+                        $sideDone = $items->filter(fn ($item) => in_array($answers[$item->id] ?? '', ['0', '1'], true))->count();
+                    @endphp
+                    <button type="button" x-on:click="side = '{{ $sideValue }}'"
+                        x-bind:class="side === '{{ $sideValue }}' ? 'comp-badge shadow' : 'bg-black/20 hover:bg-black/30'"
+                        class="flex-1 rounded-full px-3 py-1 text-xs font-bold uppercase tracking-wide transition">
+                        {{ \App\Enums\QuestionSide::from($sideValue)->label() }} <span class="tabular-nums">{{ $sideDone }}/{{ $items->count() }}</span>
+                    </button>
                 @endforeach
             </div>
+
+            @foreach ($set['sides'] as $sideValue => $items)
+                <ul x-show="side === '{{ $sideValue }}'" @if ($sideValue !== 'offensive') x-cloak @endif
+                    class="divide-y divide-zinc-100 rounded-xl bg-white text-zinc-800 dark:divide-zinc-800 dark:bg-zinc-900 dark:text-zinc-100">
+                    @foreach ($items as $item)
+                        @php
+                            $value = (string) ($answers[$item->id] ?? '');
+                            $result = $played ? $item->correct_answer : null;
+                            $share = $this->crowdAnswers[$item->id] ?? null;
+                            $yesPct = $share && $share['answers'] > 0 ? (int) round($share['yes'] / $share['answers'] * 100) : null;
+                        @endphp
+                        <li class="flex items-center gap-2 px-3 py-2" wire:key="q-{{ $item->id }}">
+                            <span class="flex size-5 shrink-0 items-center justify-center rounded-full bg-zinc-100 text-[11px] font-bold text-zinc-500 dark:bg-zinc-800">{{ $item->position }}</span>
+                            <div class="min-w-0 flex-1">
+                                <div class="text-sm leading-snug">{{ $item->question->text }}</div>
+                                @if ($item->correct_answer === null && $played)
+                                    <div class="text-xs text-amber-600 dark:text-amber-400">{{ __('Question cancelled: answers do not count.') }}</div>
+                                @endif
+                                @if ($this->premium && $yesPct !== null)
+                                    <div class="mt-1 flex items-center gap-1.5 text-[11px] text-purple-700 dark:text-purple-300" title="{{ __('Answers of the other players') }}">
+                                        <span class="h-1.5 w-16 overflow-hidden rounded-full bg-purple-100 dark:bg-purple-500/20"><span class="block h-full bg-purple-500" style="width: {{ $yesPct }}%"></span></span>
+                                        {{ __('yes :percent%', ['percent' => $yesPct]) }}
+                                    </div>
+                                @endif
+                            </div>
+                            <x-answer-icons :model="'answers.' . $item->id" :value="$value" :disabled="!$this->isOpen" :result="$result" />
+                        </li>
+                    @endforeach
+                </ul>
             @endforeach
-        </div>
-    </section>
+        </section>
     @endforeach
+    </div>
 
     {{-- Pasek na dole ekranu: postęp odpowiedzi i stan zapisu automatycznego (bez przycisku) --}}
     <div class="sticky bottom-4 z-10 flex flex-wrap items-center gap-4 rounded-2xl border border-zinc-200 bg-white/90 px-5 py-3 shadow-lg backdrop-blur dark:border-zinc-700 dark:bg-zinc-900/90">

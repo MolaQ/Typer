@@ -28,8 +28,6 @@ use Spatie\Permission\Traits\HasRoles;
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  * @property Carbon|null $premium_until
- * @property int|null $default_tip_lech
- * @property int|null $default_tip_opponent
  * @property string|null $verification_code
  * @property Carbon|null $verification_code_expires_at
  */
@@ -52,8 +50,6 @@ class User extends Authenticatable implements MustVerifyEmail
             'password' => 'hashed',
             'premium_until' => 'datetime',
             'verification_code_expires_at' => 'datetime',
-            'default_tip_lech' => 'integer',
-            'default_tip_opponent' => 'integer',
         ];
     }
 

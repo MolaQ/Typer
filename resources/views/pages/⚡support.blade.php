@@ -1,7 +1,6 @@
 <?php
 
 use App\Models\Payment;
-use App\Support\Audit;
 use App\Support\Supporters;
 use App\Support\Premium;
 use App\Support\Przelewy24;
@@ -25,20 +24,6 @@ new #[Layout('layouts::public')] class extends Component {
 
     /** Cegiełka w złotych. */
     public string $supportAmount = '20';
-
-    public string $defaultLech = '';
-    public string $defaultOpponent = '';
-
-    public function mount(): void
-    {
-        $user = auth()->user();
-
-        if ($user) {
-            [$lech, $opponent] = Premium::defaultTip($user);
-            $this->defaultLech = (string) $lech;
-            $this->defaultOpponent = (string) $opponent;
-        }
-    }
 
     public function render(): View
     {
@@ -105,25 +90,6 @@ new #[Layout('layouts::public')] class extends Component {
         $amount = (int) round((float) str_replace(',', '.', $this->supportAmount) * 100);
 
         $this->startPayment(Payment::KIND_SUPPORT, null, $amount, Premium::daysFor($amount), __('Support for LechTyper'));
-    }
-
-    public function saveDefaultTip(): void
-    {
-        abort_unless($this->isPremium, 403);
-
-        $this->validate(
-            ['defaultLech' => ['required', 'integer', 'min:0', 'max:20'], 'defaultOpponent' => ['required', 'integer', 'min:0', 'max:20']],
-            [],
-            ['defaultLech' => 'Lech', 'defaultOpponent' => __('Opponent')],
-        );
-
-        $user = auth()->user();
-        $old = Premium::defaultTip($user);
-        $user->forceFill(['default_tip_lech' => (int) $this->defaultLech, 'default_tip_opponent' => (int) $this->defaultOpponent])->save();
-
-        Audit::log('premium.default_tip', $user, ['tip' => implode(':', $old)], ['tip' => $this->defaultLech . ':' . $this->defaultOpponent]);
-
-        Flux::toast(variant: 'success', text: __('Default tip saved.'));
     }
 
     private function startPayment(string $kind, ?string $plan, int $amount, int $days, string $description): void
@@ -208,25 +174,6 @@ new #[Layout('layouts::public')] class extends Component {
                 @endif
             </div>
 
-            @if ($this->isPremium)
-                <div class="space-y-2">
-                    <flux:text>
-                        {{ __('Default tip: used when you do not tip before the kick-off. Until you set it, it is 0:0.') }}
-                    </flux:text>
-                    <div class="flex flex-wrap items-end gap-2">
-                        <div class="w-20">
-                            <flux:input type="number" min="0" max="20" wire:model="defaultLech" label="Lech" />
-                        </div>
-                        <span class="pb-2 text-lg font-bold">:</span>
-                        <div class="w-20">
-                            <flux:input type="number" min="0" max="20" wire:model="defaultOpponent" :label="__('Opponent')" />
-                        </div>
-                        <flux:button variant="primary" wire:click="saveDefaultTip">{{ __('Save') }}</flux:button>
-                    </div>
-                    <flux:error name="defaultLech" />
-                    <flux:error name="defaultOpponent" />
-                </div>
-            @endif
 
             <flux:text class="text-sm">
                 {{ __('Your payments in the last 12 months: :amount.', ['amount' => \App\Models\Payment::money($this->supporter['total'])]) }}
@@ -241,7 +188,7 @@ new #[Layout('layouts::public')] class extends Component {
     <div class="space-y-3">
         <flux:heading size="lg">{{ __('Premium') }}</flux:heading>
         <flux:text class="text-sm">
-            {{ __('Premium: a default tip when you forget to tip, a team name change without approval and a badge. A new payment extends it.') }}
+            {{ __('Premium: statistics from the other players’ tips while you tip, a rival preview, a team name change without approval and a badge. A new payment extends it.') }}
         </flux:text>
 
         <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
