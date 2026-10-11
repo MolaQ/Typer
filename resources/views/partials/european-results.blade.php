@@ -54,14 +54,20 @@
         {{-- Tabele grup A-D z meczami wybranej kolejki --}}
         <div class="grid gap-4 md:grid-cols-2">
             @foreach ($this->groupTables as $group => $table)
-                <section class="overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-700 dark:bg-zinc-900" wire:key="group-{{ $group }}">
-                    <header class="flex items-center gap-3 px-4 py-2.5" style="{{ $colorStyle }} background-image: linear-gradient(120deg, var(--c-bg1), var(--c-bg2)); color: var(--c-ink);">
-                        <span class="comp-badge flex size-8 shrink-0 items-center justify-center rounded-full text-sm font-black">{{ $group }}</span>
-                        <h3 class="font-bold uppercase tracking-wide">{{ __('Group :group', ['group' => $group]) }}</h3>
+                {{--
+                    Karta grupy w barwach rozgrywek: kolorowa ramka obejmuje nagłówek („GRUPA” i litera w kółku po prawej),
+                    nagłówek tabeli i stopkę z wynikami kolejki; jasne są tylko wiersze tabeli.
+                --}}
+                <section class="overflow-hidden rounded-2xl p-1 shadow-md" wire:key="group-{{ $group }}"
+                    style="{{ $colorStyle }} background-image: linear-gradient(140deg, var(--c-bg1), var(--c-bg2)); color: var(--c-ink); border: 2px solid var(--c-accent);">
+                    <header class="flex items-center justify-end gap-2.5 px-3 pb-1.5 pt-2">
+                        <h3 class="text-sm font-black uppercase tracking-[0.25em]">{{ __('Group') }}</h3>
+                        <span class="comp-badge flex size-9 shrink-0 items-center justify-center rounded-full text-base font-black shadow">{{ $group }}</span>
                     </header>
+
                     <table class="w-full text-sm">
-                        <thead class="text-xs text-zinc-500">
-                            <tr class="border-b border-zinc-200 dark:border-zinc-700">
+                        <thead class="text-[11px] font-semibold uppercase tracking-wide opacity-80">
+                            <tr>
                                 <th class="px-3 py-1.5 text-right">#</th>
                                 <th class="px-2 py-1.5 text-left">{{ __('Team') }}</th>
                                 <th class="px-1.5 py-1.5 text-right" title="{{ __('Matches played') }}">{{ __('P') }}</th>
@@ -72,10 +78,10 @@
                                 <th class="px-3 py-1.5 text-right">{{ __('Pts') }}</th>
                             </tr>
                         </thead>
-                        <tbody>
+                        <tbody class="bg-white text-zinc-800 dark:bg-zinc-900 dark:text-zinc-100">
                             @foreach ($table->values() as $index => $row)
                                 @php
-                                    $zoneClass = $index < $advance ? 'border-l-4 border-l-green-500' : 'border-l-4 border-l-zinc-400 text-zinc-500';
+                                    $zoneClass = $index < $advance ? 'border-l-4 border-l-green-500' : 'border-l-4 border-l-zinc-400 text-zinc-500 dark:text-zinc-400';
                                 @endphp
                                 <tr wire:key="group-{{ $group }}-{{ $row['entry_id'] }}"
                                     class="{{ $zoneClass }} border-b border-zinc-100 last:border-b-0 dark:border-zinc-700/50 {{ $this->highlighted($row['team']->id) ? 'bg-amber-50 font-semibold dark:bg-amber-900/20' : '' }}">
@@ -88,29 +94,35 @@
                                     <td class="px-1.5 py-1.5 text-right tabular-nums">{{ $row['drawn'] }}</td>
                                     <td class="px-1.5 py-1.5 text-right tabular-nums">{{ $row['lost'] }}</td>
                                     <td class="px-1.5 py-1.5 text-right tabular-nums">{{ $row['for'] }}:{{ $row['against'] }}</td>
-                                    <td class="px-3 py-1.5 text-right font-semibold tabular-nums">{{ $row['points'] }}</td>
+                                    <td class="px-3 py-1.5 text-right font-bold tabular-nums">{{ $row['points'] }}</td>
                                 </tr>
                             @endforeach
                         </tbody>
                     </table>
 
-                    {{-- Mecze grupy w wybranej kolejce --}}
-                    <div class="space-y-1 border-t border-zinc-200 px-4 py-2.5 dark:border-zinc-700">
-                        <div class="text-xs font-semibold uppercase tracking-wide text-zinc-500">{{ __('Matchday :number', ['number' => $round]) }}</div>
+                    {{-- Stopka: mecze grupy w wybranej kolejce, wynik w wyróżnionym kafelku na środku --}}
+                    <footer class="space-y-1.5 px-2 pb-2 pt-2.5">
+                        <div class="comp-accent px-1 text-[11px] font-bold uppercase tracking-[0.2em]">{{ __('Matchday :number', ['number' => $round]) }}</div>
                         @forelse ($groupMatches->get($group, collect()) as $fixture)
                             @php
                                 $mine = $this->highlighted($fixture->home?->season_team_id) || $this->highlighted($fixture->away?->season_team_id);
+                                $homeWon = $fixture->isPlayed() && $fixture->home_goals > $fixture->away_goals;
+                                $awayWon = $fixture->isPlayed() && $fixture->away_goals > $fixture->home_goals;
                             @endphp
                             <button type="button" wire:click="showFixture({{ $fixture->id }})" title="{{ __('Match details') }}" wire:key="gfx-{{ $fixture->id }}"
-                                class="-mx-2 grid w-[calc(100%+1rem)] grid-cols-[1fr_auto_1fr] items-center gap-2 rounded-md px-2 py-0.5 text-sm transition hover:bg-zinc-100 dark:hover:bg-zinc-700/50 {{ $mine ? 'font-semibold' : '' }}">
-                                <span class="truncate text-right">{{ $fixture->home?->seasonTeam->name }}</span>
-                                <span class="tabular-nums {{ $fixture->isPlayed() ? '' : 'text-zinc-400' }}">{{ $fixture->score() }}</span>
-                                <span class="truncate text-left">{{ $fixture->away?->seasonTeam->name }}</span>
+                                class="{{ $mine ? 'ring-2 ring-amber-400' : '' }} grid w-full grid-cols-[1fr_auto_1fr] items-center gap-2 rounded-lg bg-black/20 px-2 py-1.5 text-sm transition hover:bg-black/30">
+                                <span class="truncate text-right {{ $homeWon ? 'font-bold' : 'opacity-85' }}">{{ $fixture->home?->seasonTeam->name }}</span>
+                                @if ($fixture->isPlayed())
+                                    <span class="comp-badge min-w-14 rounded-md px-2 py-0.5 text-center text-base font-black tabular-nums shadow">{{ $fixture->home_goals }}:{{ $fixture->away_goals }}</span>
+                                @else
+                                    <span class="min-w-14 rounded-md border border-dashed border-current px-2 py-0.5 text-center text-base font-bold tabular-nums opacity-60">–:–</span>
+                                @endif
+                                <span class="truncate text-left {{ $awayWon ? 'font-bold' : 'opacity-85' }}">{{ $fixture->away?->seasonTeam->name }}</span>
                             </button>
                         @empty
-                            <flux:text size="sm">{{ __('No matches yet.') }}</flux:text>
+                            <div class="px-1 text-sm opacity-80">{{ __('No matches yet.') }}</div>
                         @endforelse
-                    </div>
+                    </footer>
                 </section>
             @endforeach
         </div>
