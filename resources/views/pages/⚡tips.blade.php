@@ -26,13 +26,13 @@ use Livewire\Component;
 new #[Layout('layouts::public')] class extends Component {
     public int $number = 0;
 
-    /** Zakładka: tip (typowanie), matchdays (kolejki), competitions (rozgrywki), stats (statystyki), history (historia), scalps (moje skalpy). */
+    /** Zakładka: tip (typowanie), matchdays (kolejki), competitions (rozgrywki), stats (statystyki), history (historia), scalps (moje skalpy), blacklist (czarna lista). */
     public string $tab = 'tip';
 
     /** Zakładki w adresie po polsku: /tips/kolejka-3/statystyki (typowanie bez części zakładki). */
     private const TAB_SLUGS = [
         'tip' => 'typ', 'matchdays' => 'kolejki', 'competitions' => 'rozgrywki',
-        'stats' => 'statystyki', 'history' => 'historia', 'scalps' => 'skalpy',
+        'stats' => 'statystyki', 'history' => 'historia', 'scalps' => 'skalpy', 'blacklist' => 'czarna-lista',
     ];
 
     /** Wpisany wynik (teksty, bo pole formularza może być puste). */
@@ -318,6 +318,13 @@ new #[Layout('layouts::public')] class extends Component {
         return \App\Support\Premium::isActive(auth()->user()) ? \App\Support\PlayerStats::scalps(auth()->user()) : [];
     }
 
+    /** Czarna lista (premium): rywale, z którymi gracz ma ujemny bilans bezpośredni. */
+    #[Computed]
+    public function myBlacklist(): array
+    {
+        return \App\Support\Premium::isActive(auth()->user()) ? \App\Support\PlayerStats::scalps(auth()->user(), blacklist: true) : [];
+    }
+
     /** Rozliczenie kolejki po wpisaniu wyniku: zestaw pytań (wartość typu) => TeamScore. */
     #[Computed]
     public function scores()
@@ -442,6 +449,7 @@ new #[Layout('layouts::public')] class extends Component {
             'stats' => ['chart-bar', __('Statistics')],
             'history' => ['clock', __('History and records')],
             'scalps' => ['fire', __('My scalps')],
+            'blacklist' => ['no-symbol', __('Blacklist')],
         ];
         $missingCount = collect($this->myMatchdays)->where('open', true)->where('missing', true)->count();
         $played = $this->matchday->status === \App\Enums\MatchdayStatus::Played;
@@ -457,7 +465,7 @@ new #[Layout('layouts::public')] class extends Component {
                 @if ($key === 'matchdays' && $missingCount > 0)
                     <span class="rounded-full bg-amber-500 px-1.5 text-xs font-bold text-white">{{ $missingCount }}</span>
                 @endif
-                @if ($key === 'scalps')
+                @if (in_array($key, ['scalps', 'blacklist'], true))
                     <flux:icon.sparkles variant="micro" class="text-purple-500" />
                 @endif
             </button>

@@ -1321,5 +1321,9 @@
     "Draw result": "Remis",
     "Most popular tips": "Najczęstsze typy",
     "Correct goal difference: :percent%": "Trafiona różnica goli: :percent%",
-    "Exact tips and the most popular scores appear after the result.": "Dokładne typy i najczęstsze wyniki pojawią się po wyniku meczu."
+    "Exact tips and the most popular scores appear after the result.": "Dokładne typy i najczęstsze wyniki pojawią się po wyniku meczu.",
+    "Blacklist": "Czarna lista",
+    "Rivals (players and bots) you have a worse head-to-head record against, from the worst record.": "Rywale (gracze i boty), z którymi masz gorszy bilans bezpośredni, od najgorszego bilansu.",
+    "With premium you see the rivals you lose to more often than you beat them, all seasons and competitions together.": "Z premium widzisz rywali, z którymi częściej przegrywasz, niż wygrywasz, ze wszystkich sezonów i rozgrywek.",
+    "Your blacklist is empty. Nobody has a better head-to-head record against you.": "Twoja czarna lista jest pusta. Nikt nie ma z Tobą lepszego bilansu bezpośredniego."
 }

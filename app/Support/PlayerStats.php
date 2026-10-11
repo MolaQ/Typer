@@ -234,9 +234,12 @@ final class PlayerStats
      * Moje skalpy (premium): rywale (gracze i boty), z którymi gracz ma lepszy bilans bezpośredni (więcej wygranych
      * niż porażek) ze wszystkich sezonów i rozgrywek, od najwyżej w rankingu Hall of Fame (potem bilans, potem nazwa).
      *
+     * $blacklist = true: Czarna lista (premium), czyli odwrotnie: rywale z gorszym dla gracza bilansem
+     * (więcej porażek niż wygranych), od najgorszego bilansu (potem ranking Hall of Fame).
+     *
      * @return array<int, array{name: string, owner: ?string, user: ?User, bot: bool, won: int, drawn: int, lost: int, hof: float}>
      */
-    public static function scalps(User $user): array
+    public static function scalps(User $user, bool $blacklist = false): array
     {
         $mine = CompetitionEntry::whereIn('season_team_id', SeasonTeam::where('user_id', $user->id)->select('id'))->pluck('id');
 
@@ -275,7 +278,7 @@ final class PlayerStats
             $records[$owner][['W' => 'won', 'D' => 'drawn', 'L' => 'lost'][$outcome]]++;
         }
 
-        $records = array_filter($records, fn ($r) => $r['won'] > $r['lost']);
+        $records = array_filter($records, fn ($r) => $blacklist ? $r['lost'] > $r['won'] : $r['won'] > $r['lost']);
 
         if ($records === []) {
             return [];
@@ -300,7 +303,11 @@ final class PlayerStats
             }
         }
 
-        usort($out, fn ($a, $b) => [$b['hof'], $b['won'] - $b['lost'], $a['name']] <=> [$a['hof'], $a['won'] - $a['lost'], $b['name']]);
+        if ($blacklist) {
+            usort($out, fn ($a, $b) => [$b['lost'] - $b['won'], $b['hof'], $a['name']] <=> [$a['lost'] - $a['won'], $a['hof'], $b['name']]);
+        } else {
+            usort($out, fn ($a, $b) => [$b['hof'], $b['won'] - $b['lost'], $a['name']] <=> [$a['hof'], $a['won'] - $a['lost'], $b['name']]);
+        }
 
         return $out;
     }

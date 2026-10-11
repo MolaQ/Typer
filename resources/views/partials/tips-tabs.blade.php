@@ -448,4 +448,50 @@
             </div>
         @endif
     </div>
+@elseif ($tab === 'blacklist')
+    {{-- Czarna lista (premium): rywale, z którymi mam ujemny bilans bezpośredni, od najgorszego bilansu. --}}
+    <div class="space-y-4">
+        <div class="flex flex-wrap items-center justify-between gap-2">
+            <div class="space-y-1">
+                <flux:heading size="lg" class="flex items-center gap-2">
+                    <flux:icon.no-symbol class="text-zinc-700 dark:text-zinc-300" />
+                    {{ __('Blacklist') }}
+                </flux:heading>
+                <flux:text size="sm">{{ __('Rivals (players and bots) you have a worse head-to-head record against, from the worst record.') }}</flux:text>
+            </div>
+            <x-premium-badge />
+        </div>
+
+        @if (!\App\Support\Premium::isActive(auth()->user()))
+            <x-premium-lock :title="__('Blacklist')" :text="__('With premium you see the rivals you lose to more often than you beat them, all seasons and competitions together.')" />
+        @elseif (count($this->myBlacklist) === 0)
+            <flux:card>
+                <flux:text>{{ __('Your blacklist is empty. Nobody has a better head-to-head record against you.') }}</flux:text>
+            </flux:card>
+        @else
+            <div class="grid gap-3 sm:grid-cols-2">
+                @foreach ($this->myBlacklist as $rival)
+                    @php
+                        $rivalHref = $rival['user'] ? route('team.show', $rival['user']) : null;
+                    @endphp
+                    <a @if ($rivalHref) href="{{ $rivalHref }}" wire:navigate @endif wire:key="black-{{ $loop->index }}"
+                        class="group flex items-center gap-3 rounded-2xl border border-zinc-200 bg-white p-3 shadow-xs transition hover:-translate-y-0.5 hover:border-zinc-400 hover:shadow-md dark:border-zinc-700 dark:bg-zinc-900">
+                        <span class="flex size-10 shrink-0 items-center justify-center rounded-full bg-linear-to-br from-zinc-600 to-zinc-900 text-sm font-bold text-white">
+                            {{ $loop->iteration }}
+                        </span>
+                        <span class="min-w-0 flex-1">
+                            <span class="block truncate font-semibold">{{ $rival['name'] }}</span>
+                            <span class="block truncate text-xs text-zinc-500">
+                                {{ $rival['bot'] ? __('Bot') : $rival['owner'] }} &middot; {{ __('Hall of Fame: :points pts', ['points' => \App\Support\HallOfFame::format($rival['hof'])]) }}
+                            </span>
+                        </span>
+                        <span class="shrink-0 text-right text-xs font-semibold tabular-nums">
+                            <span class="text-green-600">{{ $rival['won'] }}</span>–<span>{{ $rival['drawn'] }}</span>–<span class="text-red-600">{{ $rival['lost'] }}</span>
+                            <span class="block font-normal text-zinc-500">{{ __('W–D–L') }}</span>
+                        </span>
+                    </a>
+                @endforeach
+            </div>
+        @endif
+    </div>
 @endif

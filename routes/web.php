@@ -11,7 +11,7 @@ Route::livewire('/permission', 'pages::home.permissiontest')->name('permission')
 // Strefa gracza na stronie głównej (bez panelu admina): typowanie i wyniki.
 // Typowanie z przyjaznym adresem: /tips/kolejka-3/statystyki (obie części opcjonalne).
 Route::livewire('tips/{matchday_slug?}/{tab_slug?}', 'pages::tips')
-    ->where(['matchday_slug' => 'kolejka-[0-9]+', 'tab_slug' => '[a-z]+'])
+    ->where(['matchday_slug' => 'kolejka-[0-9]+', 'tab_slug' => '[a-z-]+'])
     ->middleware(['auth', 'verified'])
     ->name('tips');
 // Wyniki z przyjaznym adresem: /results/sezon-2/ekstraklasa/kolejka-9 (wszystkie części opcjonalne).
