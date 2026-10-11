@@ -3,7 +3,7 @@
 namespace App\Enums;
 
 /**
- * Etapy rozgrywek pucharowych: 9 rund Pucharu Polski i 9 kolejek Ligi Legend
+ * Etapy rozgrywek pucharowych: 9 rund Pucharu Polski
  * (512 → 256 → … → finał 2 zespołów). Wartość to numer rundy (kolejki).
  */
 enum KnockoutStage: int

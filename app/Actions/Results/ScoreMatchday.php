@@ -17,7 +17,7 @@ use App\Models\Tip;
 use App\Models\TipAnswer;
 use App\Models\User;
 use App\Support\EuropeanCup;
-use App\Support\LegendsRanking;
+use App\Support\LegendsLeague;
 use App\Support\Premium;
 use App\Support\Scoring;
 use DomainException;
@@ -30,7 +30,7 @@ use Illuminate\Support\Facades\DB;
  *  3. mecze tej kolejki we wszystkich rozgrywkach dostają wynik,
  *  4. w pucharze (i w fazie pucharowej pucharów europejskich) zwycięzca wchodzi na lepsze miejsce pary
  *     w meczu następnej rundy, a remis rozstrzyga wcześniej zapisany typ (mniejszy numer zapisu),
- *  5. w Lidze Legend odpadają zespoły poza limitem po tej kolejce (LegendsRanking),
+ *  5. w Lidze Legend odpadają zespoły z dwiema porażkami w tej kolejce (LegendsLeague),
  *  6. po ostatniej kolejce grupowej pucharów europejskich powstaje drabinka 1/8 finału (EuropeanCup::drawKnockout),
  *  7. kto odpadł z pucharu, pucharu europejskiego albo Ligi Legend, nie dostaje dorobku w zestawie tych rozgrywek
  *     w kolejnych kolejkach. Jego odpowiedzi zostają w bazie (statystyka pytań), ale nie liczą się do niczego:
@@ -208,7 +208,7 @@ class ScoreMatchday
                 $scored++;
             }
 
-            $eliminated = $legends ? LegendsRanking::eliminate($legends, $matchday->number) : 0;
+            $eliminated = $legends ? LegendsLeague::eliminate($legends, $matchday->number) : 0;
 
             // Puchary europejskie: po ostatniej kolejce grupowej drabinka 1/8 finału, miejsca 5-6 odpadają.
             if ($matchday->number === EuropeanCup::GROUP_ROUNDS) {

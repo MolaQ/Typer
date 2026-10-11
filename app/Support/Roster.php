@@ -8,6 +8,7 @@ use App\Enums\SeasonStatus;
 use App\Models\Bot;
 use App\Models\Competition;
 use App\Models\CompetitionEntry;
+use App\Models\Fixture;
 use App\Models\Season;
 use App\Models\SeasonTeam;
 use App\Models\User;
@@ -127,14 +128,37 @@ class Roster
                 'season_team_id' => $seasonTeamId,
                 'seed' => (int) CompetitionEntry::where('competition_id', $legends->id)->max('seed') + 1,
             ]);
+
+            // Nowy zespół gra od najbliższej kolejki bez wyników (pary losujemy od nowa).
+            LegendsLeague::redrawPending($legends);
         }
     }
 
+    /**
+     * Zespół przestaje grać w Lidze Legend. Bez rozegranych meczów wpis znika, a z meczami zostaje w tabeli
+     * jako odpadnięty (żeby wyniki rywali się nie zmieniły). Pary najbliższej kolejki losujemy od nowa.
+     */
     private static function leaveLegends(SeasonTeam $team): void
     {
-        CompetitionEntry::where('season_team_id', $team->id)
-            ->whereIn('competition_id', Competition::where('season_id', $team->season_id)->where('type', CompetitionType::Legends->value)->select('id'))
-            ->delete();
+        $legends = Competition::where('season_id', $team->season_id)->where('type', CompetitionType::Legends->value)->first();
+        $entry = $legends ? CompetitionEntry::where('competition_id', $legends->id)->where('season_team_id', $team->id)->first() : null;
+
+        if (! $legends || ! $entry) {
+            return;
+        }
+
+        $played = (int) Fixture::where('competition_id', $legends->id)
+            ->whereNotNull('home_goals')
+            ->where(fn ($q) => $q->where('home_entry_id', $entry->id)->orWhere('away_entry_id', $entry->id))
+            ->max('round');
+
+        if ($played === 0) {
+            $entry->delete();
+        } else {
+            $entry->update(['eliminated_round' => $played]);
+        }
+
+        LegendsLeague::redrawPending($legends);
     }
 
     /**

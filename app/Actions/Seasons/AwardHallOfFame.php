@@ -4,20 +4,17 @@ namespace App\Actions\Seasons;
 
 use App\Enums\CompetitionType;
 use App\Enums\League;
-use App\Enums\MatchdayStatus;
 use App\Models\Competition;
 use App\Models\CompetitionEntry;
 use App\Models\FinalStanding;
 use App\Models\Fixture;
 use App\Models\HallOfFameAward;
-use App\Models\Matchday;
 use App\Models\Season;
 use App\Models\SeasonTeam;
 use App\Models\TeamScore;
 use App\Support\CupBracket;
 use App\Support\EuropeanCup;
 use App\Support\HallOfFame;
-use App\Support\LegendsRanking;
 use App\Support\Promotion;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -34,7 +31,7 @@ use Illuminate\Support\Facades\DB;
  *  - Puchar Polski: wygrana w każdej rundzie, zwycięzca finału,
  *  - puchary europejskie: wygrane i remisy w grupie, 1. miejsce w grupie, awans do kolejnych etapów (na bieżąco),
  *    zwycięzca finału (po zakończeniu sezonu),
- *  - Liga Legend: punkty Legend z każdej kolejki i premie za przejście rund (na bieżąco), wygrana w finale,
+ *  - Liga Legend: wygrane i remisy, przetrwane kolejki (na bieżąco), miejsca 1-3 tabeli końcowej,
  *  - nagrody indywidualne (po zakończeniu sezonu, gracze i boty): MVP sezonu (najwięcej trafionych rozstrzygnięć,
  *    potem dokładne wyniki, potem różnice), Złota Piłka (najwięcej goli w sezonie ze wszystkich rozgrywek: ofensywa,
  *    czyli punkty za typ + bonus ofensywny, z każdego zestawu pytań zespołu) i Złote Rękawice (najwięcej punktów
@@ -259,30 +256,29 @@ class AwardHallOfFame
     }
 
     /**
-     * Liga Legend, na bieżąco po każdej kolejce:
-     *  - punkty Legend z rozegranych kolejek (LegendsRanking::matchdayPoints, do 100 w kolejce) × przelicznik,
-     *    tylko z kolejek, w których zespół jeszcze grał (odpadnięty w kolejce N grał w niej),
-     *  - premia za przejście każdej rundy 1-8 (narastająco), a po zakończeniu sezonu wygrana w finale i trofeum.
+     * Liga Legend (LegendsLeague), na bieżąco po każdej kolejce:
+     *  - wygrane i remisy w pojedynkach,
+     *  - każda przetrwana kolejka (zespół grał w niej i nie odpadł po niej),
+     * a po zakończeniu sezonu miejsca 1-3 tabeli końcowej (1. miejsce = trofeum, także gdy zespół wcześniej odpadł).
      */
     private function legends(Competition $competition, Collection $final): void
     {
-        $matchdays = Matchday::where('season_id', $this->season->id)
-            ->where('status', MatchdayStatus::Played->value)
-            ->pluck('number', 'id');
-
-        if ($matchdays->isEmpty()) {
-            return;
+        foreach ($this->results($competition) as $result) {
+            $points = $result['won'] * HallOfFame::value('legends_win') + $result['drawn'] * HallOfFame::value('legends_draw');
+            $this->addTeam($competition, $result['team'], 'matches', $points, null, ['won' => $result['won'], 'drawn' => $result['drawn']]);
         }
 
-        $lastPlayed = (int) $matchdays->max();
-        $entries = CompetitionEntry::with('seasonTeam:id,user_id,bot_id')->where('competition_id', $competition->id)->get();
-        $scores = TeamScore::whereIn('matchday_id', $matchdays->keys())
-            ->whereIn('season_team_id', $entries->pluck('season_team_id'))
-            ->where('question_set', CompetitionType::Legends->value)
-            ->get()
-            ->groupBy('season_team_id');
+        // Kolejki, w których zespół grał: id wpisu => [kolejka => true].
+        $played = [];
+        foreach (Fixture::where('competition_id', $competition->id)->whereNotNull('home_goals')->get(['round', 'home_entry_id', 'away_entry_id']) as $fixture) {
+            foreach ([$fixture->home_entry_id, $fixture->away_entry_id] as $entryId) {
+                if ($entryId !== null) {
+                    $played[$entryId][$fixture->round] = true;
+                }
+            }
+        }
 
-        $winnerTeamId = $this->finished ? $final->first()?->season_team_id : null;
+        $entries = CompetitionEntry::with('seasonTeam:id,user_id,bot_id')->whereIn('id', array_keys($played))->get();
 
         foreach ($entries as $entry) {
             $team = $entry->seasonTeam;
@@ -292,23 +288,19 @@ class AwardHallOfFame
             }
 
             $out = $entry->eliminated_round;
+            $rounds = array_values(array_filter(array_keys($played[$entry->id]), fn (int $round) => $out === null || $out > $round));
+            sort($rounds);
+            $this->addTeam($competition, $team, 'legends_stages', count($rounds) * HallOfFame::value('legends_survived'), null, ['rounds' => $rounds]);
+        }
 
-            // Punkty Legend z kolejek, w których zespół grał.
-            $points = $scores->get($team->id, collect())
-                ->filter(fn (TeamScore $score) => $out === null || $matchdays[$score->matchday_id] <= $out)
-                ->sum(fn (TeamScore $score) => LegendsRanking::matchdayPoints($score));
-            $this->addTeam($competition, $team, 'legends_points', $points * HallOfFame::value('legends_point'), null, ['points' => $points]);
+        if (! $this->finished) {
+            return;
+        }
 
-            // Przejście rund 1-8: po przeliczeniu rundy N zespół, który nie odpadł w niej ani wcześniej.
-            $rounds = array_values(array_filter(
-                range(1, min($lastPlayed, LegendsRanking::ROUNDS - 1)),
-                fn (int $round) => $out === null || $out > $round,
-            ));
-            $bonus = array_sum(array_map(fn (int $round) => HallOfFame::value('legends_round_'.$round), $rounds));
-            $this->addTeam($competition, $team, 'legends_stages', $bonus, null, ['rounds' => $rounds]);
-
-            if ($winnerTeamId === $team->id) {
-                $this->addTeam($competition, $team, 'legends_winner', HallOfFame::value('legends_winner'), CompetitionType::Legends->value);
+        foreach ($final->take(3) as $standing) {
+            $placeKey = [1 => 'champion', 2 => 'second', 3 => 'third'][$standing->place] ?? null;
+            if ($placeKey && ($standing->stats['played'] ?? 0) > 0) {
+                $this->add($competition, $standing, $placeKey, HallOfFame::value('legends_'.$placeKey), $standing->place === 1 ? CompetitionType::Legends->value : null);
             }
         }
     }

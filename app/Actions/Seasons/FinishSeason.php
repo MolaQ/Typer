@@ -19,7 +19,6 @@ use App\Support\Audit;
 use App\Support\CupBracket;
 use App\Support\EuropeanCup;
 use App\Support\HallOfFame;
-use App\Support\LegendsRanking;
 use App\Support\Roster;
 use App\Support\Standings;
 use App\Support\SystemFeed;
@@ -126,14 +125,12 @@ class FinishSeason
     {
         FinalStanding::where('season_id', $season->id)->delete();
 
-        $lastRound = (int) Matchday::where('season_id', $season->id)->where('status', MatchdayStatus::Played->value)->max('number');
         $rows = [];
         $now = now();
 
         foreach (Competition::where('season_id', $season->id)->get() as $competition) {
             $ranked = match (true) {
                 $competition->type === CompetitionType::Cup => $this->cupPlaces($competition),
-                $competition->type === CompetitionType::Legends => $this->legendsPlaces($competition, $lastRound),
                 $competition->type->isEuropean() => EuropeanCup::finalOrder($competition),
                 default => Standings::for($competition)->map(fn ($row) => [
                     'team' => $row['team'],
@@ -183,28 +180,6 @@ class FinishSeason
             ['team' => ($winnerIsHome ? $final->home : $final->away)->seasonTeam, 'stats' => $stats],
             ['team' => ($winnerIsHome ? $final->away : $final->home)->seasonTeam, 'stats' => $stats],
         ]);
-    }
-
-    /** Liga Legend: najpierw ci, którzy dotrwali najdłużej, w każdej grupie według rankingu z kolejki odpadnięcia. */
-    private function legendsPlaces(Competition $competition, int $lastRound)
-    {
-        if ($lastRound < 1) {
-            return collect();
-        }
-
-        $places = collect();
-
-        for ($round = $lastRound; $round >= 1; $round--) {
-            $group = LegendsRanking::for($competition, $round)
-                ->filter(fn ($row) => $round === $lastRound ? ($row['eliminated_round'] === null || $row['eliminated_round'] >= $round) : $row['eliminated_round'] === $round);
-
-            $places = $places->concat($group->map(fn ($row) => [
-                'team' => $row['team'],
-                'stats' => collect($row)->except(['team', 'entry_id'])->all() + ['round_reached' => $round],
-            ]));
-        }
-
-        return $places;
     }
 
     /**

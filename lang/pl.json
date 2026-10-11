@@ -1293,5 +1293,15 @@
     "Payments in the last 12 months.": "Wpłaty z ostatnich 12 miesięcy.",
     "Supporters ranking: :rank. place.": "Ranking wspierających: :rank. miejsce.",
     "Tipping is always free. Premium gives extras and supports the development of LechTYPER.": "Typowanie jest zawsze darmowe. Premium daje dodatki i wspiera rozwój LechTYPER-a.",
-    "Top supporters": "Najwięksi wspierający"
+    "Top supporters": "Najwięksi wspierający",
+    "All teams run by people play. Every matchday each team plays two duels in a cycle: 1-2, 2-3 … and the first with the last (matchday 1 from the pre-season list, then by the current table, the higher team on the left). The table is a league table (3 points for a win, 1 for a draw, criteria as in the leagues) and counts from matchday 1. Two losses in one matchday knock the team out: its results stay in the table, but it no longer plays or answers Liga Legend questions. A draw is not a loss. When two teams are left, they play one match. After matchday 9 the top of the whole table wins.": "Grają wszystkie zespoły prowadzone przez ludzi. W każdej kolejce każdy zespół rozgrywa dwa pojedynki w cyklu: 1-2, 2-3 … i pierwszy z ostatnim (kolejka 1 z listy przedsezonowej, potem według aktualnej tabeli, wyżej sklasyfikowany po lewej). Tabela jest ligowa (3 punkty za wygraną, 1 za remis, kryteria jak w ligach) i liczy się od kolejki 1. Dwie porażki w jednej kolejce eliminują zespół: jego wyniki zostają w tabeli, ale dalej już nie gra i nie odpowiada na pytania Ligi Legend. Remis to nie porażka. Gdy zostaną dwa zespoły, grają jeden mecz. Po 9. kolejce wygrywa pierwszy zespół całej tabeli.",
+    "Human teams only. Every matchday each team plays two duels (1-2, 2-3 … and 1-N, by the table), two losses in one matchday knock it out.": "Tylko zespoły ludzi. W każdej kolejce każdy zespół gra dwa pojedynki (1-2, 2-3 … i 1-N, według tabeli), dwie porażki w jednej kolejce eliminują.",
+    "Each survived matchday": "Każda przetrwana kolejka",
+    "Your matches in Liga Legend": "Twoje mecze w Lidze Legend",
+    "Your matches in Europe": "Twoje mecze w Europie",
+    "Victory": "Wygrana",
+    "Defeat": "Porażka",
+    "Tie": "Remis",
+    "Out (MD :number)": "Odpadł (K. :number)",
+    "Every matchday each team plays two duels: 1-2, 2-3 … and the first with the last (matchday 1 from the list, then by the table). Two losses in one matchday knock the team out; its results stay in the table. After matchday 9 the top of the whole table wins.": "W każdej kolejce każdy zespół gra dwa pojedynki: 1-2, 2-3 … i pierwszy z ostatnim (kolejka 1 z listy, potem według tabeli). Dwie porażki w jednej kolejce eliminują zespół, jego wyniki zostają w tabeli. Po 9. kolejce wygrywa pierwszy zespół całej tabeli."
 }

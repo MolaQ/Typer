@@ -52,8 +52,7 @@ new #[Layout('layouts::public')] class extends Component {
 
         return array_map(function (array $row) use ($season) {
             $lastMatch = end($row['matches']);
-            $lastLegends = isset($row['legends']) ? end($row['legends']) : false;
-            $round = $row['eliminated_round'] ?? ($lastLegends ? $lastLegends['round'] : ($lastMatch ? $lastMatch['round'] : null));
+            $round = $row['eliminated_round'] ?? ($lastMatch ? $lastMatch['round'] : null);
             $params = ['season_slug' => 'sezon-' . $season->number, 'competition_slug' => $row['slug']];
             if ($round) {
                 $params['round_slug'] = 'kolejka-' . $round;

@@ -261,7 +261,7 @@ new class extends Component {
     {
         return match ($type) {
             CompetitionType::Champions, CompetitionType::Europa, CompetitionType::Conference => __('24 teams: 4 groups of 6 (matchdays 1-5, round robin), the top 4 of each group play the round of 16, quarter-finals, semi-finals and the final (matchdays 6-9).'),
-            CompetitionType::Legends => __('Human teams only. The fixtures of this competition are added in a later stage.'),
+            CompetitionType::Legends => __('Human teams only. Every matchday each team plays two duels (1-2, 2-3 … and 1-N, by the table), two losses in one matchday knock it out.'),
             default => '',
         };
     }

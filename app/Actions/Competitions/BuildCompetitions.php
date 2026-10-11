@@ -13,6 +13,7 @@ use App\Models\SeasonTeam;
 use App\Support\CupBracket;
 use App\Support\EuropeanCup;
 use App\Support\LeagueSchedule;
+use App\Support\LegendsLeague;
 use DomainException;
 use Illuminate\Support\Facades\DB;
 
@@ -125,7 +126,7 @@ class BuildCompetitions
                 }
             }
 
-            // --- Liga Legend: wszystkie zespoły ludzi (bez botów), eliminacja po kolejkach ---
+            // --- Liga Legend: wszystkie zespoły ludzi (bez botów), dwa pojedynki w kolejce, eliminacja po dwóch porażkach ---
             if (! $this->exists($season, CompetitionType::Legends)) {
                 $competition = Competition::create([
                     'season_id' => $season->id,
@@ -142,6 +143,9 @@ class BuildCompetitions
 
                 $this->createEntries($competition, $seatTeams);
                 $stats['legends_entries'] = count($seatTeams);
+
+                // Kolejka 1 z listy (1-2, 2-3 … i 1-N), kolejne po każdej przeliczonej kolejce według tabeli.
+                LegendsLeague::draw($competition, 1);
             }
 
             // --- Ligi europejskie z tabel końcowych poprzedniego sezonu ---

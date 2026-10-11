@@ -91,67 +91,13 @@
                     <div class="text-right">
                         <div class="text-xl font-bold tabular-nums text-white">{{ __(':points pts', ['points' => $row['points']]) }}</div>
                         <div class="text-xs text-lech-200">
-                            @if (isset($row['legends']))
-                                {{ __('Legend points') }}
-                            @else
-                                {{ __(':won W, :drawn D, :lost L', ['won' => $row['won'], 'drawn' => $row['drawn'], 'lost' => $row['lost']]) }}
-                            @endif
+                            {{ __(':won W, :drawn D, :lost L', ['won' => $row['won'], 'drawn' => $row['drawn'], 'lost' => $row['lost']]) }}
                         </div>
                     </div>
                 @endif
             </div>
 
-            @if (isset($row['legends']))
-                {{-- Liga Legend: miejsce po każdej kolejce, punkty Legend z kolejki i suma z tabeli --}}
-                @if (count($row['legends']) > 0)
-                    <div class="grid grid-cols-2 gap-2 p-4 sm:grid-cols-3">
-                        @foreach ($row['legends'] as $stage)
-                            <a href="{{ route('results', ['season_slug' => 'sezon-' . $this->season?->number, 'competition_slug' => 'liga-legend', 'round_slug' => 'kolejka-' . $stage['round']]) }}" wire:navigate
-                                class="{{ $stage['tip_points'] !== null ? $tipClasses[$stage['tip_points']] : 'border-zinc-200 dark:border-zinc-700' }} block space-y-1 rounded-xl border p-2.5 text-sm transition hover:shadow-md"
-                                wire:key="lg-{{ $stage['round'] }}">
-                                <div class="flex items-center justify-between gap-2 text-xs text-zinc-500">
-                                    <span>{{ \App\Enums\KnockoutStage::labelFor($stage['round']) }}</span>
-                                    @if ($stage['points'] !== null)
-                                        <span class="font-semibold">+{{ $stage['points'] }}</span>
-                                    @endif
-                                </div>
-                                <div class="flex items-baseline gap-1">
-                                    <span class="text-2xl font-black tabular-nums">{{ $stage['place'] ?? '–' }}.</span>
-                                    <span class="text-xs text-zinc-500">{{ __('of :count', ['count' => $stage['count']]) }}</span>
-                                </div>
-                                <div class="flex items-center justify-between gap-2">
-                                    <span class="{{ $stage['through'] ? 'bg-green-600' : 'bg-red-600' }} rounded px-1.5 py-0.5 text-[10px] font-bold text-white">
-                                        {{ $stage['through'] ? ($stage['round'] < \App\Support\LegendsRanking::ROUNDS ? __('Goes through') : __('Winner')) : __('Eliminated') }}
-                                    </span>
-                                    <span class="font-semibold tabular-nums">{{ __(':points pts', ['points' => $stage['total']]) }}</span>
-                                </div>
-                                @if ($stage['round'] < \App\Support\LegendsRanking::ROUNDS)
-                                    <div class="text-[10px] text-zinc-500">{{ __('Top :limit go through', ['limit' => $stage['limit']]) }}</div>
-                                @endif
-                            </a>
-                        @endforeach
-                        @if ($row['eliminated_round'] && $row['eliminated_round'] < \App\Support\LegendsRanking::ROUNDS)
-                            {{-- Szare kafelki rund, których zespół już nie zagra, bo odpadł z rozgrywek --}}
-                            @foreach (range($row['eliminated_round'] + 1, \App\Support\LegendsRanking::ROUNDS) as $round)
-                                <div class="block w-full space-y-1 rounded-xl border border-zinc-500 bg-zinc-100 p-2.5 text-sm dark:border-zinc-500 dark:bg-zinc-800" wire:key="out-{{ $loop->parent->index }}-{{ $round }}">
-                                    <div class="text-xs text-zinc-500">{{ $row['type']->stageLabel($round) }}</div>
-                                    <div class="flex items-center justify-center gap-1.5 text-zinc-600 dark:text-zinc-300">
-                                        <flux:icon.x-circle class="size-5 shrink-0" />
-                                        <span class="truncate font-medium">{{ __('Team eliminated') }}</span>
-                                    </div>
-                                    <div class="flex items-center gap-2">
-                                        <span class="flex size-5 items-center justify-center rounded bg-zinc-600 text-[10px] font-bold text-zinc-100">−</span>
-                                    </div>
-                                </div>
-                            @endforeach
-                        @endif
-                    </div>
-                @else
-                    <div class="px-4 py-3">
-                        <flux:text size="sm">{{ __('No matchday settled yet.') }}</flux:text>
-                    </div>
-                @endif
-            @elseif (count($row['matches']) > 0)
+            @if (count($row['matches']) > 0)
                 <div class="grid grid-cols-2 gap-2 p-4 sm:grid-cols-3">
                     @foreach ($row['matches'] as $match)
                         {{-- Kliknięcie otwiera uniwersalne okno pojedynku (pages::home.duel-modal) --}}
@@ -177,7 +123,7 @@
                         {{-- Szare kafelki rund, których zespół już nie zagra, bo odpadł z rozgrywek (puchary, Liga Legend) --}}
                         @foreach (range($row['eliminated_round'] + 1, \App\Models\Matchday::PER_SEASON) as $round)
                             <div class="block w-full space-y-1 rounded-xl border border-zinc-500 bg-zinc-100 p-2.5 text-sm dark:border-zinc-500 dark:bg-zinc-800" wire:key="out-{{ $loop->parent->index }}-{{ $round }}">
-                                <div class="text-xs text-zinc-500">{{ \App\Enums\KnockoutStage::labelFor($round) }}</div>
+                                <div class="text-xs text-zinc-500">{{ $row['type']->stageLabel($round) }}</div>
                                 <div class="flex items-center justify-center gap-1.5 text-zinc-600 dark:text-zinc-300">
                                     <flux:icon.x-circle class="size-5 shrink-0" />
                                     <span class="truncate font-medium">{{ __('Team eliminated') }}</span>

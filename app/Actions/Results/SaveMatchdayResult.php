@@ -10,6 +10,7 @@ use App\Models\Matchday;
 use App\Models\MatchdayQuestion;
 use App\Models\TipAnswer;
 use App\Support\Audit;
+use App\Support\LegendsLeague;
 use App\Support\SystemFeed;
 use App\Support\TipRules;
 use DomainException;
@@ -123,6 +124,8 @@ class SaveMatchdayResult
 
             // Liga podwórkowa: pary kolejnej rundy losujemy od razu według nowej klasyfikacji.
             $stats['swiss'] = app(DrawNextSwissRound::class)->afterMatchday($matchday->fresh());
+            // Liga Legend: pary następnej kolejki według nowej tabeli, bez zespołów, które właśnie odpadły.
+            LegendsLeague::drawNext($matchday->fresh());
 
             // Informacje systemowe: wynik kolejki i nowe pary Ligi podwórkowej (tylko przy pierwszym przeliczeniu).
             if (! $wasPlayed && $stats['swiss'] > 0) {

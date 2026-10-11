@@ -9,7 +9,6 @@ use App\Models\Season;
 use App\Models\SeasonTeam;
 use App\Support\CupBracket;
 use App\Support\EuropeanCup;
-use App\Support\LegendsRanking;
 use App\Support\PlayerStats;
 use App\Support\Premium;
 use App\Support\Rivals;
@@ -222,7 +221,7 @@ new #[Layout('layouts::public')] class extends Component {
         $this->teamId = null;
 
         unset($this->season, $this->options, $this->competition, $this->isCup, $this->hasTable, $this->table,
-            $this->isEuropean, $this->groupTables, $this->isLegends, $this->legends, $this->legendsHistory, $this->cupPath, $this->cupPlayed, $this->matchday, $this->matches, $this->myTeamId);
+            $this->isEuropean, $this->groupTables, $this->isLegends, $this->myEntry, $this->myPath, $this->cupPath, $this->cupPlayed, $this->matchday, $this->matches, $this->myTeamId);
 
         $this->normalize();
         $this->resetPage('matchesPage');
@@ -244,8 +243,8 @@ new #[Layout('layouts::public')] class extends Component {
 
         $this->key = $target;
         $this->teamId = null;
-        unset($this->competition, $this->isCup, $this->hasTable, $this->table, $this->isEuropean, $this->groupTables, $this->isLegends, $this->legends,
-            $this->legendsHistory, $this->cupPath, $this->cupPlayed, $this->matches);
+        unset($this->competition, $this->isCup, $this->hasTable, $this->table, $this->isEuropean, $this->groupTables, $this->isLegends, $this->myEntry,
+            $this->myPath, $this->cupPath, $this->cupPlayed, $this->matches);
         $this->updatedKey();
     }
 
@@ -259,7 +258,7 @@ new #[Layout('layouts::public')] class extends Component {
         }
 
         $this->round = $target;
-        unset($this->table, $this->legends, $this->cupPlayed, $this->matchday, $this->matches);
+        unset($this->table, $this->cupPlayed, $this->matchday, $this->matches);
         $this->updatedRound();
     }
 
@@ -313,7 +312,7 @@ new #[Layout('layouts::public')] class extends Component {
     #[Computed]
     public function hasTable(): bool
     {
-        return $this->competition !== null && !$this->isCup && !$this->isEuropean && $this->competition->type !== CompetitionType::Legends;
+        return $this->competition !== null && !$this->isCup && !$this->isEuropean;
     }
 
     /** Liga Mistrzów, Europy albo Konferencji: grupy A-D, potem faza pucharowa (EuropeanCup). */
@@ -346,41 +345,65 @@ new #[Layout('layouts::public')] class extends Component {
         return $this->competition?->type === CompetitionType::Legends;
     }
 
-    /** Liga Legend: ranking po wybranej kolejce (narastająco od kolejki 1). */
+    /** Wpis zespołu zalogowanego gracza w wybranych rozgrywkach (Liga Legend, puchary europejskie). */
     #[Computed]
-    public function legends()
+    public function myEntry(): ?\App\Models\CompetitionEntry
     {
-        return $this->isLegends ? LegendsRanking::for($this->competition, $this->round) : collect();
+        if (!$this->competition || !$this->myTeamId) {
+            return null;
+        }
+
+        return \App\Models\CompetitionEntry::where('competition_id', $this->competition->id)->where('season_team_id', $this->myTeamId)->first();
     }
 
     /**
-     * Liga Legend: miejsce zespołu po każdej kolejce 1..wybrana (wśród zespołów, które jeszcze grały).
-     * entry_id => [kolejka => miejsce]. Do kafelków przy nazwie zespołu.
+     * Liga Legend i puchary europejskie: mecze zespołu gracza w kolejnych kolejkach (kolejka => lista meczów,
+     * w Lidze Legend dwa na kolejkę). Do bloków „Twoje mecze w Lidze Legend” i „Twoje mecze w Europie”.
      *
-     * @return array<int, array<int, int>>
+     * @return array<int, list<Fixture>>
      */
     #[Computed]
-    public function legendsHistory(): array
+    public function myPath(): array
+    {
+        if (!$this->myEntry || !($this->isLegends || $this->isEuropean)) {
+            return [];
+        }
+
+        $entryId = $this->myEntry->id;
+        $path = [];
+
+        $fixtures = Fixture::query()
+            ->with(['home.seasonTeam.user:id,name,team_name', 'home.seasonTeam.bot:id,name', 'away.seasonTeam.user:id,name,team_name', 'away.seasonTeam.bot:id,name'])
+            ->where('competition_id', $this->competition->id)
+            ->where(fn ($q) => $q->where('home_entry_id', $entryId)->orWhere('away_entry_id', $entryId))
+            ->orderBy('round')
+            ->orderBy('id')
+            ->get();
+
+        foreach ($fixtures as $fixture) {
+            $path[$fixture->round][] = $fixture;
+        }
+
+        return $path;
+    }
+
+    /**
+     * Liga Legend: id wpisu => kolejka, po której zespół odpadł (wyniki zostają w tabeli, wiersz jest wyszarzony).
+     *
+     * @return array<int, int>
+     */
+    #[Computed]
+    public function legendsOut(): array
     {
         if (!$this->isLegends) {
             return [];
         }
 
-        $played = min((int) Matchday::where('season_id', $this->season->id)->where('status', \App\Enums\MatchdayStatus::Played)->max('number'), $this->round);
-        $history = [];
-
-        if ($played < 1) {
-            return [];
-        }
-
-        foreach (range(1, $played) as $stage) {
-
-            foreach (LegendsRanking::for($this->competition, $stage, onlyAlive: true)->values() as $index => $row) {
-                $history[$row['entry_id']][$stage] = $index + 1;
-            }
-        }
-
-        return $history;
+        return \App\Models\CompetitionEntry::where('competition_id', $this->competition->id)
+            ->whereNotNull('eliminated_round')
+            ->pluck('eliminated_round', 'id')
+            ->map(fn ($round) => (int) $round)
+            ->all();
     }
 
     /**
@@ -687,6 +710,38 @@ new #[Layout('layouts::public')] class extends Component {
             </flux:text>
         @endif
 
+        {{-- Liga Legend i puchary europejskie: mecze zespołu gracza w kolejnych kolejkach --}}
+        @if ($this->myEntry && ($this->isLegends || $this->isEuropean))
+            @php
+                $pathEntry = $this->myEntry;
+                $pathOut = $pathEntry->eliminated_round;
+                if ($this->isLegends) {
+                    $pathIndex = $this->table->search(fn ($row) => $row['entry_id'] === $pathEntry->id);
+                    $pathStatus = $pathOut !== null
+                        ? __('Knocked out after matchday :number', ['number' => $pathOut])
+                        : ($pathIndex === false ? '' : __(':place. place of :count', ['place' => $pathIndex + 1, 'count' => $this->table->count()]));
+                } else {
+                    $pathStatus = match (true) {
+                        $pathOut === \App\Support\EuropeanCup::GROUP_ROUNDS => __('Knocked out in the group stage'),
+                        $pathOut !== null => __('Knocked out in: :round', ['round' => \App\Support\EuropeanCup::stageLabel($pathOut)]),
+                        default => __('Group :group', ['group' => \App\Support\EuropeanCup::groupOf($pathEntry->seed)]),
+                    };
+                }
+                $pathType = $this->competition->type;
+            @endphp
+            @include('partials.my-matches-path', [
+                'title' => $this->isLegends ? __('Your matches in Liga Legend') : __('Your matches in Europe'),
+                'status' => $pathStatus,
+                'rounds' => \App\Models\Matchday::PER_SEASON,
+                'perRound' => $this->isLegends ? 2 : 1,
+                'path' => $this->myPath,
+                'entryId' => $pathEntry->id,
+                'eliminated' => $pathOut,
+                'stageLabel' => fn (int $stage) => $this->isLegends ? __('Matchday :number', ['number' => $stage]) : \App\Support\EuropeanCup::stageLabel($stage),
+                'current' => $round,
+            ])
+        @endif
+
         <div class="grid gap-6 {{ $this->hasTable ? 'lg:grid-cols-[1fr_20rem]' : '' }}">
             {{-- ============ Tabela ============ --}}
             @if ($this->hasTable)
@@ -716,6 +771,11 @@ new #[Layout('layouts::public')] class extends Component {
                                         'down' => 'border-l-4 border-l-red-500',
                                         default => 'border-l-4 border-l-transparent',
                                     };
+                                    // Liga Legend: zespół, który odpadł, zostaje w tabeli wyszarzony.
+                                    $outRound = $this->legendsOut[$row['entry_id']] ?? null;
+                                    if ($outRound !== null) {
+                                        $zoneClass .= ' text-zinc-400 dark:text-zinc-500';
+                                    }
                                 @endphp
                                 <tr wire:key="row-{{ $row['entry_id'] }}"
                                     class="{{ $zoneClass }} border-b border-zinc-100 last:border-b-0 dark:border-zinc-700/50 {{ $this->highlighted($row['team']->id) ? 'bg-amber-50 font-semibold dark:bg-amber-900/20' : '' }}">
@@ -724,6 +784,9 @@ new #[Layout('layouts::public')] class extends Component {
                                         <button type="button" wire:click="showTeam({{ $row['team']->id }})" class="truncate hover:text-lech-700 hover:underline dark:hover:text-lech-300">{{ $row['team']->name }}</button>
                                         @if ($badge)
                                             <span class="ms-1 rounded bg-blue-100 px-1 text-[10px] font-semibold text-blue-700 dark:bg-blue-900/40 dark:text-blue-300">{{ $badge }}</span>
+                                        @endif
+                                        @if ($outRound !== null)
+                                            <span class="ms-1 rounded bg-zinc-100 px-1 text-[10px] font-semibold text-zinc-500 dark:bg-zinc-800" title="{{ __('Knocked out after matchday :number', ['number' => $outRound]) }}">{{ __('Out (MD :number)', ['number' => $outRound]) }}</span>
                                         @endif
                                     </td>
                                     <td class="px-2 py-1.5 text-right tabular-nums">{{ $row['played'] }}</td>
@@ -738,6 +801,11 @@ new #[Layout('layouts::public')] class extends Component {
                             @endforeach
                         </tbody>
                     </table>
+                    @if ($this->isLegends)
+                        <p class="border-t border-zinc-200 px-3 py-2 text-xs italic text-zinc-500 dark:border-zinc-700">
+                            {{ __('Every matchday each team plays two duels: 1-2, 2-3 … and the first with the last (matchday 1 from the list, then by the table). Two losses in one matchday knock the team out; its results stay in the table. After matchday 9 the top of the whole table wins.') }}
+                        </p>
+                    @endif
                     @if (in_array($this->competition->type, [\App\Enums\CompetitionType::League, \App\Enums\CompetitionType::Swiss], true))
                         <div class="flex flex-wrap gap-4 border-t border-zinc-200 px-3 py-2 text-xs text-zinc-500 dark:border-zinc-700">
                             <span class="flex items-center gap-1"><span class="inline-block h-3 w-1 bg-green-500"></span>{{ __('Promotion') }}</span>
@@ -748,111 +816,6 @@ new #[Layout('layouts::public')] class extends Component {
                         </div>
                     @endif
                 </flux:card>
-            @endif
-
-            {{-- ============ Liga Legend: ranking z odcięciem ============ --}}
-            @if ($this->isLegends)
-                @php
-                    $rounds = \App\Support\LegendsRanking::ROUNDS;
-                    // Najpierw zespoły, które grają w tej rundzie (według punktów Legend), potem odpadnięci wcześniej.
-                    [$alive, $gone] = $this->legends->partition(fn ($row) => $row['eliminated_round'] === null || $row['eliminated_round'] >= $round);
-                    $legendRows = $alive->concat($gone->sortByDesc('eliminated_round'))->values();
-                    $limit = $round < $rounds ? \App\Support\LegendsRanking::limitAfter($round) : 1;
-                    $history = $this->legendsHistory;
-                @endphp
-                <div class="space-y-2">
-                    {{-- Pasek etapów: 512 → 256 → … → Finał, każdy etap to link do swojej kolejki --}}
-                    <nav class="flex flex-wrap items-center gap-1 text-xs" aria-label="{{ __('Rounds') }}">
-                        @foreach (range(1, $rounds) as $stage)
-                            @php
-                                $stageClass = $stage === $round
-                                    ? 'lech-bar font-semibold'
-                                    : ($stage < $round ? 'bg-lech-100 text-lech-800 hover:bg-lech-200 dark:bg-lech-900/40 dark:text-lech-200' : 'bg-zinc-100 text-zinc-500 hover:bg-zinc-200 dark:bg-zinc-800');
-                            @endphp
-                            <a href="{{ $this->pageUrl($stage) }}" wire:navigate title="{{ __('Matchday :number', ['number' => $stage]) }}: {{ \App\Enums\KnockoutStage::labelFor($stage) }}"
-                                class="{{ $stageClass }} rounded-full px-2.5 py-1 tabular-nums transition">
-                                {{ $stage >= \App\Enums\KnockoutStage::QuarterFinal->value ? \App\Enums\KnockoutStage::labelFor($stage) : \App\Support\LegendsRanking::limitAfter($stage - 1) }}
-                            </a>
-                            @if ($stage < $rounds)
-                                <flux:icon.chevron-right variant="micro" class="text-zinc-400" />
-                            @endif
-                        @endforeach
-                    </nav>
-
-                    <flux:card class="overflow-x-auto p-0">
-                        <table class="w-full text-sm">
-                            <thead class="text-xs text-zinc-500">
-                                <tr class="border-b border-zinc-200 dark:border-zinc-700">
-                                    <th class="px-3 py-2 text-right">#</th>
-                                    <th class="px-3 py-2 text-left">{{ __('Team') }}</th>
-                                    <th class="px-2 py-2 text-left" title="{{ __('Place after each matchday') }}">{{ __('Matchdays 1-9') }}</th>
-                                    <th class="px-2 py-2 text-right" title="{{ __('Points in matchday :round', ['round' => $round]) }}">{{ __('Matchday') }}</th>
-                                    <th class="px-2 py-2 text-right" title="{{ __('Exact score, outcome and goal difference') }}">{{ __('Tip') }}</th>
-                                    <th class="px-2 py-2 text-right" title="{{ __('Bonus questions') }}">{{ __('Bon.') }}</th>
-                                    <th class="px-2 py-2 text-right" title="{{ __('Exact tips') }}">{{ __('Ex.') }}</th>
-                                    <th class="px-3 py-2 text-right">{{ __('Pts') }}</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                @foreach ($legendRows as $index => $row)
-                                    @php
-                                        $out = $row['eliminated_round'] !== null && $row['eliminated_round'] < $round;
-                                        $zoneClass = $out ? 'border-l-transparent text-zinc-400' : ($index < $limit ? 'border-l-green-500' : 'border-l-red-500');
-                                    @endphp
-                                    <tr wire:key="leg-{{ $row['entry_id'] }}"
-                                        class="{{ $zoneClass }} border-b border-l-4 border-b-zinc-100 last:border-b-0 dark:border-b-zinc-700/50 {{ $this->highlighted($row['team']->id) ? 'bg-amber-50 font-semibold dark:bg-amber-900/20' : '' }}">
-                                        <td class="px-3 py-1.5 text-right tabular-nums">{{ $out ? '' : ($index + 1) . '.' }}</td>
-                                        <td class="max-w-56 truncate px-3 py-1.5">
-                                            <button type="button" wire:click="showTeam({{ $row['team']->id }})" class="truncate hover:text-lech-700 hover:underline dark:hover:text-lech-300">{{ $row['team']->name }}</button>
-                                        </td>
-                                        {{-- Kafelki: miejsce po kolejce; zielone = przeszedł dalej, czerwone = odpadł, szare „–” = już nie grał --}}
-                                        <td class="px-2 py-1.5">
-                                            <div class="flex gap-0.5">
-                                                @foreach (range(1, $rounds) as $stage)
-                                                    @php
-                                                        $place = $history[$row['entry_id']][$stage] ?? null;
-                                                        $absent = $row['eliminated_round'] !== null && $row['eliminated_round'] < $stage;
-                                                        $lost = $place !== null && ($row['eliminated_round'] === $stage || ($stage === $rounds && $place > 1));
-                                                        $tileClass = match (true) {
-                                                            $place === null && $absent => 'bg-zinc-100 text-zinc-400 dark:bg-zinc-800',
-                                                            $place === null => 'bg-zinc-50 text-transparent dark:bg-zinc-800/40',
-                                                            $lost => 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300',
-                                                            default => 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300',
-                                                        };
-                                                    @endphp
-                                                    <span class="{{ $tileClass }} flex h-5 w-8 shrink-0 items-center justify-center rounded text-[10px] font-semibold tabular-nums"
-                                                        title="{{ __('Matchday :number', ['number' => $stage]) }}">{{ $place ?? ($absent ? '–' : '·') }}</span>
-                                                @endforeach
-                                            </div>
-                                        </td>
-                                        <td class="px-2 py-1.5 text-right tabular-nums text-zinc-500">{{ $row['last_points'] ?? '–' }}</td>
-                                        <td class="px-2 py-1.5 text-right tabular-nums">{{ $row['hit_points'] }}</td>
-                                        <td class="px-2 py-1.5 text-right tabular-nums">{{ $row['bonus_points'] }}</td>
-                                        <td class="px-2 py-1.5 text-right tabular-nums">{{ $row['exact'] }}</td>
-                                        <td class="px-3 py-1.5 text-right font-semibold tabular-nums">{{ $row['points'] }}</td>
-                                    </tr>
-                                @endforeach
-                            </tbody>
-                        </table>
-                    </flux:card>
-
-                    {{-- Objaśnienia kursywą pod tabelą i legenda kolorów --}}
-                    <div class="space-y-1 px-1 text-xs italic text-zinc-500">
-                        <p>
-                            @if ($round < $rounds)
-                                {{ __('After matchday :round the best :limit teams stay in the competition.', ['round' => $round, 'limit' => $limit]) }}
-                            @else
-                                {{ __('Final: the better total from matchday 1 wins.') }}
-                            @endif
-                            {{ __('Legend points per matchday: 12 each for the exact score, the outcome and the goal difference, and for each question set 2, 4, 8, 16 or 32 for 1-5 correct answers (up to 100).') }}
-                        </p>
-                        <p class="flex flex-wrap gap-4 not-italic">
-                            <span class="flex items-center gap-1"><span class="inline-block h-3 w-3 rounded bg-green-500"></span>{{ __('Goes through') }}</span>
-                            <span class="flex items-center gap-1"><span class="inline-block h-3 w-3 rounded bg-red-500"></span>{{ __('Eliminated') }}</span>
-                            <span class="flex items-center gap-1"><span class="inline-block h-3 w-3 rounded bg-zinc-300 dark:bg-zinc-600"></span>{{ __('No longer playing') }}</span>
-                        </p>
-                    </div>
-                </div>
             @endif
 
             {{-- ============ Puchar Polski: drabinka rundy w kartach meczów ============ --}}
@@ -1037,7 +1000,7 @@ new #[Layout('layouts::public')] class extends Component {
             @endif
 
             {{-- ============ Mecze kolejki / rundy ============ --}}
-            @if (!$this->isLegends && !$this->isCup && !$this->isEuropean)
+            @if (!$this->isCup && !$this->isEuropean)
             <flux:card class="space-y-2 self-start">
                 <flux:heading>
                     {{ $this->isCup ? \App\Support\CupBracket::roundName($round) : __('Matchday :number', ['number' => $round]) }}

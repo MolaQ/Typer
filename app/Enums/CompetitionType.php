@@ -7,7 +7,7 @@ use App\Support\EuropeanCup;
 /**
  * Rodzaj rozgrywek w sezonie.
  *  - Tworzone automatycznie przy zatwierdzeniu sezonu: League (10 lig), Cup, Swiss, Legends
- *    (wszystkie zespoły ludzi, eliminacja po kolejkach).
+ *    (wszystkie zespoły ludzi, dwa pojedynki w kolejce, odpada się po dwóch porażkach, App\Support\LegendsLeague).
  *  - Ligi europejskie: przy zatwierdzeniu powstają same, gdy jest podstawa (Champions, Europa,
  *    Conference z tabel końcowych poprzedniego sezonu), poza tym admin zarządza nimi ręcznie.
  *  - Puchary europejskie (Champions, Europa, Conference): 24 zespoły, 4 grupy po 6, potem 1/8 finału … finał
@@ -72,13 +72,13 @@ enum CompetitionType: string
     }
 
     /**
-     * Nazwa kolejki (rundy) w tych rozgrywkach: etapy pucharu i Ligi Legend („1/8”, „Finał”), puchary europejskie
-     * („Faza grupowa – kolejka 2”, „1/8 finału”), ligi „Kolejka N”.
+     * Nazwa kolejki (rundy) w tych rozgrywkach: etapy pucharu („1/8”, „Finał”), puchary europejskie
+     * („Faza grupowa – kolejka 2”, „1/8 finału”), ligi i Liga Legend „Kolejka N”.
      */
     public function stageLabel(int $round): string
     {
         return match (true) {
-            $this === self::Cup, $this === self::Legends => KnockoutStage::labelFor($round),
+            $this === self::Cup => KnockoutStage::labelFor($round),
             $this->isEuropean() => EuropeanCup::stageLabel($round),
             default => __('Matchday :number', ['number' => $round]),
         };

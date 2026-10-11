@@ -15,7 +15,7 @@ use Illuminate\Support\Facades\Schema;
  * Wartości są konfigurowalne w panelu (tabela hall_of_fame_settings), tu są wartości domyślne.
  * Punkty ligowe mnożymy przez mnożnik poziomu. Wartości domyślne ułożone są tak, żeby tytuły dawały punkty
  * zgodnie z ważnością rozgrywek (pełny tytuł z meczami i awansem):
- *   Liga Legend 1000 (premie za rundy, do tego punkty Legend z kolejek) > Ekstraklasa 500 > Puchar Polski 450
+ *   Liga Legend (zwycięzca 500 + pojedynki i przetrwane kolejki, wstępnie) > Ekstraklasa 500 > Puchar Polski 450
  *   > MVP 400 > Złota Piłka 360 > Złote Rękawice 330 > Liga Mistrzów 300 > Liga Europy 250 > Liga Konferencji 180
  *   (za samo zwycięstwo; z meczami grupowymi i premiami za etapy zdobywca LM ma do 445, mniej niż Puchar Polski)
  *   > I liga 168 > II liga 144 … > podwórkowa 12.
@@ -43,13 +43,10 @@ final class HallOfFame
         'europa_round_6' => 8, 'europa_round_7' => 15, 'europa_round_8' => 26, 'europa_round_9' => 42, 'europa_winner' => 250,
         'conference_win' => 1, 'conference_draw' => 0.5, 'conference_group_first' => 6,
         'conference_round_6' => 6, 'conference_round_7' => 10, 'conference_round_8' => 18, 'conference_round_9' => 30, 'conference_winner' => 180,
-        // Liga Legend: punkty Legend z każdej kolejki (do 100) razy przelicznik (0,1, czyli do 10 HoF; panel), na bieżąco po kolejce,
-        // oraz premia za przejście każdej rundy (narastająco): runda 1 = 0, 2 = 10 … 8 = 250 (awans do finału),
-        // wygrana w finale 500. Zwycięzca dostaje z premii razem 1000.
-        'legends_point' => 0.1,
-        'legends_round_1' => 0, 'legends_round_2' => 10, 'legends_round_3' => 20, 'legends_round_4' => 30,
-        'legends_round_5' => 40, 'legends_round_6' => 50, 'legends_round_7' => 100, 'legends_round_8' => 250,
-        'legends_winner' => 500,
+        // Liga Legend (LegendsLeague): wygrany i zremisowany pojedynek, każda przetrwana kolejka oraz miejsca 1-3 tabeli
+        // końcowej (wstępnie, do przemyślenia; wszystko w panelu).
+        'legends_win' => 2, 'legends_draw' => 1, 'legends_survived' => 10,
+        'legends_champion' => 500, 'legends_second' => 250, 'legends_third' => 150,
         // Nagrody indywidualne sezonu (gracze i boty, przy remisie wyższe miejsce w lidze).
         'mvp' => 400, 'golden_ball' => 360, 'golden_gloves' => 330,
     ];
@@ -145,11 +142,12 @@ final class HallOfFame
                 ]])
                 ->all(),
             CompetitionType::Legends->label() => [
-                'legends_point' => __('Hall of Fame points per Legend point'),
-                ...collect(range(1, LegendsRanking::ROUNDS - 1))
-                    ->mapWithKeys(fn (int $round) => ['legends_round_'.$round => __('Through round :round', ['round' => $round])])
-                    ->all(),
-                'legends_winner' => __('Winner'),
+                'legends_win' => __('Match won'),
+                'legends_draw' => __('Match drawn'),
+                'legends_survived' => __('Each survived matchday'),
+                'legends_champion' => __('Winner'),
+                'legends_second' => __('Second place'),
+                'legends_third' => __('Third place'),
             ],
             __('Individual awards') => [
                 'mvp' => __('Season MVP'),
