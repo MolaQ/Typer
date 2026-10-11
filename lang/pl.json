@@ -1326,7 +1326,7 @@
     "Rivals (players and bots) you have a worse head-to-head record against, from the worst record.": "Rywale (gracze i boty), z którymi masz gorszy bilans bezpośredni, od najgorszego bilansu.",
     "With premium you see the rivals you lose to more often than you beat them, all seasons and competitions together.": "Z premium widzisz rywali, z którymi częściej przegrywasz, niż wygrywasz, ze wszystkich sezonów i rozgrywek.",
     "Your blacklist is empty. Nobody has a better head-to-head record against you.": "Twoja czarna lista jest pusta. Nikt nie ma z Tobą lepszego bilansu bezpośredniego.",
-    "Your league matches": "Twoje ligowe mecze",
+    "Your league matches": "Twoje mecze ligowe",
     "All competitions, including Liga Legend and the European cups, are created when the season is approved.": "Wszystkie rozgrywki, także Liga Legend i puchary europejskie, powstają przy zatwierdzeniu sezonu.",
     "Champions League finalist": "Finalista Ligi Mistrzów",
     "Champions League winner": "Zwycięzca Ligi Mistrzów",
@@ -1374,5 +1374,7 @@
     "This match is postponed or has no kickoff yet. Update it in the Lech calendar first.": "Ten mecz jest przełożony albo nie ma jeszcze terminu. Najpierw popraw go w kalendarzu Lecha.",
     "Up": "W górę",
     "Match postponed: :fixture (matchday :number)": "Mecz przełożony: :fixture (kolejka :number)",
-    "Not in any matchday": "Bez kolejki"
+    "Not in any matchday": "Bez kolejki",
+    "Table": "Tabela",
+    ":count match|:count matches": "{1} :count mecz|[2,4] :count mecze|[5,*] :count meczów"
 }
