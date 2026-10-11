@@ -701,9 +701,6 @@ new #[Layout('layouts::public')] class extends Component {
         </nav>
 
 
-            </flux:text>
-        @endif
-
         {{-- Liga Legend i puchary europejskie: mecze zespołu gracza w kolejnych kolejkach --}}
         @if ($this->myEntry && ($this->isLegends || $this->isEuropean))
             @php
