@@ -132,3 +132,8 @@ select:focus[data-flux-control] {
 .comp-dashed {
     border-style: dashed;
 }
+
+/* Alpine: ukryj elementy z x-cloak, zanim Alpine je pokaże (zakładki w oknach). */
+[x-cloak] {
+    display: none !important;
+}

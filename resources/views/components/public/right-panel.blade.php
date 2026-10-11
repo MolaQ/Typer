@@ -1,4 +1,8 @@
 <div class="space-y-4">
+    {{-- Strona wyników: mecz Lecha wybranej kolejki na samej górze (okno z pytaniami i szczegółami). --}}
+    @if (request()->routeIs('results'))
+        <livewire:pages::home.lech-match-panel />
+    @endif
     {{-- Rywale gracza w kolejce: nad informacją o premium (tylko zalogowani gracze z zespołem). --}}
     @auth
         <livewire:pages::home.rivals-panel />

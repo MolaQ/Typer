@@ -128,6 +128,8 @@ new #[Layout('layouts::public')] class extends Component {
     private function syncUrl(): void
     {
         $this->js('history.replaceState(history.state, "", ' . json_encode($this->pageUrl()) . ')');
+        // Panel meczu Lecha w prawej kolumnie pokazuje wybraną kolejkę.
+        $this->dispatch('results-matchday', id: (int) $this->matchday?->id);
     }
 
     /** Poprawia wybór rozgrywek i kolejki po wejściu na stronę albo po zmianie sezonu. */
@@ -699,14 +701,6 @@ new #[Layout('layouts::public')] class extends Component {
         </nav>
 
 
-        @if ($this->matchday && filled($this->matchday->opponent))
-            <flux:text>
-                {{ $this->matchday->fixture }}
-                @if ($this->matchday->status === \App\Enums\MatchdayStatus::Played)
-                    &middot; <span class="font-semibold">{{ $this->matchday->is_home ? $this->matchday->lech_goals . ':' . $this->matchday->opponent_goals : $this->matchday->opponent_goals . ':' . $this->matchday->lech_goals }}</span>
-                @elseif ($this->matchday->kickoff_at)
-                    &middot; {{ $this->matchday->kickoff_at->translatedFormat('j F Y, H:i') }}
-                @endif
             </flux:text>
         @endif
 
