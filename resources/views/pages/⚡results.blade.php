@@ -732,6 +732,7 @@ new #[Layout('layouts::public')] class extends Component {
                 'entryId' => $pathEntry->id,
                 'eliminated' => $pathOut,
                 'stageLabel' => fn (int $stage) => $this->isLegends ? __('Matchday :number', ['number' => $stage]) : \App\Support\EuropeanCup::stageLabel($stage),
+                'stageUrl' => fn (int $stage) => $this->pageUrl($stage),
                 'current' => $round,
             ])
         @endif

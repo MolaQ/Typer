@@ -318,6 +318,46 @@ new #[Layout('layouts::public')] class extends Component {
         return \App\Support\Premium::isActive(auth()->user()) ? \App\Support\PlayerStats::scalps(auth()->user()) : [];
     }
 
+    /**
+     * „Twoje ligowe mecze” pod typowaniem: liga zespołu (1-10 albo podwórkowa) w sezonie i jego mecze w kolejkach,
+     * w formacie jak „Twoja droga w pucharze” (partials/my-matches-path).
+     *
+     * @return array{competition: \App\Models\Competition, entry_id: int, path: array<int, list<\App\Models\Fixture>>, status: string}|null
+     */
+    #[Computed]
+    public function myLeague(): ?array
+    {
+        $teamId = $this->season ? SeasonTeam::where('season_id', $this->season->id)->where('user_id', auth()->id())->value('id') : null;
+
+        $entry = $teamId ? \App\Models\CompetitionEntry::with('competition')
+            ->where('season_team_id', $teamId)
+            ->whereHas('competition', fn ($q) => $q->whereIn('type', [\App\Enums\CompetitionType::League->value, \App\Enums\CompetitionType::Swiss->value]))
+            ->first() : null;
+
+        if (!$entry || !$entry->competition) {
+            return null;
+        }
+
+        $path = [];
+        foreach (\App\Models\Fixture::with(['home.seasonTeam.user:id,name,team_name', 'home.seasonTeam.bot:id,name', 'away.seasonTeam.user:id,name,team_name', 'away.seasonTeam.bot:id,name'])
+            ->where('competition_id', $entry->competition_id)
+            ->where(fn ($q) => $q->where('home_entry_id', $entry->id)->orWhere('away_entry_id', $entry->id))
+            ->orderBy('round')
+            ->get() as $fixture) {
+            $path[$fixture->round][] = $fixture;
+        }
+
+        $table = \App\Support\Standings::for($entry->competition)->values();
+        $index = $table->search(fn ($row) => $row['entry_id'] === $entry->id);
+
+        return [
+            'competition' => $entry->competition,
+            'entry_id' => (int) $entry->id,
+            'path' => $path,
+            'status' => $index === false ? '' : __(':place. place of :count', ['place' => $index + 1, 'count' => $table->count()]),
+        ];
+    }
+
     /** Czarna lista (premium): rywale, z którymi gracz ma ujemny bilans bezpośredni. */
     #[Computed]
     public function myBlacklist(): array
@@ -685,6 +725,22 @@ new #[Layout('layouts::public')] class extends Component {
         @endif
     </div>
     @endif
+    @endif
+
+    {{-- Twoje ligowe mecze: wszystkie kolejki ligi zespołu, jak „Twoja droga w pucharze” --}}
+    @if ($league = $this->myLeague)
+        @include('partials.my-matches-path', [
+            'title' => __('Your league matches') . ' · ' . ($league['competition']->name ?: $league['competition']->type->label()),
+            'status' => $league['status'],
+            'rounds' => \App\Models\Matchday::PER_SEASON,
+            'perRound' => 1,
+            'path' => $league['path'],
+            'entryId' => $league['entry_id'],
+            'eliminated' => null,
+            'stageLabel' => fn (int $stage) => __('Matchday :number', ['number' => $stage]),
+            'stageUrl' => fn (int $stage) => route('results', ['season_slug' => 'sezon-' . $this->season?->number, 'competition_slug' => $league['competition']->slug(), 'round_slug' => 'kolejka-' . $stage]),
+            'current' => $this->number,
+        ])
     @endif
     @else
         @include('partials.tips-tabs')
