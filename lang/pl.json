@@ -1399,5 +1399,7 @@
     "Your own statistics are free in My tips. With premium you also see the statistics of other players.": "Swoje statystyki widzisz za darmo w zakładce Moje typy. Z premium widzisz też statystyki innych graczy.",
     "Knocked out (two losses in one matchday)": "Odpadł (dwie porażki w jednej kolejce)",
     "Still playing: :left of :count": "W grze: :left z :count",
-    "Current holder: :title": "Aktualny triumfator: :title"
+    "Current holder: :title": "Aktualny triumfator: :title",
+    "Up :count places": "W górę o :count",
+    "Down :count places": "W dół o :count"
 }
