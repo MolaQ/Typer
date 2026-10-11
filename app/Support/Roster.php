@@ -4,13 +4,17 @@ namespace App\Support;
 
 use App\Enums\CompetitionType;
 use App\Enums\League;
+use App\Enums\MatchdayStatus;
 use App\Enums\SeasonStatus;
 use App\Models\Bot;
 use App\Models\Competition;
 use App\Models\CompetitionEntry;
 use App\Models\Fixture;
+use App\Models\Matchday;
 use App\Models\Season;
 use App\Models\SeasonTeam;
+use App\Models\Tip;
+use App\Models\TipAnswer;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 
@@ -175,6 +179,11 @@ class Roster
         // Bot nie gra w Lidze Legend.
         self::leaveLegends($team);
 
+        // Nierozliczone typy gracza (kolejki bez wyniku) znikają: ban, nieaktywność albo odejście z gry.
+        if ($team->user_id) {
+            self::dropOpenTips($team->season_id, $team->user_id);
+        }
+
         if ($bot) {
             $team->update(['user_id' => null, 'bot_id' => $bot->id]);
 
@@ -188,6 +197,35 @@ class Roster
         }
 
         return false;
+    }
+
+    /** Kasuje typy i odpowiedzi gracza w nierozegranych kolejkach sezonu (rozliczone zostają w historii). */
+    public static function dropOpenTips(int $seasonId, int $userId): int
+    {
+        $open = Matchday::where('season_id', $seasonId)->where('status', '!=', MatchdayStatus::Played->value)->pluck('id');
+
+        if ($open->isEmpty()) {
+            return 0;
+        }
+
+        TipAnswer::whereIn('matchday_id', $open)->where('user_id', $userId)->delete();
+
+        return Tip::whereIn('matchday_id', $open)->where('user_id', $userId)->delete();
+    }
+
+    /**
+     * Gracz usuwa konto: jego zespoły w nieukończonych sezonach przejmują boty, a nierozliczone typy znikają
+     * (rozliczone wyniki zespołu zostają w tabelach).
+     */
+    public static function releaseUser(User $user): void
+    {
+        $teams = SeasonTeam::where('user_id', $user->id)
+            ->whereHas('season', fn ($q) => $q->where('status', '!=', SeasonStatus::Finished->value))
+            ->get();
+
+        foreach ($teams as $team) {
+            DB::transaction(fn () => self::release($team));
+        }
     }
 
     /** Zwalnia miejsca wszystkich graczy z listy, którzy nie mogą już grać (ban, brak roli). */

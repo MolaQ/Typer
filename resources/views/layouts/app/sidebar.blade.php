@@ -46,6 +46,10 @@
                         :current="request()->routeIs('dashboard.matchdays')" wire:navigate>
                         {{ __('Matches') }}
                     </flux:sidebar.item>
+                    <flux:sidebar.item icon="calendar-days" :href="route('dashboard.lech-calendar')"
+                        :current="request()->routeIs('dashboard.lech-calendar')" wire:navigate>
+                        {{ __('Lech calendar') }}
+                    </flux:sidebar.item>
                     <flux:sidebar.item icon="clipboard-document-list" :href="route('dashboard.matchday-questions')"
                         :current="request()->routeIs('dashboard.matchday-questions')" wire:navigate>
                         {{ __('Matchday questions') }}
@@ -70,7 +74,7 @@
                 </flux:sidebar.group>
 
                 <flux:sidebar.group expandable
-                    :expanded="request()->routeIs('dashboard.seasons', 'dashboard.season-teams', 'dashboard.competitions', 'dashboard.fixtures', 'dashboard.bots')"
+                    :expanded="request()->routeIs('dashboard.seasons', 'dashboard.season-teams', 'dashboard.competitions', 'dashboard.european-qualification', 'dashboard.fixtures', 'dashboard.bots')"
                     :heading="__('Season')" class="grid">
                     <flux:sidebar.item icon="calendar-days" :href="route('dashboard.seasons')"
                         :current="request()->routeIs('dashboard.seasons')" wire:navigate>
@@ -83,6 +87,10 @@
                     <flux:sidebar.item icon="trophy" :href="route('dashboard.competitions')"
                         :current="request()->routeIs('dashboard.competitions')" wire:navigate>
                         {{ __('Competitions') }}
+                    </flux:sidebar.item>
+                    <flux:sidebar.item icon="globe-europe-africa" :href="route('dashboard.european-qualification')"
+                        :current="request()->routeIs('dashboard.european-qualification')" wire:navigate>
+                        {{ __('European qualification') }}
                     </flux:sidebar.item>
                     <flux:sidebar.item icon="table-cells" :href="route('dashboard.fixtures')"
                         :current="request()->routeIs('dashboard.fixtures')" wire:navigate>

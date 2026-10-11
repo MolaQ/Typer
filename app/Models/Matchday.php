@@ -14,6 +14,7 @@ use Illuminate\Support\Carbon;
  * Kolejka sezonu z jednym rzeczywistym meczem Lecha.
  *
  * @property int $season_id
+ * @property int|null $lech_match_id mecz z kalendarza Lecha (dane są kopiowane do kolejki)
  * @property int $number
  * @property string|null $opponent
  * @property bool $is_home
@@ -28,6 +29,7 @@ class Matchday extends Model
 
     protected $fillable = [
         'season_id',
+        'lech_match_id',
         'number',
         'opponent',
         'is_home',
@@ -53,6 +55,49 @@ class Matchday extends Model
             'lech_goals' => 'integer',
             'opponent_goals' => 'integer',
         ];
+    }
+
+    public function lechMatch(): BelongsTo
+    {
+        return $this->belongsTo(LechMatch::class);
+    }
+
+    /**
+     * Przypisuje mecz z kalendarza: kolejka dostaje kopię danych i status „zaplanowana”.
+     * Typy graczy zostają (np. po przełożeniu meczu i wyborze nowego), gracze mogą je zmienić do nowego gwizdka.
+     */
+    public function assignMatch(LechMatch $match): void
+    {
+        $this->fill([
+            'lech_match_id' => $match->id,
+            'opponent' => $match->opponent,
+            'is_home' => $match->is_home,
+            'competition' => $match->competition,
+            'kickoff_at' => $match->kickoff_at,
+            'status' => $match->postponed || $match->kickoff_at === null ? MatchdayStatus::Postponed : MatchdayStatus::Planned,
+        ])->save();
+    }
+
+    /**
+     * Czy termin mieści się między sąsiednimi zaplanowanymi kolejkami (kolejka 3 nie może być przed kolejką 2)?
+     * Zwraca opis błędu albo null, gdy termin jest dobry.
+     */
+    public function kickoffOrderError(\DateTimeInterface $kickoff): ?string
+    {
+        $neighbours = self::where('season_id', $this->season_id)->where('status', MatchdayStatus::Planned->value)->whereNotNull('kickoff_at');
+
+        $previous = (clone $neighbours)->where('number', '<', $this->number)->orderByDesc('number')->first();
+        $next = (clone $neighbours)->where('number', '>', $this->number)->orderBy('number')->first();
+
+        if ($previous && $previous->kickoff_at && $kickoff <= $previous->kickoff_at) {
+            return __('The kickoff must be later than matchday :n (:date).', ['n' => $previous->number, 'date' => $previous->kickoff_at->format('d.m.Y H:i')]);
+        }
+
+        if ($next && $next->kickoff_at && $kickoff >= $next->kickoff_at) {
+            return __('The kickoff must be earlier than matchday :n (:date).', ['n' => $next->number, 'date' => $next->kickoff_at->format('d.m.Y H:i')]);
+        }
+
+        return null;
     }
 
     public function season(): BelongsTo

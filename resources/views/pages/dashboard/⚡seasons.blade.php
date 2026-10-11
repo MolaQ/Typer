@@ -329,7 +329,27 @@ new class extends Component {
         $this->resetForm();
         $this->clearCaches();
 
-        Flux::toast(text: __('Season saved.'), variant: 'success');
+        if (!$isNew) {
+            Flux::toast(text: __('Season saved.'), variant: 'success');
+
+            return;
+        }
+
+        // „Utwórz sezon” jednym kliknięciem: lista, zatwierdzenie ze wszystkimi rozgrywkami i pytania (SetUpSeason).
+        // Mecze Lecha admin wybiera potem w kolejkach z kalendarza. Przy błędzie sezon zostaje szkicem.
+        try {
+            $result = app(\App\Actions\Seasons\SetUpSeason::class)->handle($season);
+        } catch (DomainException $e) {
+            Flux::toast(text: __('The season was created as a draft. It could not be set up: :reason', ['reason' => $e->getMessage()]), variant: 'warning');
+
+            return;
+        }
+
+        $this->clearCaches();
+        Flux::toast(
+            text: __('Season created and approved: :players players, :leagues leagues, :fixtures fixtures, :questions questions. Now choose the Lech matches for the matchdays.', $result),
+            variant: 'success',
+        );
     }
 
     public function clearLogo(): void

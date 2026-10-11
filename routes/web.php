@@ -40,6 +40,9 @@ Route::middleware(['auth', 'verified', 'permission:'.Permission::DashboardAccess
     Route::livewire('dashboard/matchdays', 'pages::dashboard.matchdays')
         ->middleware('permission:'.Permission::SeasonList->value)
         ->name('dashboard.matchdays');
+    Route::livewire('dashboard/lech-calendar', 'pages::dashboard.lech-calendar')
+        ->middleware('permission:'.Permission::SeasonList->value)
+        ->name('dashboard.lech-calendar');
     Route::livewire('dashboard/season-teams', 'pages::dashboard.season-teams')
         ->middleware('permission:'.Permission::SeasonList->value)
         ->name('dashboard.season-teams');
@@ -52,6 +55,9 @@ Route::middleware(['auth', 'verified', 'permission:'.Permission::DashboardAccess
     Route::livewire('dashboard/competitions', 'pages::dashboard.competitions')
         ->middleware('permission:season-list')
         ->name('dashboard.competitions');
+    Route::livewire('dashboard/european-qualification', 'pages::dashboard.european-qualification')
+        ->middleware('permission:season-list')
+        ->name('dashboard.european-qualification');
     Route::livewire('dashboard/checklist', 'pages::dashboard.checklist')
         ->middleware('permission:season-list')
         ->name('dashboard.checklist');

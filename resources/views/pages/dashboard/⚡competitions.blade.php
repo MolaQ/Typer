@@ -607,7 +607,7 @@ new class extends Component {
         <div>
             <flux:heading size="xl" level="1">{{ __('Competitions') }}</flux:heading>
             <flux:subheading>
-                {{ __('European leagues and Liga Legend are created by hand and filled with teams from the list.') }}
+                {{ __('All competitions, including Liga Legend and the European cups, are created when the season is approved.') }}
             </flux:subheading>
         </div>
 

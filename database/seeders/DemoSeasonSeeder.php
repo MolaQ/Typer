@@ -6,9 +6,9 @@ use App\Actions\Questions\DrawQuestions;
 use App\Actions\Seasons\ApproveSeason;
 use App\Enums\League;
 use App\Enums\MatchCompetition;
-use App\Enums\MatchdayStatus;
 use App\Enums\SeasonStatus;
 use App\Models\Bot;
+use App\Models\LechMatch;
 use App\Models\Matchday;
 use App\Models\Season;
 use App\Models\SeasonTeam;
@@ -140,13 +140,13 @@ class DemoSeasonSeeder extends Seeder
         foreach (self::fixtures() as $index => [$opponent, $isHome, $competition]) {
             $matchday = Matchday::where('season_id', $season->id)->where('number', $index + 1)->firstOrFail();
 
-            $matchday->update([
+            // Mecz trafia najpierw do kalendarza Lecha, a kolejka go wybiera (jak w panelu).
+            $matchday->assignMatch(LechMatch::create([
                 'opponent' => $opponent,
                 'is_home' => $isHome,
                 'competition' => $competition->value, // w bazie wartość enuma, na stronie etykieta (competitionLabel)
                 'kickoff_at' => $start->copy()->addMinutes($index * self::KICKOFF_STEP_MINUTES),
-                'status' => MatchdayStatus::Planned->value,
-            ]);
+            ]));
 
             // Wpis w „Informacjach systemowych” jak przy dodaniu meczu w panelu.
             SystemFeed::record(

@@ -19,6 +19,9 @@ new class extends Component {
             'password' => $this->currentPasswordRules(),
         ]);
 
+        // Zespoły w trwających sezonach przejmują boty, nierozliczone typy znikają (App\Support\Roster).
+        \App\Support\Roster::releaseUser(Auth::user());
+
         tap(Auth::user(), $logout(...))->delete();
 
         $this->redirect('/', navigate: true);
