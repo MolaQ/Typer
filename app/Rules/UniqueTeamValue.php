@@ -23,10 +23,14 @@ class UniqueTeamValue implements ValidationRule
 
     public function validate(string $attribute, mixed $value, Closure $fail): void
     {
+        $needle = mb_strtolower(trim((string) $value));
+
+        // Nazwa zespołu musi być unikalna wśród graczy i botów (bez względu na wielkość liter).
         $taken = DB::table('users')
-            ->whereRaw("LOWER({$this->column}) = ?", [mb_strtolower(trim((string) $value))])
+            ->whereRaw("LOWER({$this->column}) = ?", [$needle])
             ->when($this->ignoreUserId, fn ($query) => $query->where('id', '!=', $this->ignoreUserId))
-            ->exists();
+            ->exists()
+            || DB::table('bots')->whereRaw('LOWER(name) = ?', [$needle])->exists();
 
         if ($taken) {
             $fail(__('This :attribute is already taken.'));

@@ -5,6 +5,7 @@ namespace Database\Seeders;
 use App\Enums\League;
 use App\Enums\RoleName;
 use App\Enums\SeasonStatus;
+use App\Models\Bot;
 use App\Models\Season;
 use App\Models\SeasonTeam;
 use App\Models\User;
@@ -53,6 +54,19 @@ class PlayersSeeder extends Seeder
         ['Sylwia', 'Jaworska', 'gmail.com', 'Znicz Pruszków', 'Znicz', 'ZNI'],
     ];
 
+    /** Nazwa zespołu wolna wśród graczy i botów; zajęta dostaje kolejny numer (nazwy muszą być unikalne). */
+    private static function freeTeamName(string $team): string
+    {
+        $name = $team;
+
+        for ($n = 2; User::whereRaw('LOWER(team_name) = ?', [mb_strtolower($name)])->exists()
+            || Bot::whereRaw('LOWER(name) = ?', [mb_strtolower($name)])->exists(); $n++) {
+            $name = $team.' '.$n;
+        }
+
+        return $name;
+    }
+
     public function run(): void
     {
         $created = [];
@@ -63,7 +77,7 @@ class PlayersSeeder extends Seeder
             $user = User::firstOrCreate(['email' => $email], [
                 'name' => $first.' '.$last,
                 'password' => Hash::make('password'),
-                'team_name' => User::where('team_name', $team)->exists() ? null : $team,
+                'team_name' => self::freeTeamName($team),
             ]);
 
             if (! $user->email_verified_at) {

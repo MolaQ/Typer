@@ -10,6 +10,7 @@ use App\Enums\CompetitionType;
 use App\Enums\MatchCompetition;
 use App\Enums\RoleName;
 use App\Enums\SeasonStatus;
+use App\Models\Bot;
 use App\Models\Competition;
 use App\Models\HallOfFameAward;
 use App\Models\LechMatch;
@@ -84,8 +85,16 @@ class SimulateSeason extends Command
     private const LAST_NAMES = ['Nowak', 'Kowalski', 'Wiśniewski', 'Wójcik', 'Kamiński', 'Lewandowski', 'Zieliński', 'Szymański', 'Woźniak',
         'Dąbrowski', 'Kozłowski', 'Jankowski', 'Mazur', 'Kwiatkowski', 'Krawczyk', 'Piotrowski', 'Grabowski', 'Pawlak'];
 
-    private const TEAM_WORDS = ['Kolejorz', 'Kaczory', 'Wiara', 'Bułgarska', 'Rataje', 'Wilda', 'Jeżyce', 'Łazarz', 'Winogrady', 'Piątkowo',
-        'Dębiec', 'Naramowice', 'Smochowice', 'Junikowo', 'Grunwald', 'Malta', 'Cytadela', 'Warta', 'Koziołki', 'Ostrów'];
+    /** Człony nazw zespołów: przydomek + miejsce (+ opcjonalny dopisek), razem kilka tysięcy kombinacji bez numerów. */
+    private const TEAM_PREFIXES = ['Kolejorz', 'Kaczory', 'Wiara', 'Duma', 'Lwy', 'Orły', 'Sokoły', 'Wilki', 'Ekipa', 'Brygada', 'Załoga',
+        'Fala', 'Huragan', 'Grom', 'Iskra', 'Płomień', 'Sztorm', 'Rakieta', 'Koziołki', 'Niebiescy', 'Bractwo', 'Gwardia', 'Szwadron', 'Sfora', 'Legion'];
+
+    private const TEAM_PLACES = ['Rataje', 'Wilda', 'Jeżyce', 'Łazarz', 'Winogrady', 'Piątkowo', 'Dębiec', 'Naramowice', 'Smochowice', 'Junikowo',
+        'Grunwald', 'Malta', 'Cytadela', 'Ostrów', 'Bułgarska', 'Chwaliszewo', 'Śródka', 'Starołęka', 'Podolany', 'Strzeszyn', 'Główna', 'Antoninek',
+        'Kiekrz', 'Krzesiny', 'Luboń', 'Swarzędz', 'Kórnik', 'Mosina', 'Puszczykowo', 'Gniezno', 'Września', 'Śrem', 'Oborniki', 'Szamotuły',
+        'Kościan', 'Leszno', 'Konin', 'Piła', 'Kalisz', 'Ostrzeszów'];
+
+    private const TEAM_SUFFIXES = ['FC', 'United', 'Team', 'Squad', 'Ultras', 'Crew', '1922'];
 
     /**
      * Zdarzenia sezonu do podsumowania.
@@ -95,6 +104,9 @@ class SimulateSeason extends Command
     private array $log = [];
 
     private ?string $passwordHash = null;
+
+    /** @var array<string, mixed>|null zajęte nazwy zespołów (małymi literami) */
+    private ?array $takenNames = null;
 
     public function handle(SetUpSeason $setUp, SaveTip $saveTip, SaveMatchdayResult $results, FinishSeason $finish): int
     {
@@ -327,6 +339,36 @@ class SimulateSeason extends Command
      | Gracze: nowe konta i ban
      * ================================================================*/
 
+    /**
+     * Losuje nazwę zespołu, której nie ma jeszcze żaden gracz ani bot (bez względu na wielkość liter).
+     * Gdy pula się wyczerpie, dopisuje kolejny numer, aż nazwa będzie wolna.
+     */
+    private function uniqueTeamName(): string
+    {
+        $this->takenNames ??= User::whereNotNull('team_name')->pluck('team_name')
+            ->merge(Bot::pluck('name'))
+            ->map(fn (string $name) => mb_strtolower($name))
+            ->flip()
+            ->all();
+
+        for ($try = 0; $try < 200; $try++) {
+            $name = self::TEAM_PREFIXES[array_rand(self::TEAM_PREFIXES)].' '.self::TEAM_PLACES[array_rand(self::TEAM_PLACES)]
+                .($try >= 50 ? ' '.self::TEAM_SUFFIXES[array_rand(self::TEAM_SUFFIXES)] : '');
+
+            if (! isset($this->takenNames[mb_strtolower($name)])) {
+                break;
+            }
+        }
+
+        for ($suffix = 2; isset($this->takenNames[mb_strtolower($name)]); $suffix++) {
+            $name = self::TEAM_PREFIXES[0].' '.self::TEAM_PLACES[0].' '.$suffix;
+        }
+
+        $this->takenNames[mb_strtolower($name)] = true;
+
+        return $name;
+    }
+
     /** Dodaje nowe konta (ułamek wszystkich kont, co najmniej 1) z rolą User, część także z premium. */
     private function addUsers(float $share, bool $duringSeason): int
     {
@@ -337,7 +379,7 @@ class SimulateSeason extends Command
             $first = self::FIRST_NAMES[array_rand(self::FIRST_NAMES)];
             $last = self::LAST_NAMES[array_rand(self::LAST_NAMES)];
             $number = (int) User::max('id') + 1;
-            $team = self::TEAM_WORDS[array_rand(self::TEAM_WORDS)].' '.self::TEAM_WORDS[array_rand(self::TEAM_WORDS)].' '.$number;
+            $team = $this->uniqueTeamName();
 
             $user = User::forceCreate([
                 'name' => $first.' '.$last,
