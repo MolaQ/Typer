@@ -34,6 +34,9 @@ new class extends Component {
     /** @var array<int, string> nazwy zaznaczonych ról */
     public array $selected = [];
 
+    /** @var array<int, string> id zaznaczonych kont do akcji zbiorczych (zdjęcie bana, zdjęcie Inactive) */
+    public array $checked = [];
+
     public function render(): View
     {
         return $this->view()->title(__('Users'));
@@ -60,21 +63,34 @@ new class extends Component {
         return Role::orderBy('name')->get(['id', 'name']);
     }
 
-    #[Computed]
-    public function users()
+    /** Konta pasujące do wyszukiwarki (imię, e-mail, nazwa drużyny) i filtra ról. */
+    private function filtered()
     {
         return User::query()
-            ->with('roles:id,name')
-            ->withCount('roles')
             ->when($this->search !== '', function ($q) {
                 $term = '%' . $this->search . '%';
-                $q->where(fn($q) => $q->where('name', 'like', $term)->orWhere('email', 'like', $term));
+                $q->where(fn($q) => $q->where('name', 'like', $term)->orWhere('email', 'like', $term)->orWhere('team_name', 'like', $term));
             })
             ->when($this->roleFilter === '__none', fn($q) => $q->doesntHave('roles'))
             ->when($this->roleFilter === '__unverified', fn($q) => $q->whereNull('email_verified_at'))
-            ->when($this->roleFilter !== '' && !str_starts_with($this->roleFilter, '__'), fn($q) => $q->whereHas('roles', fn($r) => $r->where('name', $this->roleFilter)))
+            ->when($this->roleFilter !== '' && !str_starts_with($this->roleFilter, '__'), fn($q) => $q->whereHas('roles', fn($r) => $r->where('name', $this->roleFilter)));
+    }
+
+    #[Computed]
+    public function users()
+    {
+        return $this->filtered()
+            ->with('roles:id,name')
+            ->withCount('roles')
             ->orderBy($this->safeSortBy(), $this->safeDirection())
             ->paginate(10, pageName: 'usersPage');
+    }
+
+    /** Liczba kont pasujących do filtra (przycisk „zaznacz wszystkie z filtra”). */
+    #[Computed]
+    public function filteredCount(): int
+    {
+        return $this->filtered()->count();
     }
 
     /* ------------------------------------------------------------------
@@ -120,6 +136,66 @@ new class extends Component {
     public function updatedRoleFilter(): void
     {
         $this->resetPage('usersPage');
+        $this->checked = [];
+    }
+
+    /* ------------------------------------------------------------------
+     | Akcje zbiorcze: zdjęcie bana albo statusu Inactive z zaznaczonych kont
+     * ----------------------------------------------------------------*/
+
+    /** Zaznacza wszystkie konta pasujące do filtra (ze wszystkich stron listy). */
+    public function checkAllFiltered(): void
+    {
+        $this->checked = $this->filtered()->pluck('id')->map(fn($id) => (string) $id)->all();
+    }
+
+    public function clearChecked(): void
+    {
+        $this->checked = [];
+    }
+
+    /**
+     * Zdejmuje rolę Banned albo Inactive z zaznaczonych kont. Konto bez innej roli dostaje User,
+     * więc wraca do gry (nowy gracz trafia do Ligi podwórkowej, Roster::syncUser).
+     */
+    public function releaseRole(string $role): void
+    {
+        $this->authorizeAdmin();
+
+        if (!in_array($role, \App\Support\Players::BLOCKING_ROLES, true)) {
+            return;
+        }
+
+        $ids = array_map('intval', $this->checked);
+        $users = User::whereIn('id', $ids)->whereHas('roles', fn($q) => $q->where('name', $role))->get();
+        $added = 0;
+
+        foreach ($users as $user) {
+            $wasPlayer = \App\Support\Players::canPlay($user);
+
+            $user->removeRole($role);
+            $user->unsetRelation('roles');
+            if (!$user->roles()->exists()) {
+                $user->assignRole(RoleName::User->value);
+                $user->unsetRelation('roles');
+            }
+
+            if (!$wasPlayer && \App\Support\Players::canPlay($user)) {
+                \App\Support\SystemFeed::record('players', ':name joined the game', ['name' => $user->team_name ?: $user->name], 'team.show', ['user' => $user->id], $user->id);
+            }
+
+            \App\Support\Audit::log('user.role_removed', $user, ['roles' => [$role]], ['roles' => $user->roles->pluck('name')->all()], __('Bulk action'));
+
+            $added += Roster::syncUser($user)['added'];
+        }
+
+        $this->checked = [];
+        unset($this->users, $this->stats, $this->filteredCount);
+
+        Flux::toast(text: __(':role removed from :count accounts.', ['role' => $role, 'count' => $users->count()]), variant: 'success');
+        if ($added > 0) {
+            Flux::toast(text: __('Added to the season list: :count.', ['count' => $added]), variant: 'success');
+        }
     }
 
     /* ------------------------------------------------------------------
@@ -302,7 +378,7 @@ new class extends Component {
     <div class="flex flex-wrap items-center gap-4">
         <div class="w-full sm:w-72">
             <flux:input wire:model.live.debounce.300ms="search" icon="magnifying-glass"
-                :placeholder="__('Search by name or email...')" clearable />
+                :placeholder="__('Search by name, email or team...')" clearable />
         </div>
 
         <div class="w-full sm:w-56">
@@ -317,9 +393,28 @@ new class extends Component {
         </div>
     </div>
 
+    {{-- Akcje zbiorcze: zdjęcie bana i statusu Inactive z zaznaczonych kont --}}
+    @php
+        $checkedCount = count($checked);
+    @endphp
+    <div class="flex flex-wrap items-center gap-2 rounded-lg border border-zinc-200 px-3 py-2 dark:border-zinc-700">
+        <flux:text class="me-2">{{ __('Selected: :count', ['count' => $checkedCount]) }}</flux:text>
+        <flux:button size="sm" variant="ghost" icon="check" wire:click="checkAllFiltered">
+            {{ __('Select all matching (:count)', ['count' => $this->filteredCount]) }}
+        </flux:button>
+        @if ($checkedCount > 0)
+            <flux:button size="sm" variant="ghost" icon="x-mark" wire:click="clearChecked">{{ __('Clear selection') }}</flux:button>
+            <flux:button size="sm" icon="lock-open" wire:click="releaseRole('{{ \App\Enums\RoleName::Banned->value }}')"
+                wire:confirm="{{ __('Remove the ban from the selected accounts?') }}">{{ __('Remove ban') }}</flux:button>
+            <flux:button size="sm" icon="arrow-uturn-left" wire:click="releaseRole('{{ \App\Enums\RoleName::Inactive->value }}')"
+                wire:confirm="{{ __('Remove Inactive from the selected accounts?') }}">{{ __('Remove Inactive') }}</flux:button>
+        @endif
+    </div>
+
     {{-- Tabela użytkowników --}}
     <flux:table :paginate="$this->users">
         <flux:table.columns>
+            <flux:table.column class="w-8" />
             <flux:table.column sortable :sorted="$sortBy === 'name'" :direction="$sortDirection"
                 wire:click="sort('name')">
                 {{ __('User') }}
@@ -343,13 +438,27 @@ new class extends Component {
         <flux:table.rows>
             @forelse ($this->users as $user)
                 <flux:table.row :key="'user-'.$user->id">
+                    <flux:table.cell>
+                        <input type="checkbox" wire:model.live="checked" value="{{ $user->id }}" aria-label="{{ __('Select') }}"
+                            class="size-4 rounded border-zinc-300 text-lech-700 dark:border-zinc-600">
+                    </flux:table.cell>
                     <flux:table.cell variant="strong">
                         <div class="flex items-center gap-3">
                             <flux:avatar size="sm" :name="$user->name" />
-                            <span>{{ $user->name }}</span>
-                            @if ($user->is(auth()->user()))
-                                <flux:badge size="sm" color="zinc">{{ __('You') }}</flux:badge>
-                            @endif
+                            <div class="min-w-0">
+                                <div class="flex items-center gap-2">
+                                    <span>{{ $user->name }}</span>
+                                    @if ($user->is(auth()->user()))
+                                        <flux:badge size="sm" color="zinc">{{ __('You') }}</flux:badge>
+                                    @endif
+                                </div>
+                                {{-- Nazwa drużyny z linkiem do profilu --}}
+                                @if ($user->team_name)
+                                    <a href="{{ route('team.show', $user) }}" target="_blank" class="block truncate text-xs font-normal text-zinc-500 hover:text-lech-700 hover:underline">{{ $user->team_name }}</a>
+                                @else
+                                    <span class="block text-xs font-normal text-zinc-400">{{ __('No team name') }}</span>
+                                @endif
+                            </div>
                         </div>
                     </flux:table.cell>
                     <flux:table.cell class="text-zinc-500">{{ $user->email }}</flux:table.cell>
@@ -394,7 +503,7 @@ new class extends Component {
                 </flux:table.row>
             @empty
                 <flux:table.row>
-                    <flux:table.cell colspan="6" class="py-10 text-center text-zinc-500">
+                    <flux:table.cell colspan="7" class="py-10 text-center text-zinc-500">
                         {{ __('No users match your filters.') }}
                     </flux:table.cell>
                 </flux:table.row>

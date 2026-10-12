@@ -1437,5 +1437,18 @@
     "Find a team (min. 3 letters)": "Szukaj zespołu (min. 3 litery)",
     "Teams per page": "Zespołów na stronie",
     "No team matches the filter.": "Żaden zespół nie pasuje do filtra.",
-    ":count team|:count teams": ":count zespół|:count zespoły|:count zespołów"
+    ":count team|:count teams": ":count zespół|:count zespoły|:count zespołów",
+    ":role removed from :count accounts.": ":role zdjęte z :count kont.",
+    "Added to the season list: :count.": "Dodani do listy sezonu: :count.",
+    "Selected: :count": "Zaznaczone: :count",
+    "Select all matching (:count)": "Zaznacz wszystkie z filtra (:count)",
+    "Clear selection": "Wyczyść zaznaczenie",
+    "Remove the ban from the selected accounts?": "Zdjąć bana z zaznaczonych kont?",
+    "Remove ban": "Zdejmij bana",
+    "Remove Inactive from the selected accounts?": "Zdjąć status Inactive z zaznaczonych kont?",
+    "Remove Inactive": "Zdejmij Inactive",
+    "No team name": "Bez nazwy drużyny",
+    "Search by name, email or team...": "Szukaj po imieniu, e-mailu lub drużynie...",
+    "Bulk action": "Akcja zbiorcza",
+    "Select": "Zaznacz"
 }
