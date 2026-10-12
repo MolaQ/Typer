@@ -44,8 +44,14 @@ new #[Layout('layouts::public')] class extends Component {
     /** Zespół (season_teams.id) i mecz pokazywane w oknach. */
     public ?int $teamId = null;
 
-    /** Długie tabele (Liga Legend, podwórkowa) dzielimy na strony po tyle zespołów. */
-    public const TABLE_PER_PAGE = 25;
+    /** Długie tabele (Liga Legend, podwórkowa): do wyboru liczba zespołów na stronie. */
+    public const TABLE_PER_PAGE_OPTIONS = [10, 20, 50, 100];
+
+    /** Zespołów na stronie tabeli (jedna z TABLE_PER_PAGE_OPTIONS). */
+    public int $tablePerPage = 20;
+
+    /** Szybki filtr tabeli po nazwie zespołu (działa od 3 liter). */
+    public string $tableSearch = '';
 
     /** Strona tabeli; 0 = automatycznie (strona z wyróżnionym zespołem albo pierwsza). */
     public int $tablePage = 0;
@@ -350,10 +356,58 @@ new #[Layout('layouts::public')] class extends Component {
         return $this->hasTable ? Standings::for($this->competition, null, max(1, $this->round)) : collect();
     }
 
-    /** Liczba stron tabeli (po TABLE_PER_PAGE zespołów). */
+    /** Czy tabela ma filtr i strony: Liga Legend i podwórkowa (ligi 1-10 mają po 10 zespołów). */
+    public function tableBrowsable(): bool
+    {
+        return $this->isLegends || $this->competition?->type === CompetitionType::Swiss;
+    }
+
+    public function perPage(): int
+    {
+        if (!$this->tableBrowsable()) {
+            return max(1, $this->table->count());
+        }
+
+        return in_array($this->tablePerPage, self::TABLE_PER_PAGE_OPTIONS, true) ? $this->tablePerPage : 20;
+    }
+
+    /**
+     * Wiersze tabeli po filtrze nazwy (od 3 liter), klucz = indeks w całej tabeli (miejsce − 1).
+     *
+     * @return \Illuminate\Support\Collection<int, array<string, mixed>>
+     */
+    public function filteredTable()
+    {
+        $rows = $this->table->values();
+        $needle = mb_strtolower(trim($this->tableSearch));
+
+        if (!$this->tableBrowsable() || mb_strlen($needle) < 3) {
+            return $rows;
+        }
+
+        return $rows->filter(fn (array $row) => str_contains(mb_strtolower((string) $row['team']->name), $needle));
+    }
+
+    /** Liczba stron tabeli (po perPage() zespołów, po filtrze). */
     public function tablePages(): int
     {
-        return max(1, (int) ceil($this->table->count() / self::TABLE_PER_PAGE));
+        return max(1, (int) ceil($this->filteredTable()->count() / $this->perPage()));
+    }
+
+    /** Wiersze oglądanej strony (klucz = indeks w całej tabeli). */
+    public function tablePageRows()
+    {
+        return $this->filteredTable()->slice(($this->currentTablePage() - 1) * $this->perPage(), $this->perPage(), true);
+    }
+
+    public function updatedTableSearch(): void
+    {
+        $this->tablePage = 0;
+    }
+
+    public function updatedTablePerPage(): void
+    {
+        $this->tablePage = 0;
     }
 
     /** Oglądana strona tabeli: wybrana strzałkami albo ta, na której jest zespół gracza lub szukany zespół. */
@@ -363,9 +417,9 @@ new #[Layout('layouts::public')] class extends Component {
             return min($this->tablePage, $this->tablePages());
         }
 
-        $index = $this->table->values()->search(fn (array $row) => $this->highlighted($row['team']->id));
+        $position = $this->filteredTable()->keys()->search(fn (int $index) => $this->highlighted($this->table->values()[$index]['team']->id));
 
-        return $index === false ? 1 : intdiv((int) $index, self::TABLE_PER_PAGE) + 1;
+        return $position === false ? 1 : intdiv((int) $position, $this->perPage()) + 1;
     }
 
     /** Strzałki pod tabelą: poprzednia albo następna strona. */
@@ -845,7 +899,25 @@ new #[Layout('layouts::public')] class extends Component {
                     @php
                         $tablePageNow = $this->currentTablePage();
                         $tablePageCount = $this->tablePages();
+                        $tableFound = $this->filteredTable()->count();
+                        $tableSize = $this->perPage();
                     @endphp
+                    {{-- Liga Legend i podwórkowa: szybki filtr nazwy (od 3 liter) i liczba zespołów na stronie --}}
+                    @if ($this->tableBrowsable())
+                        <div class="flex flex-wrap items-center gap-2 px-2 pb-2">
+                            <label class="relative min-w-0 flex-1">
+                                <span class="sr-only">{{ __('Find a team') }}</span>
+                                <input type="search" wire:model.live.debounce.300ms="tableSearch" placeholder="{{ __('Find a team (min. 3 letters)') }}"
+                                    class="w-full rounded-lg border-0 bg-white/90 px-3 py-1.5 text-sm text-zinc-800 shadow-inner placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-white/70 dark:bg-zinc-900/90 dark:text-zinc-100">
+                            </label>
+                            <div class="flex shrink-0 items-center gap-1 text-xs" role="group" aria-label="{{ __('Teams per page') }}">
+                                @foreach ($this::TABLE_PER_PAGE_OPTIONS as $option)
+                                    <button type="button" wire:click="$set('tablePerPage', {{ $option }})"
+                                        class="{{ $tableSize === $option ? 'comp-badge font-bold shadow' : 'bg-black/20 hover:bg-black/30' }} rounded-md px-2 py-1 tabular-nums transition">{{ $option }}</button>
+                                @endforeach
+                            </div>
+                        </div>
+                    @endif
                     <div class="overflow-x-auto">
                         <table class="w-full text-sm">
                             <thead class="text-[11px] font-semibold uppercase tracking-wide opacity-80">
@@ -863,7 +935,7 @@ new #[Layout('layouts::public')] class extends Component {
                                 </tr>
                             </thead>
                             <tbody class="bg-white text-zinc-800 dark:bg-zinc-900 dark:text-zinc-100">
-                                @foreach ($this->table->values()->slice(($tablePageNow - 1) * $this::TABLE_PER_PAGE, $this::TABLE_PER_PAGE) as $index => $row)
+                                @forelse ($this->tablePageRows() as $index => $row)
                                     @php
                                         // Po ostatniej kolejce belki wynikają z faktycznych awansów i spadków (razem z zamianami za boty).
                                         $zone = $this->finalMoves !== []
@@ -913,12 +985,16 @@ new #[Layout('layouts::public')] class extends Component {
                                         <td class="px-1.5 py-1.5 text-right tabular-nums">{{ $row['bonus'] }}</td>
                                         <td class="px-3 py-1.5 text-right font-bold tabular-nums">{{ $row['points'] }}</td>
                                     </tr>
-                                @endforeach
+                                @empty
+                                    <tr>
+                                        <td colspan="10" class="px-3 py-4 text-center text-sm text-zinc-500">{{ __('No team matches the filter.') }}</td>
+                                    </tr>
+                                @endforelse
                             </tbody>
                         </table>
                     </div>
 
-                    {{-- Strony tabeli (Liga Legend, podwórkowa): po 25 zespołów, zwarty pager jak przy meczach --}}
+                    {{-- Strony tabeli (Liga Legend, podwórkowa): zwarty pager jak przy meczach --}}
                     @if ($tablePageCount > 1)
                         <div class="flex items-center justify-between gap-2 px-1 pt-2">
                             <button type="button" wire:click="shiftTablePage(-1)" @disabled($tablePageNow <= 1)
@@ -926,7 +1002,7 @@ new #[Layout('layouts::public')] class extends Component {
                                 <flux:icon.chevron-left variant="micro" />
                             </button>
                             <span class="text-xs tabular-nums opacity-85">
-                                {{ __('Places :from–:to of :count', ['from' => ($tablePageNow - 1) * $this::TABLE_PER_PAGE + 1, 'to' => min($tablePageNow * $this::TABLE_PER_PAGE, $this->table->count()), 'count' => $this->table->count()]) }}
+                                {{ __('Page :current of :last', ['current' => $tablePageNow, 'last' => $tablePageCount]) }} &middot; {{ trans_choice(':count team|:count teams', $tableFound, ['count' => $tableFound]) }}
                             </span>
                             <button type="button" wire:click="shiftTablePage(1)" @disabled($tablePageNow >= $tablePageCount)
                                 class="flex size-8 items-center justify-center rounded-full bg-black/20 transition hover:bg-black/30 disabled:opacity-30" aria-label="{{ __('Next') }}">

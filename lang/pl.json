@@ -1433,5 +1433,9 @@
     "Find a bot": "Znajdź bota",
     "Choose a bot": "Wybierz bota",
     "Rename the bot": "Zmień nazwę bota",
-    "Places :from–:to of :count": "Miejsca :from–:to z :count"
+    "Find a team": "Szukaj zespołu",
+    "Find a team (min. 3 letters)": "Szukaj zespołu (min. 3 litery)",
+    "Teams per page": "Zespołów na stronie",
+    "No team matches the filter.": "Żaden zespół nie pasuje do filtra.",
+    ":count team|:count teams": ":count zespół|:count zespoły|:count zespołów"
 }
