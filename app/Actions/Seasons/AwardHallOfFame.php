@@ -15,6 +15,7 @@ use App\Models\TeamScore;
 use App\Support\CupBracket;
 use App\Support\EuropeanCup;
 use App\Support\HallOfFame;
+use App\Support\Ownership;
 use App\Support\Promotion;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -36,6 +37,8 @@ use Illuminate\Support\Facades\DB;
  *    potem dokładne wyniki, potem różnice), Złota Piłka (najwięcej goli w sezonie ze wszystkich rozgrywek: ofensywa,
  *    czyli punkty za typ + bonus ofensywny, z każdego zestawu pytań zespołu) i Złote Rękawice (najwięcej punktów
  *    z bonusów defensywnych); przy remisie wyższe miejsce w lidze (poziom, potem miejsce w tabeli końcowej).
+ * Punkty za mecze i etapy dostaje ten, kto w danej kolejce naprawdę grał miejscem (Ownership): gracz, który wskoczył
+ * za bota, nie przejmuje punktów bota. Miejsca, tytuły i trofea z tabel końcowych idą do właściciela na koniec sezonu.
  */
 class AwardHallOfFame
 {
@@ -52,6 +55,7 @@ class AwardHallOfFame
     {
         $this->season = $season;
         $this->rows = [];
+        Ownership::flush(); // świeże rozliczenia kolejki z tego samego żądania
 
         return DB::transaction(function (): int {
             HallOfFameAward::where('season_id', $this->season->id)->delete();
@@ -91,7 +95,7 @@ class AwardHallOfFame
         // Mecze: na bieżąco z terminarza.
         foreach ($this->results($competition) as $result) {
             $points = ($result['won'] * HallOfFame::value('league_win') + $result['drawn'] * HallOfFame::value('league_draw')) * $multiplier;
-            $this->addTeam($competition, $result['team'], 'matches', $points, null, ['won' => $result['won'], 'drawn' => $result['drawn']]);
+            $this->addOwner($competition, $result['team'], $result['owner'], 'matches', $points, null, ['won' => $result['won'], 'drawn' => $result['drawn']]);
         }
 
         if ($final->isEmpty() || $final->max(fn ($s) => $s->stats['played'] ?? 0) === 0) {
@@ -134,7 +138,7 @@ class AwardHallOfFame
 
         foreach ($this->results($competition, EuropeanCup::GROUP_ROUNDS) as $result) {
             $points = $result['won'] * HallOfFame::value($type.'_win') + $result['drawn'] * HallOfFame::value($type.'_draw');
-            $this->addTeam($competition, $result['team'], 'matches', $points, null, ['won' => $result['won'], 'drawn' => $result['drawn']]);
+            $this->addOwner($competition, $result['team'], $result['owner'], 'matches', $points, null, ['won' => $result['won'], 'drawn' => $result['drawn']]);
         }
 
         $knockout = Fixture::where('competition_id', $competition->id)->where('round', '>', EuropeanCup::GROUP_ROUNDS)->get();
@@ -167,12 +171,14 @@ class AwardHallOfFame
                 continue;
             }
 
-            sort($reached);
-            $points = array_sum(array_map(fn (int $round) => HallOfFame::value($type.'_round_'.$round), $reached));
-            $this->addTeam($competition, $team, 'european_stages', $points, null, ['rounds' => $reached]);
+            // Etap liczy się temu, kto grał miejscem w kolejce tego etapu.
+            foreach ($this->byOwner($team->id, $reached) as $owner => $ownerRounds) {
+                $points = array_sum(array_map(fn (int $round) => HallOfFame::value($type.'_round_'.$round), $ownerRounds));
+                $this->addOwner($competition, $team->id, $owner, 'european_stages', $points, null, ['rounds' => $ownerRounds]);
 
-            if (in_array($entryId, $groupWinners, true)) {
-                $this->addTeam($competition, $team, 'group_first', HallOfFame::value($type.'_group_first'));
+                if (in_array($entryId, $groupWinners, true) && in_array(EuropeanCup::GROUP_ROUNDS + 1, $ownerRounds, true)) {
+                    $this->addOwner($competition, $team->id, $owner, 'group_first', HallOfFame::value($type.'_group_first'));
+                }
             }
         }
 
@@ -187,42 +193,36 @@ class AwardHallOfFame
      * Wygrane i remisy zespołów z rozegranych meczów terminarza. Wolny los w podwórkowej (wirtualny
      * rywal) liczy się jak zwykły mecz, tak jak w tabeli.
      *
-     * @return list<array{team: SeasonTeam, won: int, drawn: int}>
+     * Wygrane liczą się temu, kto w danej kolejce grał miejscem (Ownership), więc jedno miejsce może dać dwa wiersze.
+     *
+     * @return list<array{team: int, owner: string, won: int, drawn: int}>
      */
     private function results(Competition $competition, ?int $maxRound = null): array
     {
         $fixtures = Fixture::where('competition_id', $competition->id)
             ->whereNotNull('home_goals')->whereNotNull('away_goals')
             ->when($maxRound !== null, fn ($q) => $q->where('round', '<=', $maxRound))
-            ->get(['home_entry_id', 'away_entry_id', 'home_goals', 'away_goals']);
+            ->get(['round', 'home_entry_id', 'away_entry_id', 'home_goals', 'away_goals']);
 
+        $teamOfEntry = CompetitionEntry::where('competition_id', $competition->id)->pluck('season_team_id', 'id');
         $counts = [];
         foreach ($fixtures as $fixture) {
             foreach ([[$fixture->home_entry_id, $fixture->home_goals, $fixture->away_goals], [$fixture->away_entry_id, $fixture->away_goals, $fixture->home_goals]] as [$entryId, $for, $against]) {
-                if (! $entryId) {
+                if (! $entryId || ! isset($teamOfEntry[$entryId])) {
                     continue; // wirtualny rywal
                 }
-                $counts[$entryId] ??= ['won' => 0, 'drawn' => 0];
-                $counts[$entryId]['won'] += (int) ($for > $against);
-                $counts[$entryId]['drawn'] += (int) ($for === $against);
+                $team = (int) $teamOfEntry[$entryId];
+                $owner = Ownership::at($this->season->id, $team, (int) $fixture->round);
+                if ($owner === null) {
+                    continue;
+                }
+                $counts[$team.'|'.$owner] ??= ['team' => $team, 'owner' => $owner, 'won' => 0, 'drawn' => 0];
+                $counts[$team.'|'.$owner]['won'] += (int) ($for > $against);
+                $counts[$team.'|'.$owner]['drawn'] += (int) ($for === $against);
             }
         }
 
-        if ($counts === []) {
-            return [];
-        }
-
-        $teamOfEntry = CompetitionEntry::whereIn('id', array_keys($counts))->pluck('season_team_id', 'id');
-        $teams = SeasonTeam::whereIn('id', $teamOfEntry->values())->get(['id', 'user_id', 'bot_id'])->keyBy('id');
-
-        $out = [];
-        foreach ($counts as $entryId => $count) {
-            if ($team = $teams->get($teamOfEntry[$entryId] ?? 0)) {
-                $out[] = ['team' => $team] + $count;
-            }
-        }
-
-        return $out;
+        return array_values($counts);
     }
 
     /** Puchar Polski: punkty za każdą wygraną rundę (z meczów), zwycięzca finału osobno. */
@@ -244,9 +244,12 @@ class AwardHallOfFame
                 continue;
             }
 
-            $rounds = $won->pluck('round')->sort()->values()->all();
-            $points = collect($rounds)->filter(fn ($r) => $r < CupBracket::ROUNDS)->sum(fn ($r) => HallOfFame::value('cup_round_'.$r));
-            $this->addTeam($competition, $team, 'cup_rounds', $points, null, ['rounds' => $rounds]);
+            $rounds = $won->pluck('round')->map(fn ($r) => (int) $r)->sort()->values()->all();
+            // Wygrana runda liczy się temu, kto grał miejscem w tej kolejce.
+            foreach ($this->byOwner($team->id, $rounds) as $owner => $ownerRounds) {
+                $points = collect($ownerRounds)->filter(fn ($r) => $r < CupBracket::ROUNDS)->sum(fn ($r) => HallOfFame::value('cup_round_'.$r));
+                $this->addOwner($competition, $team->id, $owner, 'cup_rounds', $points, null, ['rounds' => $ownerRounds]);
+            }
 
             // Zwycięzca pucharu: punkty i trofeum dopiero po zakończeniu sezonu.
             if ($this->finished && in_array(CupBracket::ROUNDS, $rounds, true)) {
@@ -265,7 +268,7 @@ class AwardHallOfFame
     {
         foreach ($this->results($competition) as $result) {
             $points = $result['won'] * HallOfFame::value('legends_win') + $result['drawn'] * HallOfFame::value('legends_draw');
-            $this->addTeam($competition, $result['team'], 'matches', $points, null, ['won' => $result['won'], 'drawn' => $result['drawn']]);
+            $this->addOwner($competition, $result['team'], $result['owner'], 'matches', $points, null, ['won' => $result['won'], 'drawn' => $result['drawn']]);
         }
 
         // Kolejki, w których zespół grał: id wpisu => [kolejka => true].
@@ -290,7 +293,9 @@ class AwardHallOfFame
             $out = $entry->eliminated_round;
             $rounds = array_values(array_filter(array_keys($played[$entry->id]), fn (int $round) => $out === null || $out > $round));
             sort($rounds);
-            $this->addTeam($competition, $team, 'legends_stages', count($rounds) * HallOfFame::value('legends_survived'), null, ['rounds' => $rounds]);
+            foreach ($this->byOwner($team->id, $rounds) as $owner => $ownerRounds) {
+                $this->addOwner($competition, $team->id, $owner, 'legends_stages', count($ownerRounds) * HallOfFame::value('legends_survived'), null, ['rounds' => $ownerRounds]);
+            }
         }
 
         if (! $this->finished) {
@@ -349,8 +354,8 @@ class AwardHallOfFame
             ->join('matchdays', 'matchdays.id', '=', 'team_scores.matchday_id')
             ->where('matchdays.season_id', $this->season->id)
             ->whereIn('team_scores.season_team_id', array_keys($rows))
-            ->groupBy('team_scores.season_team_id')
-            ->selectRaw('team_scores.season_team_id as team_id,
+            ->groupBy('team_scores.season_team_id', 'team_scores.user_id', 'team_scores.bot_id')
+            ->selectRaw('team_scores.season_team_id as team_id, team_scores.user_id as owner_user, team_scores.bot_id as owner_bot,
                 sum(team_scores.offense) as goals,
                 sum(case when team_scores.question_set = ? then team_scores.defense_bonus else 0 end) as league_gloves,
                 sum(case when team_scores.question_set = ? and team_scores.outcome_hit then 1 else 0 end) as outcomes,
@@ -361,8 +366,10 @@ class AwardHallOfFame
 
         foreach ($sums as $sum) {
             $teamId = (int) $sum->team_id;
+            $standing = isset($rows[$teamId]) ? $rows[$teamId]['standing'] : null;
 
-            if (isset($rows[$teamId])) {
+            // Liczą się tylko kolejki właściciela z tabeli końcowej (nie bota, za którego wskoczył gracz).
+            if ($standing && (int) $sum->owner_user === (int) $standing->user_id && (int) $sum->owner_bot === (int) $standing->bot_id) {
                 $rows[$teamId]['goals'] = (int) $sum->goals; // ofensywa ze wszystkich zestawów
                 $rows[$teamId]['gloves'] = (int) $sum->league_gloves; // tylko zestaw lig
                 $rows[$teamId]['outcomes'] = (int) $sum->outcomes;
@@ -406,6 +413,31 @@ class AwardHallOfFame
     private function addTeam(Competition $competition, SeasonTeam $team, string $kind, float $points, ?string $trophy = null, array $meta = []): void
     {
         $this->push($competition, $team->id, $team->user_id, $team->bot_id, $kind, $points, $trophy, $meta);
+    }
+
+    /** Wpis dla właściciela miejsca w danej kolejce ('u12' albo 'b34', Ownership). */
+    private function addOwner(Competition $competition, int $teamId, string $owner, string $kind, float $points, ?string $trophy = null, array $meta = []): void
+    {
+        $id = (int) substr($owner, 1);
+        $this->push($competition, $teamId, $owner[0] === 'u' ? $id : null, $owner[0] === 'b' ? $id : null, $kind, $points, $trophy, $meta);
+    }
+
+    /**
+     * Kolejki miejsca podzielone według tego, kto nim wtedy grał.
+     *
+     * @param  array<int, int>  $rounds
+     * @return array<string, list<int>> właściciel => kolejki
+     */
+    private function byOwner(int $teamId, array $rounds): array
+    {
+        $out = [];
+        foreach ($rounds as $round) {
+            if ($owner = Ownership::at($this->season->id, $teamId, (int) $round)) {
+                $out[$owner][] = (int) $round;
+            }
+        }
+
+        return $out;
     }
 
     private function push(Competition $competition, ?int $teamId, ?int $userId, ?int $botId, string $kind, float $points, ?string $trophy, array $meta): void

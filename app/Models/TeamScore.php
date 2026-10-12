@@ -13,6 +13,8 @@ use Illuminate\Support\Carbon;
  *
  * @property int $matchday_id
  * @property int $season_team_id
+ * @property int|null $user_id kto grał miejscem w tej kolejce (App\Support\Ownership)
+ * @property int|null $bot_id
  * @property CompetitionType $question_set
  * @property bool $has_tip
  * @property int|null $tip_lech
@@ -32,6 +34,7 @@ use Illuminate\Support\Carbon;
 class TeamScore extends Model
 {
     protected $fillable = [
+        'user_id', 'bot_id',
         'matchday_id', 'season_team_id', 'question_set',
         'has_tip', 'tip_lech', 'tip_opponent', 'tipped_at', 'tip_order',
         'tip_points', 'outcome_hit', 'diff_hit', 'exact_hit',

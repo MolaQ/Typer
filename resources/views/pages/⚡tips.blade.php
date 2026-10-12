@@ -438,9 +438,8 @@ new #[Layout('layouts::public')] class extends Component {
             return collect();
         }
 
-        $teamId = SeasonTeam::where('season_id', $this->season->id)->where('user_id', auth()->id())->value('id');
-
-        return TeamScore::where('matchday_id', $this->matchday->id)->where('season_team_id', $teamId)->get()
+        // Rozliczenie gracza z tej kolejki (gdy wtedy grał za niego bot, nic nie pokazujemy, Ownership).
+        return TeamScore::where('matchday_id', $this->matchday->id)->where('user_id', auth()->id())->get()
             ->keyBy(fn($score) => $score->question_set->value);
     }
 

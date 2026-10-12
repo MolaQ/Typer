@@ -317,12 +317,12 @@ final class Rivals
      */
     public static function headToHead(User $viewer, SeasonTeam $rival): array
     {
-        $rivalTeams = $rival->user_id
-            ? SeasonTeam::where('user_id', $rival->user_id)->pluck('id')
-            : SeasonTeam::where('bot_id', $rival->bot_id)->pluck('id');
-
-        $mine = CompetitionEntry::whereIn('season_team_id', SeasonTeam::where('user_id', $viewer->id)->select('id'))->pluck('id');
-        $theirs = CompetitionEntry::whereIn('season_team_id', $rivalTeams)->pluck('id');
+        // Liczą się tylko kolejki, w których oba miejsca zajmowali ci właściciele (gracz za bota nie przejmuje meczów bota, Ownership).
+        $rivalKey = Ownership::key($rival->user_id, $rival->bot_id);
+        $mineTeams = CompetitionEntry::whereIn('season_team_id', PlayerStats::ownerTeamIds($viewer->id, null))->pluck('season_team_id', 'id');
+        $theirTeams = CompetitionEntry::whereIn('season_team_id', PlayerStats::ownerTeamIds($rival->user_id, $rival->bot_id))->pluck('season_team_id', 'id');
+        $mine = $mineTeams->keys();
+        $theirs = $theirTeams->keys();
 
         $fixtures = Fixture::with('competition.season:id,number')
             ->whereNotNull('home_goals')
@@ -330,6 +330,15 @@ final class Rivals
                 ->where(fn ($w) => $w->whereIn('home_entry_id', $mine)->whereIn('away_entry_id', $theirs))
                 ->orWhere(fn ($w) => $w->whereIn('home_entry_id', $theirs)->whereIn('away_entry_id', $mine)))
             ->get()
+            ->filter(function (Fixture $f) use ($mine, $mineTeams, $theirTeams, $viewer, $rivalKey) {
+                $home = $mine->contains($f->home_entry_id);
+                $seasonId = (int) $f->competition->season_id;
+                $myTeam = (int) $mineTeams[$home ? $f->home_entry_id : $f->away_entry_id];
+                $theirTeam = (int) $theirTeams[$home ? $f->away_entry_id : $f->home_entry_id];
+
+                return Ownership::playedBy($seasonId, $myTeam, (int) $f->round, $viewer->id)
+                    && Ownership::at($seasonId, $theirTeam, (int) $f->round) === $rivalKey;
+            })
             ->sortByDesc(fn ($f) => [$f->competition->season->number, $f->round, $f->id]);
 
         $out = ['won' => 0, 'drawn' => 0, 'lost' => 0, 'meetings' => []];

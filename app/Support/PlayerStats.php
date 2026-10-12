@@ -244,39 +244,45 @@ final class PlayerStats
      */
     public static function scalps(User $user, bool $blacklist = false): array
     {
-        $mine = CompetitionEntry::whereIn('season_team_id', SeasonTeam::where('user_id', $user->id)->select('id'))->pluck('id');
+        // Miejsca, którymi gracz grał (także oddane botowi); liczą się tylko kolejki rozegrane przez niego (Ownership).
+        $mine = CompetitionEntry::whereIn('season_team_id', self::userTeamIds($user))->pluck('id');
 
         if ($mine->isEmpty()) {
             return [];
         }
 
-        $fixtures = Fixture::whereNotNull('home_goals')
+        $fixtures = Fixture::query()
+            ->join('competitions', 'competitions.id', '=', 'fixtures.competition_id')
+            ->whereNotNull('home_goals')
             ->where(fn ($q) => $q->whereIn('home_entry_id', $mine)->orWhereIn('away_entry_id', $mine))
             ->whereNotNull('home_entry_id')
             ->whereNotNull('away_entry_id')
+            ->select('fixtures.*', 'competitions.season_id as fixture_season_id')
             ->get();
 
-        // Właściciel każdego wpisu rywala: 'u12' (gracz) albo 'b34' (bot).
-        $rivalEntries = $fixtures->map(fn ($f) => $mine->contains($f->home_entry_id) ? $f->away_entry_id : $f->home_entry_id)->unique()->values();
-        $ownerOfEntry = [];
-        foreach (CompetitionEntry::query()
-            ->join('season_teams', 'season_teams.id', '=', 'competition_entries.season_team_id')
-            ->whereIn('competition_entries.id', $rivalEntries)
-            ->get(['competition_entries.id as entry_id', 'season_teams.user_id', 'season_teams.bot_id']) as $row) {
-            $ownerOfEntry[(int) $row->entry_id] = $row->user_id ? 'u'.$row->user_id : ($row->bot_id ? 'b'.$row->bot_id : null);
-        }
+        $teamOfEntry = CompetitionEntry::whereIn('id', $fixtures->pluck('home_entry_id')->merge($fixtures->pluck('away_entry_id'))->unique())
+            ->pluck('season_team_id', 'id');
 
         $records = [];
         foreach ($fixtures as $fixture) {
             $home = $mine->contains($fixture->home_entry_id);
+            $myEntry = (int) ($home ? $fixture->home_entry_id : $fixture->away_entry_id);
             $rivalEntry = (int) ($home ? $fixture->away_entry_id : $fixture->home_entry_id);
-            $owner = $ownerOfEntry[$rivalEntry] ?? null;
+            $seasonId = (int) $fixture->getAttribute('fixture_season_id');
+            $round = (int) $fixture->round;
+
+            if (! isset($teamOfEntry[$myEntry], $teamOfEntry[$rivalEntry]) || ! Ownership::playedBy($seasonId, (int) $teamOfEntry[$myEntry], $round, $user->id)) {
+                continue;
+            }
+
+            // Rywal = ten, kto grał jego miejscem w tej kolejce (gracz albo bot).
+            $owner = Ownership::at($seasonId, (int) $teamOfEntry[$rivalEntry], $round);
 
             if (! $owner || $owner === 'u'.$user->id) {
                 continue;
             }
 
-            [$outcome] = self::result($fixture, (int) ($home ? $fixture->home_entry_id : $fixture->away_entry_id), $home);
+            [$outcome] = self::result($fixture, $myEntry, $home);
             $records[$owner] ??= ['won' => 0, 'drawn' => 0, 'lost' => 0];
             $records[$owner][['W' => 'won', 'D' => 'drawn', 'L' => 'lost'][$outcome]]++;
         }
@@ -489,17 +495,19 @@ final class PlayerStats
         $userOfTeam = SeasonTeam::where('season_id', $season->id)->whereNotNull('user_id')->pluck('user_id', 'id');
         $teamIds = $userOfTeam->keys();
 
+        // Tylko kolejki, w których miejscem grał obecny właściciel (gracz za bota nie przejmuje dorobku bota, Ownership).
         $rows = TeamScore::query()
             ->join('matchdays', 'matchdays.id', '=', 'team_scores.matchday_id')
             ->whereIn('team_scores.season_team_id', $teamIds)
             ->select('team_scores.*', 'matchdays.number', 'matchdays.lech_goals as real_lech')
             ->get()
+            ->filter(fn ($r) => (int) $r->user_id === (int) $userOfTeam[$r->season_team_id])
             ->groupBy('season_team_id');
 
-        $matches = self::seasonMatches($season, $teamIds);
+        $matches = self::seasonMatches($season, $teamIds, $userOfTeam);
         $questions = self::questionAccuracy($season);
         $leads = self::leadTimes($season);
-        $duels = self::duels($season, $teamIds);
+        $duels = self::duels($season, $teamIds, $userOfTeam);
         $out = [];
 
         foreach ($teamIds as $teamId) {
@@ -629,9 +637,10 @@ final class PlayerStats
      * Mecz z wirtualnym rywalem w podwórkowej liczy się tylko do Czarodzieja i Pechowca.
      *
      * @param  Collection<int, int>  $teamIds
+     * @param  Collection<int, int>  $userOfTeam  miejsce => gracz (liczą się tylko kolejki rozegrane przez niego)
      * @return array<int, array{iron: int, mason: int, wizard: int, unlucky: int}>
      */
-    private static function duels(Season $season, Collection $teamIds): array
+    private static function duels(Season $season, Collection $teamIds, Collection $userOfTeam): array
     {
         $competitions = Competition::where('season_id', $season->id)->get(['id', 'type'])->keyBy('id');
         $teamOfEntry = CompetitionEntry::whereIn('competition_id', $competitions->keys())->pluck('season_team_id', 'id');
@@ -642,7 +651,7 @@ final class PlayerStats
         foreach (TeamScore::query()
             ->join('matchdays', 'matchdays.id', '=', 'team_scores.matchday_id')
             ->where('matchdays.season_id', $season->id)
-            ->get(['team_scores.season_team_id', 'team_scores.question_set', 'team_scores.has_tip', 'team_scores.tip_points',
+            ->get(['team_scores.season_team_id', 'team_scores.user_id', 'team_scores.question_set', 'team_scores.has_tip', 'team_scores.tip_points',
                 'team_scores.exact_hit', 'team_scores.offense_bonus', 'team_scores.defense_bonus', 'matchdays.number']) as $row) {
             $scores[$row->season_team_id][(int) $row->number][$row->question_set->value] = $row;
         }
@@ -656,7 +665,8 @@ final class PlayerStats
             foreach ([[$fixture->home_entry_id, $fixture->away_entry_id, true], [$fixture->away_entry_id, $fixture->home_entry_id, false]] as [$entryId, $rivalEntryId, $home]) {
                 $team = $entryId ? ($teamOfEntry[$entryId] ?? null) : null;
 
-                if (! $team || ! isset($wanted[$team]) || ! ($me = $scores[$team][$fixture->round][$set] ?? null)) {
+                if (! $team || ! isset($wanted[$team]) || ! ($me = $scores[$team][$fixture->round][$set] ?? null)
+                    || (int) $me->user_id !== (int) ($userOfTeam[$team] ?? 0)) {
                     continue;
                 }
 
@@ -685,10 +695,14 @@ final class PlayerStats
     /**
      * Mecze sezonu pogrupowane na zespoły: id zespołu => podsumowanie meczów.
      *
+     * $userOfTeam (miejsce => gracz): liczą się tylko mecze z kolejek, w których miejscem grał ten gracz (Ownership).
+     * Bez niego: wszystkie mecze miejsca (np. okno zespołu bota).
+     *
      * @param  Collection<int, int>  $teamIds
+     * @param  Collection<int, int>|null  $userOfTeam
      * @return array<int, array<string, mixed>>
      */
-    private static function seasonMatches(Season $season, Collection $teamIds): array
+    private static function seasonMatches(Season $season, Collection $teamIds, ?Collection $userOfTeam = null): array
     {
         $teamOfEntry = CompetitionEntry::whereIn('season_team_id', $teamIds)
             ->whereIn('competition_id', Competition::where('season_id', $season->id)->select('id'))
@@ -703,7 +717,11 @@ final class PlayerStats
         foreach ($fixtures as $fixture) {
             foreach ([[$fixture->home_entry_id, true], [$fixture->away_entry_id, false]] as [$entryId, $home]) {
                 if ($entryId && isset($teamOfEntry[$entryId])) {
-                    $perTeam[$teamOfEntry[$entryId]][] = self::result($fixture, $entryId, $home);
+                    $team = (int) $teamOfEntry[$entryId];
+                    if ($userOfTeam !== null && ! Ownership::playedBy($season->id, $team, (int) $fixture->round, (int) ($userOfTeam[$team] ?? 0))) {
+                        continue;
+                    }
+                    $perTeam[$team][] = self::result($fixture, $entryId, $home);
                 }
             }
         }
@@ -785,9 +803,7 @@ final class PlayerStats
         $order = array_map(fn ($t) => $t->value, CompetitionType::cases());
         usort($competitions, fn ($a, $b) => [array_search($a['type']->value, $order, true), $a['tier']] <=> [array_search($b['type']->value, $order, true), $b['tier']]);
 
-        $teamIds = SeasonTeam::where('user_id', $user->id)->pluck('id');
-
-        return ['competitions' => $competitions, 'records' => self::matches($teamIds)];
+        return ['competitions' => $competitions, 'records' => self::matches($user)];
     }
 
     /* ==================================================================
@@ -810,9 +826,11 @@ final class PlayerStats
             return collect();
         }
 
+        // Tylko kolejki rozegrane przez gracza (nie przez bota, za którego wskoczył).
         return TeamScore::query()
             ->join('matchdays', 'matchdays.id', '=', 'team_scores.matchday_id')
             ->where('team_scores.season_team_id', $team->id)
+            ->where('team_scores.user_id', $user->id)
             ->select('team_scores.*', 'matchdays.number')
             ->get()
             ->unique('matchday_id')
@@ -820,30 +838,68 @@ final class PlayerStats
     }
 
     /**
-     * Mecze zespołów ze wszystkich sezonów (rekordy osobiste).
+     * Mecze gracza ze wszystkich sezonów (rekordy osobiste), tylko z kolejek, w których naprawdę grał (Ownership).
      *
-     * @param  Collection<int, int>  $teamIds
      * @return array<string, mixed>
      */
-    private static function matches(Collection $teamIds): array
+    private static function matches(User $user): array
     {
-        $entries = CompetitionEntry::whereIn('season_team_id', $teamIds)->pluck('id');
+        $teamOfEntry = CompetitionEntry::whereIn('season_team_id', self::userTeamIds($user))->pluck('season_team_id', 'id');
+        $entries = $teamOfEntry->keys();
         $fixtures = Fixture::query()
             ->join('competitions', 'competitions.id', '=', 'fixtures.competition_id')
             ->join('seasons', 'seasons.id', '=', 'competitions.season_id')
             ->where(fn ($q) => $q->whereIn('home_entry_id', $entries)->orWhereIn('away_entry_id', $entries))
             ->whereNotNull('home_goals')
             ->orderBy('seasons.number')->orderBy('fixtures.round')->orderBy('fixtures.id')
-            ->select('fixtures.*')
+            ->select('fixtures.*', 'competitions.season_id as fixture_season_id')
             ->get();
 
         $results = [];
         foreach ($fixtures as $fixture) {
             $home = $entries->contains($fixture->home_entry_id);
-            $results[] = self::result($fixture, $home ? $fixture->home_entry_id : $fixture->away_entry_id, $home);
+            $entryId = (int) ($home ? $fixture->home_entry_id : $fixture->away_entry_id);
+
+            if (! Ownership::playedBy((int) $fixture->getAttribute('fixture_season_id'), (int) $teamOfEntry[$entryId], (int) $fixture->round, $user->id)) {
+                continue;
+            }
+
+            $results[] = self::result($fixture, $entryId, $home);
         }
 
         return self::matchSummary($results);
+    }
+
+    /**
+     * Miejsca z list sezonów, którymi gracz kiedykolwiek grał: obecne i te, które po odejściu przejął bot
+     * (z rozliczeń kolejek, team_scores.user_id).
+     *
+     * @return Collection<int, int>
+     */
+    private static function userTeamIds(User $user): Collection
+    {
+        return self::ownerTeamIds($user->id, null);
+    }
+
+    /**
+     * Miejsca, którymi grał gracz albo bot (obecne i z rozliczeń kolejek).
+     *
+     * @return Collection<int, int>
+     */
+    public static function ownerTeamIds(?int $userId, ?int $botId): Collection
+    {
+        $column = $userId ? 'user_id' : 'bot_id';
+        $id = $userId ?: $botId;
+
+        if (! $id) {
+            return collect();
+        }
+
+        return SeasonTeam::where($column, $id)->pluck('id')
+            ->merge(TeamScore::where($column, $id)->distinct()->pluck('season_team_id'))
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values();
     }
 
     /** Obecna i najdłuższa seria wartości true. @param array<int, bool> $values @return array{0: int, 1: int} */

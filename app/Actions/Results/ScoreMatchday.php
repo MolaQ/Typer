@@ -53,7 +53,18 @@ class ScoreMatchday
         return DB::transaction(function () use ($matchday): array {
             $kickoff = ($matchday->kickoff_at ?? now())->format('Y-m-d H:i:s.u');
 
-            $teams = SeasonTeam::where('season_id', $matchday->season_id)->get(['id', 'user_id']);
+            $teams = SeasonTeam::where('season_id', $matchday->season_id)->get(['id', 'user_id', 'bot_id']);
+
+            // Kto grał miejscem w tej kolejce. Przy ponownym przeliczeniu zostaje właściciel z pierwszego rozliczenia
+            // (gracz, który wskoczył za bota później, nie przejmuje tej kolejki), App\Support\Ownership.
+            // Typ i odpowiedzi też bierzemy od tamtego właściciela (tylko w pamięci, bez zapisu miejsca).
+            $owners = TeamScore::where('matchday_id', $matchday->id)->get(['season_team_id', 'user_id', 'bot_id'])->keyBy('season_team_id');
+            foreach ($teams as $team) {
+                if ($owner = $owners->get($team->id)) {
+                    $team->user_id = $owner->user_id;
+                    $team->bot_id = $owner->bot_id;
+                }
+            }
 
             // Rozgrywki sezonu i to, w których zestawach pytań gra każdy zespół.
             $competitions = Competition::where('season_id', $matchday->season_id)->get()->keyBy('id');
@@ -117,6 +128,8 @@ class ScoreMatchday
                     $row = [
                         'matchday_id' => $matchday->id,
                         'season_team_id' => $team->id,
+                        'user_id' => $team->user_id,
+                        'bot_id' => $team->bot_id,
                         'question_set' => $set,
                         'has_tip' => $tip !== null,
                         'tip_lech' => $tip?->lech_goals,
