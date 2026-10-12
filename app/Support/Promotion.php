@@ -11,9 +11,10 @@ namespace App\Support;
  * Zasady:
  *  - między sąsiednimi ligami 4 najgorsze spadają, 4 najlepsze z niższej awansują,
  *    z Ekstraklasy nikt nie awansuje, z podwórkowej nikt nie spada,
- *  - czyszczenie z botów: po podstawowej wymianie najgorszy bot spośród pozostałych w wyższej lidze
- *    zamienia się z najlepszym człowiekiem spośród pozostałych w niższej, niezależnie od kolejności
- *    ludzi i botów w tabelach (do EXTRA_SWAPS razy na granicę, dopóki są takie pary).
+ *  - czyszczenie z botów, parami miejsc: najgorszy pozostający w wyższej lidze (w lidze 10-zespołowej 6. miejsce)
+ *    z najlepszym pozostającym w niższej (5. miejsce). Gdy wyżej jest bot, a niżej człowiek, zamieniają się
+ *    i sprawdzamy następną parę (5. miejsce wyżej z 6. niżej itd.). Pierwsza para bez zamiany kończy
+ *    czyszczenie na tej granicy (najwyżej EXTRA_SWAPS zamian).
  *    "Pozostali" to zespoły, które jeszcze nigdzie się nie przenoszą, więc każdy zmienia ligę najwyżej o jedną,
  *  - kolejność w nowej lidze: spadkowicze z wyższej, potem pozostali według tabeli, na końcu beniaminkowie.
  */
@@ -58,11 +59,14 @@ final class Promotion
                 break;
             }
 
-            // Boty wyższej ligi od najgorszego i ludzie niższej od najlepszego (tylko pozostający).
-            $upper = array_values(array_filter(array_reverse($tiers[$level]), fn ($t) => ! $t['human'] && ! isset($moving[$t['id']])));
-            $lower = array_values(array_filter($tiers[$level + 1], fn ($t) => $t['human'] && ! isset($moving[$t['id']])));
+            $upper = array_values(array_filter(array_reverse($tiers[$level]), fn ($t) => ! isset($moving[$t['id']])));
+            $lower = array_values(array_filter($tiers[$level + 1], fn ($t) => ! isset($moving[$t['id']])));
 
             for ($swap = 0; $swap < $extraSwaps && $upper !== [] && $lower !== []; $swap++) {
+                if ($upper[0]['human'] || ! $lower[0]['human']) {
+                    break;
+                }
+
                 $bot = array_shift($upper);
                 $human = array_shift($lower);
                 $down[$level][] = $bot;
