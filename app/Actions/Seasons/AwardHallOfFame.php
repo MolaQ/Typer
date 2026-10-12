@@ -415,7 +415,11 @@ class AwardHallOfFame
         $this->push($competition, $team->id, $team->user_id, $team->bot_id, $kind, $points, $trophy, $meta);
     }
 
-    /** Wpis dla właściciela miejsca w danej kolejce ('u12' albo 'b34', Ownership). */
+    /**
+     * Wpis dla właściciela miejsca w danej kolejce ('u12' albo 'b34', Ownership).
+     *
+     * @param  array<string, mixed>  $meta
+     */
     private function addOwner(Competition $competition, int $teamId, string $owner, string $kind, float $points, ?string $trophy = null, array $meta = []): void
     {
         $id = (int) substr($owner, 1);

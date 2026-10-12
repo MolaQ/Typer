@@ -332,7 +332,7 @@ final class Rivals
             ->get()
             ->filter(function (Fixture $f) use ($mine, $mineTeams, $theirTeams, $viewer, $rivalKey) {
                 $home = $mine->contains($f->home_entry_id);
-                $seasonId = (int) $f->competition->season_id;
+                $seasonId = (int) $f->competition?->getAttribute('season_id');
                 $myTeam = (int) $mineTeams[$home ? $f->home_entry_id : $f->away_entry_id];
                 $theirTeam = (int) $theirTeams[$home ? $f->away_entry_id : $f->home_entry_id];
 
