@@ -40,3 +40,16 @@ it('keeps every league at the same size', function () {
         ->and($result[2])->toHaveCount(10)
         ->and($result[3])->toHaveCount(25);
 });
+
+it('swaps bots for humans regardless of table order', function () {
+    // Ekstraklasa: bot na 4. i 6. miejscu, człowiek na 5. I liga: na 5. i 6. miejscu ludzie.
+    $top = league(1);
+    $top[3]['human'] = false;
+    $top[5]['human'] = false;
+
+    $result = Promotion::apply([1 => $top, 2 => league(11)]);
+
+    // Oba boty (6, potem 4) spadają, ludzie z miejsc 5 i 6 I ligi awansują, człowiek z 5. miejsca zostaje.
+    expect($result[1])->toBe([1, 2, 3, 5, 11, 12, 13, 14, 15, 16])
+        ->and($result[2])->toBe([4, 6, 7, 8, 9, 10, 17, 18, 19, 20]);
+});

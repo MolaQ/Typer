@@ -11,8 +11,9 @@ namespace App\Support;
  * Zasady:
  *  - między sąsiednimi ligami 4 najgorsze spadają, 4 najlepsze z niższej awansują,
  *    z Ekstraklasy nikt nie awansuje, z podwórkowej nikt nie spada,
- *  - czyszczenie z botów: po podstawowej wymianie, dopóki najgorszy z pozostałych w wyższej lidze
- *    jest botem, a najlepszy z pozostałych w niższej człowiekiem, zamieniamy ich (do EXTRA_SWAPS razy).
+ *  - czyszczenie z botów: po podstawowej wymianie najgorszy bot spośród pozostałych w wyższej lidze
+ *    zamienia się z najlepszym człowiekiem spośród pozostałych w niższej, niezależnie od kolejności
+ *    ludzi i botów w tabelach (do EXTRA_SWAPS razy na granicę, dopóki są takie pary).
  *    "Pozostali" to zespoły, które jeszcze nigdzie się nie przenoszą, więc każdy zmienia ligę najwyżej o jedną,
  *  - kolejność w nowej lidze: spadkowicze z wyższej, potem pozostali według tabeli, na końcu beniaminkowie.
  */
@@ -57,14 +58,11 @@ final class Promotion
                 break;
             }
 
-            $upper = array_values(array_filter(array_reverse($tiers[$level]), fn ($t) => ! isset($moving[$t['id']])));
-            $lower = array_values(array_filter($tiers[$level + 1], fn ($t) => ! isset($moving[$t['id']])));
+            // Boty wyższej ligi od najgorszego i ludzie niższej od najlepszego (tylko pozostający).
+            $upper = array_values(array_filter(array_reverse($tiers[$level]), fn ($t) => ! $t['human'] && ! isset($moving[$t['id']])));
+            $lower = array_values(array_filter($tiers[$level + 1], fn ($t) => $t['human'] && ! isset($moving[$t['id']])));
 
             for ($swap = 0; $swap < $extraSwaps && $upper !== [] && $lower !== []; $swap++) {
-                if ($upper[0]['human'] || ! $lower[0]['human']) {
-                    break;
-                }
-
                 $bot = array_shift($upper);
                 $human = array_shift($lower);
                 $down[$level][] = $bot;
