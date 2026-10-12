@@ -15,6 +15,8 @@
         $canRoles = $user->hasRole('Admin');
         $canRequests = $user->can(\App\Enums\Permission::TeamChangeName->value);
         $canLogs = $user->can(\App\Enums\Permission::LogView->value);
+        $canNews = $user->can(\App\Enums\Permission::NewsCreate->value);
+        $proposals = $canSeasons ? \App\Models\QuestionProposal::pending()->count() : 0;
 
         // Powiadomienia (pilne i ostrzeżenia) jako plakietka przy Pulpicie.
         $alerts = $canSeasons ? \App\Support\AdminAlerts::count() : 0;
@@ -27,28 +29,24 @@
             <flux:sidebar.collapse class="lg:hidden" />
         </flux:sidebar.header>
 
-        {{-- Menu panelu w grupach według tego, czym admin zajmuje się na co dzień:
-             najpierw kolejki (pytania, wyniki), potem sezon, gracze i system. --}}
+        {{-- Menu panelu według kolejności pracy: sezon i jego kolejki (mecz, pytania, typy, wynik), rozgrywki,
+             gracze, treści, a na końcu rzadko zmieniane ustawienia. Kalendarz Lecha to zakładka „Kolejek”,
+             lista kontrolna jest na pulpicie (pasek postępu sezonu). --}}
         <flux:sidebar.nav>
-            <flux:sidebar.item icon="home" :href="route('dashboard')" :current="request()->routeIs('dashboard')"
+            <flux:sidebar.item icon="home" :href="route('dashboard')" :current="request()->routeIs('dashboard', 'dashboard.checklist')"
                 :badge="$alerts ?: null" badge-color="red" wire:navigate>
                 {{ __('Dashboard') }}
             </flux:sidebar.item>
 
             @if ($canSeasons)
-                <flux:sidebar.item icon="clipboard-document-check" :href="route('dashboard.checklist')"
-                    :current="request()->routeIs('dashboard.checklist')" wire:navigate>
-                    {{ __('To do') }}
-                </flux:sidebar.item>
-
-                <flux:sidebar.group expandable :expanded="true" :heading="__('Matchdays')" class="grid">
-                    <flux:sidebar.item icon="calendar" :href="route('dashboard.matchdays')"
-                        :current="request()->routeIs('dashboard.matchdays')" wire:navigate>
-                        {{ __('Matches') }}
+                <flux:sidebar.group expandable :expanded="true" :heading="__('Season')" class="grid">
+                    <flux:sidebar.item icon="calendar-days" :href="route('dashboard.seasons')"
+                        :current="request()->routeIs('dashboard.seasons')" wire:navigate>
+                        {{ __('Seasons') }}
                     </flux:sidebar.item>
-                    <flux:sidebar.item icon="calendar-days" :href="route('dashboard.lech-calendar')"
-                        :current="request()->routeIs('dashboard.lech-calendar')" wire:navigate>
-                        {{ __('Lech calendar') }}
+                    <flux:sidebar.item icon="calendar" :href="route('dashboard.matchdays')"
+                        :current="request()->routeIs('dashboard.matchdays', 'dashboard.lech-calendar')" wire:navigate>
+                        {{ __('Matchdays') }}
                     </flux:sidebar.item>
                     <flux:sidebar.item icon="clipboard-document-list" :href="route('dashboard.matchday-questions')"
                         :current="request()->routeIs('dashboard.matchday-questions')" wire:navigate>
@@ -62,24 +60,11 @@
                         :current="request()->routeIs('dashboard.results')" wire:navigate>
                         {{ __('Results') }}
                     </flux:sidebar.item>
-                    <flux:sidebar.item icon="question-mark-circle" :href="route('dashboard.questions')"
-                        :current="request()->routeIs('dashboard.questions')" wire:navigate>
-                        {{ __('Question bank') }}
-                    </flux:sidebar.item>
-                    <flux:sidebar.item icon="light-bulb" :href="route('dashboard.question-proposals')"
-                        :current="request()->routeIs('dashboard.question-proposals')"
-                        :badge="\App\Models\QuestionProposal::pending()->count() ?: null" badge-color="amber" wire:navigate>
-                        {{ __('Question proposals') }}
-                    </flux:sidebar.item>
                 </flux:sidebar.group>
 
                 <flux:sidebar.group expandable
-                    :expanded="request()->routeIs('dashboard.seasons', 'dashboard.season-teams', 'dashboard.competitions', 'dashboard.european-qualification', 'dashboard.fixtures', 'dashboard.bots')"
-                    :heading="__('Season')" class="grid">
-                    <flux:sidebar.item icon="calendar-days" :href="route('dashboard.seasons')"
-                        :current="request()->routeIs('dashboard.seasons')" wire:navigate>
-                        {{ __('Season setup') }}
-                    </flux:sidebar.item>
+                    :expanded="request()->routeIs('dashboard.season-teams', 'dashboard.competitions', 'dashboard.european-qualification', 'dashboard.fixtures')"
+                    :heading="__('Competitions')" class="grid">
                     <flux:sidebar.item icon="list-bullet" :href="route('dashboard.season-teams')"
                         :current="request()->routeIs('dashboard.season-teams')" wire:navigate>
                         {{ __('Team list') }}
@@ -88,44 +73,16 @@
                         :current="request()->routeIs('dashboard.competitions')" wire:navigate>
                         {{ __('Competitions') }}
                     </flux:sidebar.item>
-                    <flux:sidebar.item icon="globe-europe-africa" :href="route('dashboard.european-qualification')"
-                        :current="request()->routeIs('dashboard.european-qualification')" wire:navigate>
-                        {{ __('European qualification') }}
-                    </flux:sidebar.item>
                     <flux:sidebar.item icon="table-cells" :href="route('dashboard.fixtures')"
                         :current="request()->routeIs('dashboard.fixtures')" wire:navigate>
                         {{ __('Fixtures') }}
                     </flux:sidebar.item>
-                    <flux:sidebar.item icon="cpu-chip" :href="route('dashboard.bots')"
-                        :current="request()->routeIs('dashboard.bots')" wire:navigate>
-                        {{ __('Bots') }}
-                    </flux:sidebar.item>
-                </flux:sidebar.group>
-
-                <flux:sidebar.group expandable
-                    :expanded="request()->routeIs('dashboard.hall-of-fame', 'dashboard.sponsors', 'dashboard.competition-colors')"
-                    :heading="__('Prestige and partners')" class="grid">
-                    <flux:sidebar.item icon="star" :href="route('dashboard.hall-of-fame')"
-                        :current="request()->routeIs('dashboard.hall-of-fame')" wire:navigate>
-                        {{ __('Hall of Fame') }}
-                    </flux:sidebar.item>
-                    <flux:sidebar.item icon="megaphone" :href="route('dashboard.sponsors')"
-                        :current="request()->routeIs('dashboard.sponsors')" wire:navigate>
-                        {{ __('Sponsors') }}
-                    </flux:sidebar.item>
-                    <flux:sidebar.item icon="swatch" :href="route('dashboard.competition-colors')"
-                        :current="request()->routeIs('dashboard.competition-colors')" wire:navigate>
-                        {{ __('Competition colors') }}
+                    <flux:sidebar.item icon="globe-europe-africa" :href="route('dashboard.european-qualification')"
+                        :current="request()->routeIs('dashboard.european-qualification')" wire:navigate>
+                        {{ __('European qualification') }}
                     </flux:sidebar.item>
                 </flux:sidebar.group>
             @endif
-
-            @can(\App\Enums\Permission::NewsCreate->value)
-                <flux:sidebar.item icon="newspaper" :href="route('dashboard.news')"
-                    :current="request()->routeIs('dashboard.news')" wire:navigate>
-                    {{ __('News') }}
-                </flux:sidebar.item>
-            @endcan
 
             @if ($canRoles || $canRequests)
                 <flux:sidebar.group expandable
@@ -154,10 +111,52 @@
                 </flux:sidebar.group>
             @endif
 
-            @if ($canRoles || $canLogs)
+            @if ($canSeasons || $canNews)
                 <flux:sidebar.group expandable
-                    :expanded="request()->routeIs('dashboard.roles', 'dashboard.logs')"
-                    :heading="__('System')" class="grid">
+                    :expanded="request()->routeIs('dashboard.news', 'dashboard.questions', 'dashboard.question-proposals')"
+                    :heading="__('Site content')" class="grid">
+                    @if ($canNews)
+                        <flux:sidebar.item icon="newspaper" :href="route('dashboard.news')"
+                            :current="request()->routeIs('dashboard.news')" wire:navigate>
+                            {{ __('News') }}
+                        </flux:sidebar.item>
+                    @endif
+                    @if ($canSeasons)
+                        <flux:sidebar.item icon="question-mark-circle" :href="route('dashboard.questions')"
+                            :current="request()->routeIs('dashboard.questions')" wire:navigate>
+                            {{ __('Question bank') }}
+                        </flux:sidebar.item>
+                        <flux:sidebar.item icon="light-bulb" :href="route('dashboard.question-proposals')"
+                            :current="request()->routeIs('dashboard.question-proposals')"
+                            :badge="$proposals ?: null" badge-color="amber" wire:navigate>
+                            {{ __('Question proposals') }}
+                        </flux:sidebar.item>
+                    @endif
+                </flux:sidebar.group>
+            @endif
+
+            @if ($canSeasons || $canRoles || $canLogs)
+                <flux:sidebar.group expandable
+                    :expanded="request()->routeIs('dashboard.hall-of-fame', 'dashboard.bots', 'dashboard.sponsors', 'dashboard.competition-colors', 'dashboard.roles', 'dashboard.logs')"
+                    :heading="__('Game settings')" class="grid">
+                    @if ($canSeasons)
+                        <flux:sidebar.item icon="star" :href="route('dashboard.hall-of-fame')"
+                            :current="request()->routeIs('dashboard.hall-of-fame')" wire:navigate>
+                            {{ __('Hall of Fame') }}
+                        </flux:sidebar.item>
+                        <flux:sidebar.item icon="cpu-chip" :href="route('dashboard.bots')"
+                            :current="request()->routeIs('dashboard.bots')" wire:navigate>
+                            {{ __('Bots') }}
+                        </flux:sidebar.item>
+                        <flux:sidebar.item icon="megaphone" :href="route('dashboard.sponsors')"
+                            :current="request()->routeIs('dashboard.sponsors')" wire:navigate>
+                            {{ __('Sponsors') }}
+                        </flux:sidebar.item>
+                        <flux:sidebar.item icon="swatch" :href="route('dashboard.competition-colors')"
+                            :current="request()->routeIs('dashboard.competition-colors')" wire:navigate>
+                            {{ __('Competition colors') }}
+                        </flux:sidebar.item>
+                    @endif
                     @if ($canRoles)
                         <flux:sidebar.item icon="shield-check" :href="route('dashboard.roles')"
                             :current="request()->routeIs('dashboard.roles')" wire:navigate>

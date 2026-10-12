@@ -1461,5 +1461,19 @@
     ":count banned user|:count banned users": ":count zbanowany użytkownik|:count zbanowanych użytkowników|:count zbanowanych użytkowników",
     ":count inactive user|:count inactive users": ":count nieaktywny użytkownik (Inactive)|:count nieaktywnych użytkowników (Inactive)|:count nieaktywnych użytkowników (Inactive)",
     "Before :season starts, consider restoring some of them. A restored player joins Liga podwórkowa.": "Przed startem :season rozważ przywrócenie części z nich. Przywrócony gracz trafia do Ligi podwórkowej.",
-    ":count player added to Liga podwórkowa.|:count players added to Liga podwórkowa.": "Do Ligi podwórkowej dodano :count gracza.|Do Ligi podwórkowej dodano :count graczy.|Do Ligi podwórkowej dodano :count graczy."
+    ":count player added to Liga podwórkowa.|:count players added to Liga podwórkowa.": "Do Ligi podwórkowej dodano :count gracza.|Do Ligi podwórkowej dodano :count graczy.|Do Ligi podwórkowej dodano :count graczy.",
+    "Result and points": "Wynik i punkty",
+    "After the final whistle.": "Po ostatnim gwizdku.",
+    "No match yet.": "Brak meczu.",
+    "Unnamed match: add the opponent and the kickoff.": "Mecz bez nazwy: uzupełnij rywala i termin.",
+    "Questions: :have of :needed": "Pytania: :have z :needed",
+    "Season matchdays": "Kolejki sezonu",
+    "Site content": "Treści",
+    "Game settings": "Ustawienia gry",
+    "Next step": "Następny krok",
+    "Go": "Przejdź",
+    "Lech matches": "Mecze Lecha",
+    "Season started": "Sezon wystartował",
+    "Matchdays played": "Rozegrane kolejki",
+    "Full checklist": "Pełna lista kontrolna"
 }

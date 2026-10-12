@@ -4,6 +4,7 @@ use App\Actions\Competitions\DrawSwissRound;
 use App\Actions\Questions\DrawQuestions;
 use App\Enums\MatchdayStatus;
 use App\Enums\Permission;
+use App\Enums\SeasonStatus;
 use App\Models\Competition;
 use App\Models\Fixture;
 use App\Models\Matchday;
@@ -42,6 +43,49 @@ new class extends Component {
         return Season::current();
     }
 
+    /** Następny krok: pierwsze pilne powiadomienie albo ostrzeżenie (lista jest posortowana od najpilniejszych). */
+    #[Computed]
+    public function nextStep(): ?array
+    {
+        return collect($this->alerts)->first(fn($a) => $a['level'] !== AdminAlerts::INFO);
+    }
+
+    /**
+     * Pasek postępu sezonu (trwającego albo najbliższego, a gdy ich nie ma, ostatniego):
+     * utworzenie, rozgrywki, mecze kolejek, start, rozegrane kolejki, koniec.
+     *
+     * @return array{season: ?Season, steps: array<int, array{label: string, done: bool, detail: ?string}>}
+     */
+    #[Computed]
+    public function seasonProgress(): array
+    {
+        $season = $this->season
+            ?? Season::whereIn('status', [SeasonStatus::Draft->value, SeasonStatus::Approved->value])->orderBy('number')->first()
+            ?? Season::orderByDesc('number')->first();
+
+        if (!$season) {
+            return ['season' => null, 'steps' => []];
+        }
+
+        $matchdays = Matchday::where('season_id', $season->id)->get();
+        $filled = $matchdays->filter(fn(Matchday $m) => $m->isFilled())->count();
+        $played = $matchdays->where('status', MatchdayStatus::Played)->count();
+        $status = $season->status;
+        $after = fn(SeasonStatus ...$statuses) => in_array($status, $statuses, true);
+
+        return [
+            'season' => $season,
+            'steps' => [
+                ['label' => __('Season created'), 'done' => true, 'detail' => null],
+                ['label' => __('Competitions'), 'done' => $after(SeasonStatus::Approved, SeasonStatus::Active, SeasonStatus::Finished), 'detail' => null],
+                ['label' => __('Lech matches'), 'done' => $filled >= Matchday::PER_SEASON || $after(SeasonStatus::Finished), 'detail' => $filled . ' / ' . Matchday::PER_SEASON],
+                ['label' => __('Season started'), 'done' => $after(SeasonStatus::Active, SeasonStatus::Finished), 'detail' => null],
+                ['label' => __('Matchdays played'), 'done' => $played >= Matchday::PER_SEASON || $after(SeasonStatus::Finished), 'detail' => $played . ' / ' . Matchday::PER_SEASON],
+                ['label' => __('Season finished'), 'done' => $after(SeasonStatus::Finished), 'detail' => null],
+            ],
+        ];
+    }
+
     /** Najbliższa kolejka bez wyniku. */
     #[Computed]
     public function nextMatchday(): ?Matchday
@@ -77,7 +121,7 @@ new class extends Component {
             return;
         }
 
-        unset($this->alerts);
+        unset($this->alerts, $this->nextStep, $this->seasonProgress);
         Flux::toast(text: __(':count questions drawn.', ['count' => $filled]), variant: 'success');
     }
 
@@ -96,7 +140,7 @@ new class extends Component {
             }
         }
 
-        unset($this->alerts, $this->numbers);
+        unset($this->alerts, $this->nextStep, $this->numbers);
         Flux::toast(text: trans_choice(':count player added to Liga podwórkowa.|:count players added to Liga podwórkowa.', $placed, ['count' => $placed]), variant: 'success');
     }
 
@@ -116,7 +160,7 @@ new class extends Component {
             return;
         }
 
-        unset($this->alerts);
+        unset($this->alerts, $this->nextStep, $this->seasonProgress);
         Flux::toast(text: __('Round :round drawn: :matches matches.', ['round' => $round, 'matches' => $matches]), variant: 'success');
     }
 }; ?>
@@ -137,6 +181,61 @@ new class extends Component {
         </div>
         <flux:button icon="globe-alt" :href="route('home')">{{ __('Public site') }}</flux:button>
     </div>
+
+    {{-- Następny krok: najpilniejsza sprawa z powiadomień jako duża karta z jednym przyciskiem --}}
+    @if ($step = $this->nextStep)
+        <div class="lech-banner flex flex-wrap items-center gap-4 rounded-2xl p-5 text-white" wire:key="next-step">
+            <flux:icon :name="$step['icon']" class="size-10 shrink-0 text-white/80" />
+            <div class="min-w-0 flex-1">
+                <div class="text-xs font-semibold uppercase tracking-wider text-white/70">{{ __('Next step') }}</div>
+                <div class="text-lg font-semibold">{{ $step['title'] }}</div>
+                <div class="text-sm text-white/80">{{ $step['detail'] }}</div>
+            </div>
+            <div class="flex gap-2">
+                @if ($step['action'])
+                    <flux:button variant="primary" wire:click="{{ $step['action']['method'] }}({{ $step['action']['arg'] }})">
+                        {{ $step['action']['label'] }}
+                    </flux:button>
+                @endif
+                @if ($step['route'] && \Illuminate\Support\Facades\Route::has($step['route']))
+                    <flux:button :variant="$step['action'] ? 'filled' : 'primary'" icon-trailing="arrow-right" :href="route($step['route'], $step['params'])" wire:navigate>
+                        {{ __('Go') }}
+                    </flux:button>
+                @endif
+            </div>
+        </div>
+    @endif
+
+    {{-- Postęp sezonu: kroki od utworzenia do zakończenia, pełna lista kontrolna pod linkiem --}}
+    @php
+        $progress = $this->seasonProgress;
+    @endphp
+    @if ($progress['season'])
+        <flux:card class="space-y-4">
+            <div class="flex flex-wrap items-center justify-between gap-3">
+                <div class="flex items-center gap-2">
+                    <flux:heading size="lg">{{ $progress['season']->title }}</flux:heading>
+                    <flux:badge size="sm" :color="$progress['season']->status->color()">{{ $progress['season']->status->label() }}</flux:badge>
+                </div>
+                <flux:button size="sm" variant="ghost" icon="clipboard-document-check" :href="route('dashboard.checklist', ['season' => $progress['season']->id])" wire:navigate>
+                    {{ __('Full checklist') }}
+                </flux:button>
+            </div>
+            <ol class="grid gap-3 sm:grid-cols-3 lg:grid-cols-6">
+                @foreach ($progress['steps'] as $item)
+                    <li class="flex items-center gap-2 rounded-xl border p-3 {{ $item['done'] ? 'border-green-200 bg-green-50 dark:border-green-500/30 dark:bg-green-500/10' : 'border-zinc-200 dark:border-zinc-700' }}">
+                        <flux:icon :name="$item['done'] ? 'check-circle' : 'minus-circle'" class="{{ $item['done'] ? 'text-green-600' : 'text-zinc-400' }} size-5 shrink-0" />
+                        <div class="min-w-0">
+                            <div class="text-sm font-medium">{{ $item['label'] }}</div>
+                            @if ($item['detail'])
+                                <div class="text-xs tabular-nums text-zinc-500">{{ $item['detail'] }}</div>
+                            @endif
+                        </div>
+                    </li>
+                @endforeach
+            </ol>
+        </flux:card>
+    @endif
 
     {{-- Skrót liczb --}}
     @php

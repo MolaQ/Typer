@@ -102,6 +102,49 @@ new class extends Component {
         return $out;
     }
 
+    /**
+     * Postęp kolejek do kart (mecz, pytania, typy, wynik): liczba pytań i typów każdej kolejki
+     * oraz liczba pytań potrzebnych na komplet zestawów (typy rozgrywek sezonu x 2 strony x 5).
+     *
+     * @return array{needed: int, questions: array<int, int>, tips: array<int, int>}
+     */
+    #[Computed]
+    public function progress(): array
+    {
+        $ids = $this->matchdays->pluck('id');
+
+        return [
+            'needed' => $this->season ? count(\App\Actions\Questions\DrawQuestions::typesOfSeason($this->season->id)) * \App\Models\MatchdayQuestion::PER_SIDE * 2 : 0,
+            'questions' => \App\Models\MatchdayQuestion::whereIn('matchday_id', $ids)->selectRaw('matchday_id, count(*) as total')->groupBy('matchday_id')->pluck('total', 'matchday_id')->map(fn($n) => (int) $n)->all(),
+            'tips' => \App\Models\Tip::whereIn('matchday_id', $ids)->selectRaw('matchday_id, count(*) as total')->groupBy('matchday_id')->pluck('total', 'matchday_id')->map(fn($n) => (int) $n)->all(),
+        ];
+    }
+
+    /** Losuje brakujące pytania kolejki prosto z karty (jak na pulpicie). */
+    public function drawQuestions(int $id): void
+    {
+        $this->authorizeAbility(Permission::SeasonEdit);
+
+        $matchday = $this->findMatchday($id);
+
+        if (!$matchday->questionsEditable()) {
+            Flux::toast(text: __('The questions of this matchday can no longer be changed.'), variant: 'warning');
+
+            return;
+        }
+
+        try {
+            $filled = app(\App\Actions\Questions\DrawQuestions::class)->handle($matchday);
+        } catch (\DomainException $e) {
+            Flux::toast(text: $e->getMessage(), variant: 'danger');
+
+            return;
+        }
+
+        unset($this->progress);
+        Flux::toast(text: __(':count questions drawn.', ['count' => $filled]), variant: 'success');
+    }
+
     /** Liczba uzupełnionych kolejek i najbliższy mecz. */
     #[Computed]
     public function stats(): array
@@ -161,7 +204,7 @@ new class extends Component {
             Audit::log('matchday.created', null, [], ['matchdays' => $created], $season->title);
         }
 
-        unset($this->matchdays, $this->stats);
+        unset($this->matchdays, $this->stats, $this->progress);
         Flux::toast(text: __('Matchdays created.'), variant: 'success');
     }
 
@@ -263,7 +306,7 @@ new class extends Component {
 
         Flux::modal('matchday-form')->close();
         $this->resetForm();
-        unset($this->matchdays, $this->stats);
+        unset($this->matchdays, $this->stats, $this->progress);
 
         Flux::toast(text: __('Matchday saved.'), variant: 'success');
     }
@@ -389,6 +432,8 @@ new class extends Component {
 ?>
 
 <div class="flex h-full w-full flex-1 flex-col gap-6">
+    @include('partials.matchday-tabs', ['tab' => 'matchdays'])
+
 
     {{-- Nagłówek i wybór sezonu --}}
     <div class="flex flex-wrap items-start justify-between gap-4">
@@ -473,111 +518,97 @@ new class extends Component {
                 @endif
             </flux:card>
         @else
-            <flux:table>
-                <flux:table.columns>
-                    <flux:table.column>#</flux:table.column>
-                    <flux:table.column>{{ __('Match') }}</flux:table.column>
-                    <flux:table.column>{{ __('Competition') }}</flux:table.column>
-                    <flux:table.column>{{ __('Kickoff') }}</flux:table.column>
-                    <flux:table.column>{{ __('Status') }}</flux:table.column>
-                    <flux:table.column>{{ __('Result') }}</flux:table.column>
-                    <flux:table.column>{{ __('Correct tips') }}</flux:table.column>
-                    <flux:table.column />
-                </flux:table.columns>
+            {{-- Karty kolejek: każda prowadzi przez kroki kolejki (mecz, pytania, typowanie, wynik) z szybkimi akcjami --}}
+            @php
+                $progress = $this->progress;
+                $canEdit = auth()->user()->can(\App\Enums\Permission::SeasonEdit->value) && !$this->isLocked;
+            @endphp
+            <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                @foreach ($this->matchdays as $matchday)
+                    @php
+                        $played = $matchday->status === \App\Enums\MatchdayStatus::Played;
+                        $started = $matchday->kickoff_at && now()->gte($matchday->kickoff_at);
+                        $hasScore = $matchday->lech_goals !== null && $matchday->opponent_goals !== null;
+                        $questions = $progress['questions'][$matchday->id] ?? 0;
+                        $tips = $progress['tips'][$matchday->id] ?? 0;
+                        $routeParams = ['season' => $this->season->id, 'matchday' => $matchday->number];
 
-                <flux:table.rows>
-                    @foreach ($this->matchdays as $matchday)
-                        <flux:table.row :key="'matchday-'.$matchday->id">
-                            <flux:table.cell variant="strong">{{ $matchday->number }}</flux:table.cell>
+                        // Kroki: [ikona stanu, kolor, tytuł, opis, akcja]; stan: done / todo / urgent / wait
+                        $steps = [];
+                        $steps[] = [
+                            $matchday->isFilled() ? 'done' : 'todo',
+                            __('Match'),
+                            $matchday->isFilled()
+                                ? $matchday->fixture . ' · ' . $matchday->kickoff_at->format('d.m.Y H:i')
+                                : ($matchday->lech_match_id ? __('Unnamed match: add the opponent and the kickoff.') : __('No match yet.')),
+                        ];
+                        $steps[] = [
+                            $progress['needed'] > 0 && $questions >= $progress['needed'] ? 'done' : ($matchday->isFilled() && !$started ? 'urgent' : 'todo'),
+                            __('Bonus questions'),
+                            __('Questions: :have of :needed', ['have' => $questions, 'needed' => $progress['needed']]),
+                        ];
+                        $steps[] = [
+                            $started || $played ? 'done' : ($matchday->isOpenForTips() ? 'wait' : 'todo'),
+                            __('Tipping'),
+                            ($matchday->isOpenForTips() ? __('Tips open') : __('Tips closed')) . ' · ' . __('Tips: :count', ['count' => $tips]),
+                        ];
+                        $steps[] = [
+                            $played ? 'done' : ($started && $matchday->status !== \App\Enums\MatchdayStatus::Postponed ? 'urgent' : 'todo'),
+                            __('Result and points'),
+                            $played
+                                ? $matchday->lech_goals . ':' . $matchday->opponent_goals . (isset($this->accuracy[$matchday->id]) ? ' · ' . __('Outcome :outcome%, exact :exact%', $this->accuracy[$matchday->id]) : '')
+                                : ($hasScore ? __('The score is saved, but the points are not counted yet.') : __('After the final whistle.')),
+                        ];
+                        $stateIcons = ['done' => 'check-circle', 'todo' => 'minus-circle', 'urgent' => 'exclamation-circle', 'wait' => 'clock'];
+                        $stateColors = ['done' => 'text-green-600', 'todo' => 'text-zinc-400', 'urgent' => 'text-red-600', 'wait' => 'text-lech-600'];
+                    @endphp
+                    <flux:card class="flex flex-col gap-4" wire:key="matchday-card-{{ $matchday->id }}">
+                        <div class="flex items-start justify-between gap-3">
+                            <div>
+                                <flux:heading size="lg">{{ __('Matchday :number', ['number' => $matchday->number]) }}</flux:heading>
+                                <flux:text size="sm">{{ $matchday->competitionLabel() ?? '—' }}@if (filled($matchday->opponent)) · {{ $matchday->is_home ? __('Home') : __('Away') }}@endif</flux:text>
+                            </div>
+                            <flux:badge size="sm" :color="$matchday->status->color()">{{ $matchday->status->label() }}</flux:badge>
+                        </div>
 
-                            <flux:table.cell>
-                                @if (filled($matchday->opponent))
-                                    <div class="flex flex-wrap items-center gap-2">
-                                        <span>{{ $matchday->fixture }}</span>
-                                        <flux:badge size="sm" color="zinc">
-                                            {{ $matchday->is_home ? __('Home') : __('Away') }}</flux:badge>
+                        <ol class="space-y-3">
+                            @foreach ($steps as [$state, $title, $detail])
+                                <li class="flex items-start gap-3">
+                                    <flux:icon :name="$stateIcons[$state]" class="{{ $stateColors[$state] }} mt-0.5 size-5 shrink-0" />
+                                    <div class="min-w-0">
+                                        <div class="text-sm font-medium">{{ $title }}</div>
+                                        <div class="truncate text-sm text-zinc-500" title="{{ $detail }}">{{ $detail }}</div>
                                     </div>
-                                @elseif ($matchday->lech_match_id)
-                                    <flux:badge size="sm" color="amber" icon="pencil-square">{{ __('Unnamed match') }}</flux:badge>
-                                @else
-                                    <span class="text-zinc-400">{{ __('Not set') }}</span>
-                                @endif
-                            </flux:table.cell>
+                                </li>
+                            @endforeach
+                        </ol>
 
-                            <flux:table.cell class="text-zinc-500">{{ $matchday->competitionLabel() ?? '—' }}
-                            </flux:table.cell>
-
-                            <flux:table.cell>
-                                @if ($matchday->kickoff_at)
-                                    <div class="flex flex-wrap items-center gap-2">
-                                        <span>{{ $matchday->kickoff_at->format('d.m.Y H:i') }}</span>
-                                        @if ($matchday->isOpenForTips())
-                                            <flux:badge size="sm" color="green">{{ __('Tips open') }}
-                                            </flux:badge>
-                                        @else
-                                            <flux:badge size="sm" color="zinc">{{ __('Tips closed') }}
-                                            </flux:badge>
-                                        @endif
-                                    </div>
-                                @else
-                                    <span class="text-zinc-400">—</span>
-                                @endif
-                            </flux:table.cell>
-
-                            <flux:table.cell>
-                                <flux:badge size="sm" :color="$matchday->status->color()">
-                                    {{ $matchday->status->label() }}</flux:badge>
-                            </flux:table.cell>
-
-                            {{-- Rozstrzygnięcie z perspektywy Lecha: zielony wygrana, żółty remis, czerwony porażka --}}
-                            <flux:table.cell>
-                                @if ($matchday->status === \App\Enums\MatchdayStatus::Played)
-                                    @php
-                                        $diff = $matchday->lech_goals <=> $matchday->opponent_goals;
-                                        $resultColor = [1 => 'green', 0 => 'yellow', -1 => 'red'][$diff];
-                                        $resultLabel = [1 => __('Lech wins'), 0 => __('A draw'), -1 => __('Lech loses')][$diff];
-                                    @endphp
-                                    <flux:badge size="sm" :color="$resultColor" :title="$resultLabel">
-                                        {{ $matchday->lech_goals }}:{{ $matchday->opponent_goals }} &middot; {{ $resultLabel }}
-                                    </flux:badge>
-                                @else
-                                    <span class="text-zinc-400">—</span>
-                                @endif
-                            </flux:table.cell>
-
-                            <flux:table.cell class="text-sm">
-                                @if (isset($this->accuracy[$matchday->id]))
-                                    @php
-                                        $acc = $this->accuracy[$matchday->id];
-                                    @endphp
-                                    <div class="tabular-nums" title="{{ __('Tips: :count', ['count' => $acc['tips']]) }}">
-                                        {{ __('Outcome :outcome%, exact :exact%', ['outcome' => $acc['outcome'], 'exact' => $acc['exact']]) }}
-                                    </div>
-                                    <div class="text-xs text-zinc-500">{{ __('Tips: :count', ['count' => $acc['tips']]) }}</div>
-                                @elseif ($matchday->status === \App\Enums\MatchdayStatus::Played)
-                                    <span class="text-zinc-400">{{ __('No tips') }}</span>
-                                @else
-                                    <span class="text-zinc-400">—</span>
-                                @endif
-                            </flux:table.cell>
-
-                            <flux:table.cell align="end">
-                                @can(\App\Enums\Permission::SeasonEdit->value)
-                                    @if (!$this->isLocked && $matchday->status !== \App\Enums\MatchdayStatus::Played)
-                                        @if ($matchday->isFilled())
-                                            <flux:button variant="ghost" size="sm" icon="pencil-square" inset="top bottom"
-                                                wire:click="edit({{ $matchday->id }})" :aria-label="__('Edit')" />
-                                        @else
-                                            <flux:button variant="primary" size="sm" icon="pencil-square" inset="top bottom"
-                                                wire:click="edit({{ $matchday->id }})">{{ __('Fill in') }}</flux:button>
-                                        @endif
-                                    @endif
-                                @endcan
-                            </flux:table.cell>
-                        </flux:table.row>
-                    @endforeach
-                </flux:table.rows>
-            </flux:table>
+                        {{-- Akcje kolejki: najważniejsza (pierwszy niezałatwiony krok) jako główny przycisk --}}
+                        <div class="mt-auto flex flex-wrap gap-2 border-t border-zinc-100 pt-3 dark:border-zinc-700">
+                            @if ($canEdit && !$played)
+                                <flux:button size="sm" icon="pencil-square" wire:click="edit({{ $matchday->id }})"
+                                    :variant="$matchday->isFilled() ? 'filled' : 'primary'">
+                                    {{ $matchday->isFilled() ? __('Edit match') : __('Fill in') }}
+                                </flux:button>
+                            @endif
+                            @if ($canEdit && $matchday->isFilled() && $matchday->questionsEditable() && $questions < $progress['needed'])
+                                <flux:button size="sm" variant="primary" icon="sparkles" wire:click="drawQuestions({{ $matchday->id }})">
+                                    {{ __('Draw questions') }}
+                                </flux:button>
+                            @endif
+                            <flux:button size="sm" variant="ghost" icon="clipboard-document-list" :href="route('dashboard.matchday-questions', $routeParams)" wire:navigate>
+                                {{ __('Questions') }}
+                            </flux:button>
+                            <flux:button size="sm" variant="ghost" icon="check-badge" :href="route('dashboard.tips', $routeParams)" wire:navigate>
+                                {{ __('Tips') }}
+                            </flux:button>
+                            <flux:button size="sm" :variant="$started && !$played ? 'primary' : 'ghost'" icon="flag" :href="route('dashboard.results', $routeParams)" wire:navigate>
+                                {{ __('Result') }}
+                            </flux:button>
+                        </div>
+                    </flux:card>
+                @endforeach
+            </div>
 
             {{-- Dobranie brakujących kolejek, gdyby któraś została usunięta z bazy --}}
             @if ($this->matchdays->count() < \App\Models\Matchday::PER_SEASON && !$this->isLocked)

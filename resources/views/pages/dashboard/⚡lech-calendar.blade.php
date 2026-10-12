@@ -204,6 +204,8 @@ new class extends Component {
 }; ?>
 
 <div class="flex h-full w-full flex-1 flex-col gap-6">
+    @include('partials.matchday-tabs', ['tab' => 'calendar'])
+
     <div class="flex flex-wrap items-start justify-between gap-4">
         <div>
             <flux:heading size="xl" level="1">{{ __('Lech calendar') }}</flux:heading>
