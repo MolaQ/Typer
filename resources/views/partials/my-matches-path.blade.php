@@ -67,7 +67,7 @@
                                     <span class="text-2xl font-black tabular-nums text-lech-900 dark:text-white">
                                         {{ $fx->isPlayed() ? $myGoals . ':' . $theirGoals : '–' }}
                                     </span>
-                                    <span class="w-full truncate text-xs text-zinc-600 dark:text-zinc-300">{{ $opponentName ?? __('Opponent not known yet') }}</span>
+                                    <span class="w-full truncate text-xs text-zinc-600 dark:text-zinc-300 {{ $opponent?->seasonTeam?->is_bot || ($fx && $fx->isBye()) ? 'italic' : '' }}">{{ $opponentName ?? __('Opponent not known yet') }}</span>
                                     <span class="{{ $stateClass }} text-xs font-semibold">{{ $stateText }}</span>
                                 </span>
                             </button>

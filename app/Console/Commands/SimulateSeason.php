@@ -108,6 +108,9 @@ class SimulateSeason extends Command
     /** @var array<string, mixed>|null zajęte nazwy zespołów (małymi literami) */
     private ?array $takenNames = null;
 
+    /** @var list<string>|null nieużyte nazwy klubów z puli */
+    private ?array $clubNames = null;
+
     public function handle(SetUpSeason $setUp, SaveTip $saveTip, SaveMatchdayResult $results, FinishSeason $finish): int
     {
         if (app()->isProduction()) {
@@ -340,7 +343,7 @@ class SimulateSeason extends Command
      * ================================================================*/
 
     /**
-     * Losuje nazwę zespołu, której nie ma jeszcze żaden gracz ani bot (bez względu na wielkość liter).
+     * Losuje nazwę zespołu (najpierw z puli prawdziwych klubów), której nie ma jeszcze żaden gracz ani bot (bez względu na wielkość liter).
      * Gdy pula się wyczerpie, dopisuje kolejny numer, aż nazwa będzie wolna.
      */
     private function uniqueTeamName(): string
@@ -350,6 +353,22 @@ class SimulateSeason extends Command
             ->map(fn (string $name) => mb_strtolower($name))
             ->flip()
             ->all();
+
+        // Najpierw prawdziwe kluby z puli (database/data/club-names.php), potem generator.
+        if ($this->clubNames === null) {
+            /** @var list<string> $clubs */
+            $clubs = require database_path('data/club-names.php');
+            shuffle($clubs);
+            $this->clubNames = $clubs;
+        }
+
+        while (($club = array_pop($this->clubNames)) !== null) {
+            if (! isset($this->takenNames[mb_strtolower($club)])) {
+                $this->takenNames[mb_strtolower($club)] = true;
+
+                return $club;
+            }
+        }
 
         for ($try = 0; $try < 200; $try++) {
             $name = self::TEAM_PREFIXES[array_rand(self::TEAM_PREFIXES)].' '.self::TEAM_PLACES[array_rand(self::TEAM_PLACES)]

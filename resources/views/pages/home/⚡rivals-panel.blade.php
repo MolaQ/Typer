@@ -101,7 +101,7 @@ new class extends Component {
                             </span>
                             <span class="min-w-0 flex-1">
                                 <span class="block truncate text-[11px] font-semibold uppercase tracking-wide text-lech-700 dark:text-lech-300">{{ $rival['competition'] }}</span>
-                                <span class="block truncate text-sm font-medium">{{ $rival['rival'] }}</span>
+                                <span class="block truncate text-sm font-medium {{ $rival['bot'] ? 'italic' : '' }}">{{ $rival['rival'] }}</span>
                             </span>
                             <span class="shrink-0">
                                 @if ($rival['virtual'])

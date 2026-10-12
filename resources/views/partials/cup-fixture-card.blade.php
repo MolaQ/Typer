@@ -25,7 +25,7 @@
         <div class="{{ $rowClass }} flex items-center gap-2 border-l-4 px-2 py-1.5 {{ $loop->first ? 'border-b border-b-zinc-100 dark:border-b-zinc-800' : '' }}">
             <span class="w-7 shrink-0 rounded bg-zinc-100 py-0.5 text-center text-[10px] tabular-nums text-zinc-500 dark:bg-zinc-800">{{ $side['seat'] }}</span>
             <span class="flex min-w-0 flex-1 items-center gap-1">
-                <span class="truncate">{{ $side['entry']?->seasonTeam->name ?? __('Seat :number', ['number' => $side['seat']]) }}</span>
+                <span class="truncate {{ $side['entry']?->seasonTeam?->is_bot ? 'italic' : '' }}">{{ $side['entry']?->seasonTeam->name ?? __('Seat :number', ['number' => $side['seat']]) }}</span>
                 <x-champion-trophies :team="$side['entry']?->seasonTeam" :size="14" />
             </span>
             @if ($won)

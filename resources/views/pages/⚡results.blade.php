@@ -44,6 +44,12 @@ new #[Layout('layouts::public')] class extends Component {
     /** Zespół (season_teams.id) i mecz pokazywane w oknach. */
     public ?int $teamId = null;
 
+    /** Długie tabele (Liga Legend, podwórkowa) dzielimy na strony po tyle zespołów. */
+    public const TABLE_PER_PAGE = 25;
+
+    /** Strona tabeli; 0 = automatycznie (strona z wyróżnionym zespołem albo pierwsza). */
+    public int $tablePage = 0;
+
     /** Szukany zespół (season_teams.id, parametr ?team= z profilu zespołu): wyróżniony, a lista meczów otwiera się na jego stronie. */
     public ?int $focusTeamId = null;
 
@@ -127,6 +133,8 @@ new #[Layout('layouts::public')] class extends Component {
     /** Po zmianie wyboru podmieniamy adres w pasku przeglądarki bez przeładowania strony. */
     private function syncUrl(): void
     {
+        // Inne rozgrywki, kolejka albo sezon: tabela wraca na stronę z wyróżnionym zespołem.
+        $this->tablePage = 0;
         $this->js('history.replaceState(history.state, "", ' . json_encode($this->pageUrl()) . ')');
         // Panel meczu Lecha w prawej kolumnie pokazuje wybraną kolejkę.
         $this->dispatch('results-matchday', id: (int) $this->matchday?->id);
@@ -340,6 +348,30 @@ new #[Layout('layouts::public')] class extends Component {
     public function table()
     {
         return $this->hasTable ? Standings::for($this->competition, null, max(1, $this->round)) : collect();
+    }
+
+    /** Liczba stron tabeli (po TABLE_PER_PAGE zespołów). */
+    public function tablePages(): int
+    {
+        return max(1, (int) ceil($this->table->count() / self::TABLE_PER_PAGE));
+    }
+
+    /** Oglądana strona tabeli: wybrana strzałkami albo ta, na której jest zespół gracza lub szukany zespół. */
+    public function currentTablePage(): int
+    {
+        if ($this->tablePage > 0) {
+            return min($this->tablePage, $this->tablePages());
+        }
+
+        $index = $this->table->values()->search(fn (array $row) => $this->highlighted($row['team']->id));
+
+        return $index === false ? 1 : intdiv((int) $index, self::TABLE_PER_PAGE) + 1;
+    }
+
+    /** Strzałki pod tabelą: poprzednia albo następna strona. */
+    public function shiftTablePage(int $step): void
+    {
+        $this->tablePage = max(1, min($this->tablePages(), $this->currentTablePage() + ($step <=> 0)));
     }
 
     /**
@@ -810,6 +842,10 @@ new #[Layout('layouts::public')] class extends Component {
                         </span>
                     </header>
 
+                    @php
+                        $tablePageNow = $this->currentTablePage();
+                        $tablePageCount = $this->tablePages();
+                    @endphp
                     <div class="overflow-x-auto">
                         <table class="w-full text-sm">
                             <thead class="text-[11px] font-semibold uppercase tracking-wide opacity-80">
@@ -827,7 +863,7 @@ new #[Layout('layouts::public')] class extends Component {
                                 </tr>
                             </thead>
                             <tbody class="bg-white text-zinc-800 dark:bg-zinc-900 dark:text-zinc-100">
-                                @foreach ($this->table as $index => $row)
+                                @foreach ($this->table->values()->slice(($tablePageNow - 1) * $this::TABLE_PER_PAGE, $this::TABLE_PER_PAGE) as $index => $row)
                                     @php
                                         // Po ostatniej kolejce belki wynikają z faktycznych awansów i spadków (razem z zamianami za boty).
                                         $zone = $this->finalMoves !== []
@@ -865,7 +901,7 @@ new #[Layout('layouts::public')] class extends Component {
                                             </span>
                                         </td>
                                         <td class="max-w-56 truncate px-2 py-1.5">
-                                            <button type="button" wire:click="showTeam({{ $row['team']->id }})" class="truncate hover:text-lech-700 hover:underline dark:hover:text-lech-300">{{ $row['team']->name }}</button>
+                                            <button type="button" wire:click="showTeam({{ $row['team']->id }})" class="truncate hover:text-lech-700 hover:underline dark:hover:text-lech-300 {{ $row['team']->is_bot ? 'italic' : '' }}">{{ $row['team']->name }}</button>
                                             <x-champion-trophies :team="$row['team']" class="ms-1" />
                                         </td>
                                         <td class="px-1.5 py-1.5 text-right tabular-nums">{{ $row['played'] }}</td>
@@ -881,6 +917,23 @@ new #[Layout('layouts::public')] class extends Component {
                             </tbody>
                         </table>
                     </div>
+
+                    {{-- Strony tabeli (Liga Legend, podwórkowa): po 25 zespołów, zwarty pager jak przy meczach --}}
+                    @if ($tablePageCount > 1)
+                        <div class="flex items-center justify-between gap-2 px-1 pt-2">
+                            <button type="button" wire:click="shiftTablePage(-1)" @disabled($tablePageNow <= 1)
+                                class="flex size-8 items-center justify-center rounded-full bg-black/20 transition hover:bg-black/30 disabled:opacity-30" aria-label="{{ __('Previous') }}">
+                                <flux:icon.chevron-left variant="micro" />
+                            </button>
+                            <span class="text-xs tabular-nums opacity-85">
+                                {{ __('Places :from–:to of :count', ['from' => ($tablePageNow - 1) * $this::TABLE_PER_PAGE + 1, 'to' => min($tablePageNow * $this::TABLE_PER_PAGE, $this->table->count()), 'count' => $this->table->count()]) }}
+                            </span>
+                            <button type="button" wire:click="shiftTablePage(1)" @disabled($tablePageNow >= $tablePageCount)
+                                class="flex size-8 items-center justify-center rounded-full bg-black/20 transition hover:bg-black/30 disabled:opacity-30" aria-label="{{ __('Next') }}">
+                                <flux:icon.chevron-right variant="micro" />
+                            </button>
+                        </div>
+                    @endif
 
                     {{-- Stopka w barwach rozgrywek: objaśnienia i legenda stref --}}
                     @if ($this->isLegends || in_array($this->competition->type, [\App\Enums\CompetitionType::League, \App\Enums\CompetitionType::Swiss], true))
@@ -963,7 +1016,7 @@ new #[Layout('layouts::public')] class extends Component {
                             <flux:icon.trophy class="size-8 shrink-0 text-amber-300" />
                             <div class="min-w-0">
                                 <div class="text-xs uppercase tracking-wide opacity-80">{{ __('Cup winner') }}</div>
-                                <button type="button" wire:click="showTeam({{ $champion?->season_team_id ?? 0 }})" class="truncate text-lg font-bold hover:underline">{{ $champion?->seasonTeam->name }}</button>
+                                <button type="button" wire:click="showTeam({{ $champion?->season_team_id ?? 0 }})" class="truncate text-lg font-bold hover:underline {{ $champion?->seasonTeam?->is_bot ? 'italic' : '' }}">{{ $champion?->seasonTeam->name }}</button>
                             </div>
                         </div>
                     @endif
@@ -1020,7 +1073,7 @@ new #[Layout('layouts::public')] class extends Component {
                                                     <span class="text-2xl font-black tabular-nums text-lech-900 dark:text-white">
                                                         {{ $fx && $fx->isPlayed() ? $myGoals . ':' . $theirGoals : '–' }}
                                                     </span>
-                                                    <span class="w-full truncate text-xs text-zinc-600 dark:text-zinc-300">{{ $opponent?->seasonTeam->name ?? ($fx ? __('Opponent not known yet') : '') }}</span>
+                                                    <span class="w-full truncate text-xs text-zinc-600 dark:text-zinc-300 {{ $opponent?->seasonTeam?->is_bot ? 'italic' : '' }}">{{ $opponent?->seasonTeam->name ?? ($fx ? __('Opponent not known yet') : '') }}</span>
                                                     <span class="{{ $stateClass }} text-xs font-semibold">{{ $stateText }}</span>
                                                 </span>
                                             </a>
@@ -1111,7 +1164,7 @@ new #[Layout('layouts::public')] class extends Component {
                             @endphp
                             <button type="button" wire:click="showFixture({{ $fixture->id }})" title="{{ __('Match details') }}" wire:key="fx-{{ $fixture->id }}"
                                 class="{{ $mine ? 'ring-2 ring-amber-400' : '' }} grid w-full grid-cols-[1fr_auto_1fr] items-center gap-2 rounded-lg bg-black/20 px-2 py-1.5 text-sm transition hover:bg-black/30">
-                                <span class="flex min-w-0 items-center justify-end gap-1 {{ $homeWon ? 'font-bold' : 'opacity-85' }}"><x-champion-trophies :team="$fixture->home?->seasonTeam" :size="14" /><span class="truncate">{{ $fixture->home?->seasonTeam->name ?? __('Seat :number', ['number' => $fixture->home_seat]) }}</span></span>
+                                <span class="flex min-w-0 items-center justify-end gap-1 {{ $homeWon ? 'font-bold' : 'opacity-85' }}"><x-champion-trophies :team="$fixture->home?->seasonTeam" :size="14" /><span class="truncate {{ $fixture->home?->seasonTeam?->is_bot ? 'italic' : '' }}">{{ $fixture->home?->seasonTeam->name ?? __('Seat :number', ['number' => $fixture->home_seat]) }}</span></span>
                                 @if ($fixture->isPlayed())
                                     <span class="comp-badge min-w-14 rounded-md px-2 py-0.5 text-center text-base font-black tabular-nums shadow">{{ $fixture->home_goals }}:{{ $fixture->away_goals }}</span>
                                 @else
@@ -1119,7 +1172,7 @@ new #[Layout('layouts::public')] class extends Component {
                                 @endif
                                 <span class="flex min-w-0 items-center gap-1 text-left {{ $awayWon ? 'font-bold' : 'opacity-85' }}">
                                     @if ($fixture->away)
-                                        <span class="truncate">{{ $fixture->away->seasonTeam->name }}</span>
+                                        <span class="truncate {{ $fixture->away->seasonTeam->is_bot ? 'italic' : '' }}">{{ $fixture->away->seasonTeam->name }}</span>
                                         <x-champion-trophies :team="$fixture->away->seasonTeam" :size="14" />
                                     @elseif ($fixture->away_seat)
                                         {{ __('Seat :number', ['number' => $fixture->away_seat]) }}

@@ -41,9 +41,9 @@
                 <div class="min-w-0 space-y-1 {{ $loop->first ? 'text-right' : '' }}">
                     @if ($side['profile'] ?? null)
                         <a href="{{ $side['profile'] }}" wire:navigate
-                            class="inline-flex max-w-full truncate rounded-md bg-white/15 px-2.5 py-1 font-semibold text-white ring-1 ring-white/25 transition hover:bg-white/25">{{ $side['name'] }}</a>
+                            class="inline-flex max-w-full truncate rounded-md bg-white/15 px-2.5 py-1 font-semibold text-white ring-1 ring-white/25 transition hover:bg-white/25 {{ $side['bot'] ? 'italic' : '' }}">{{ $side['name'] }}</a>
                     @else
-                        <div class="truncate px-2.5 py-1 font-semibold {{ $side['virtual'] ? 'italic' : '' }}">{{ $side['name'] }}</div>
+                        <div class="truncate px-2.5 py-1 font-semibold {{ $side['virtual'] || $side['bot'] ? 'italic' : '' }}">{{ $side['name'] }}</div>
                     @endif
                     @if (($side['trophies'] ?? []) !== [])
                         <div class="flex px-2.5 {{ $loop->first ? 'justify-end' : '' }}">
@@ -120,9 +120,9 @@
                 <div class="flex {{ $inner }}">
                     @if ($side['profile'] ?? null)
                         <a href="{{ $side['profile'] }}" wire:navigate
-                            class="lech-bar max-w-full truncate rounded-md px-2.5 py-1 font-semibold transition hover:opacity-90">{{ $side['name'] }}</a>
+                            class="lech-bar max-w-full truncate rounded-md px-2.5 py-1 font-semibold transition hover:opacity-90 {{ $side['bot'] ? 'italic' : '' }}">{{ $side['name'] }}</a>
                     @else
-                        <span class="max-w-full truncate rounded-md bg-zinc-200 px-2.5 py-1 font-semibold text-zinc-700 dark:bg-zinc-700 dark:text-zinc-200 {{ $side['virtual'] ? 'italic' : '' }}">{{ $side['name'] }}</span>
+                        <span class="max-w-full truncate rounded-md bg-zinc-200 px-2.5 py-1 font-semibold text-zinc-700 dark:bg-zinc-700 dark:text-zinc-200 {{ $side['virtual'] || $side['bot'] ? 'italic' : '' }}">{{ $side['name'] }}</span>
                     @endif
                 </div>
 

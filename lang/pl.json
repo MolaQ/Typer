@@ -1432,5 +1432,6 @@
     "Choose the bot that gets this name. Its history, trophies and statistics stay with it.": "Wybierz bota, który dostanie tę nazwę. Jego historia, trofea i statystyki zostają przy nim.",
     "Find a bot": "Znajdź bota",
     "Choose a bot": "Wybierz bota",
-    "Rename the bot": "Zmień nazwę bota"
+    "Rename the bot": "Zmień nazwę bota",
+    "Places :from–:to of :count": "Miejsca :from–:to z :count"
 }

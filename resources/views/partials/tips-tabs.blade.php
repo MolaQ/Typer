@@ -333,7 +333,7 @@
                             {{ $loop->iteration }}
                         </span>
                         <span class="min-w-0 flex-1">
-                            <span class="block truncate font-semibold">{{ $scalp['name'] }}</span>
+                            <span class="block truncate font-semibold {{ $scalp['bot'] ? 'italic' : '' }}">{{ $scalp['name'] }}</span>
                             <span class="block truncate text-xs text-zinc-500">
                                 {{ $scalp['bot'] ? __('Bot') : $scalp['owner'] }} &middot; {{ __('Hall of Fame: :points pts', ['points' => \App\Support\HallOfFame::format($scalp['hof'])]) }}
                             </span>
@@ -379,7 +379,7 @@
                             {{ $loop->iteration }}
                         </span>
                         <span class="min-w-0 flex-1">
-                            <span class="block truncate font-semibold">{{ $rival['name'] }}</span>
+                            <span class="block truncate font-semibold {{ $rival['bot'] ? 'italic' : '' }}">{{ $rival['name'] }}</span>
                             <span class="block truncate text-xs text-zinc-500">
                                 {{ $rival['bot'] ? __('Bot') : $rival['owner'] }} &middot; {{ __('Hall of Fame: :points pts', ['points' => \App\Support\HallOfFame::format($rival['hof'])]) }}
                             </span>

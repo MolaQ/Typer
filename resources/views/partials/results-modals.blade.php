@@ -19,7 +19,7 @@
                     </div>
                     <div class="min-w-0 space-y-1">
                         <div class="flex items-center gap-1.5">
-                            <span class="truncate text-lg font-semibold">{{ $team->name }}</span>
+                            <span class="truncate text-lg font-semibold {{ $team->is_bot ? 'italic' : '' }}">{{ $team->name }}</span>
                             <x-champion-trophies :team="$team" :size="20" />
                         </div>
                         <div class="flex flex-wrap items-center gap-2 text-sm text-white/75">
