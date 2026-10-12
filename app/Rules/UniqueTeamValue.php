@@ -9,7 +9,7 @@ use InvalidArgumentException;
 
 class UniqueTeamValue implements ValidationRule
 {
-    private const COLUMNS = ['team_name', 'team_short_name', 'team_abbr'];
+    private const COLUMNS = ['team_name'];
 
     public function __construct(
         private string $column,

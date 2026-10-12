@@ -31,7 +31,7 @@ use Spatie\Permission\Traits\HasRoles;
  * @property string|null $verification_code
  * @property Carbon|null $verification_code_expires_at
  */
-#[Fillable(['name', 'email', 'password', 'team_name', 'team_short_name', 'team_abbr'])]
+#[Fillable(['name', 'email', 'password', 'team_name'])]
 #[Hidden(['password', 'two_factor_secret', 'two_factor_recovery_codes', 'remember_token', 'verification_code'])]
 class User extends Authenticatable implements MustVerifyEmail
 {

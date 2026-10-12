@@ -125,7 +125,7 @@ new class extends Component {
 
         return $this->selected
             ->entries()
-            ->with(['seasonTeam.user:id,name,team_name,team_abbr', 'seasonTeam.bot:id,name'])
+            ->with(['seasonTeam.user:id,name,team_name', 'seasonTeam.bot:id,name'])
             ->get();
     }
 
@@ -142,7 +142,7 @@ new class extends Component {
         $like = '%' . $term . '%';
 
         return SeasonTeam::query()
-            ->with(['user:id,name,team_name,team_abbr', 'bot:id,name'])
+            ->with(['user:id,name,team_name', 'bot:id,name'])
             ->where('season_id', $this->seasonId)
             ->whereNotIn('id', CompetitionEntry::where('competition_id', $this->selected->id)->select('season_team_id'))
             ->where(function ($q) use ($like) {
@@ -192,7 +192,7 @@ new class extends Component {
             ->all();
 
         $ids = array_slice(array_merge($history, $rest), 0, $limit);
-        $teams = SeasonTeam::with(['user:id,name,team_name,team_abbr', 'bot:id,name'])->whereIn('id', $ids)->get()->keyBy('id');
+        $teams = SeasonTeam::with(['user:id,name,team_name', 'bot:id,name'])->whereIn('id', $ids)->get()->keyBy('id');
 
         return collect($ids)
             ->filter(fn($id) => $teams->has($id))

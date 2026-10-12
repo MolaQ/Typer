@@ -57,15 +57,13 @@ class PlayersSeeder extends Seeder
     {
         $created = [];
 
-        foreach (self::PLAYERS as $index => [$first, $last, $domain, $team, $short, $abbr]) {
+        foreach (self::PLAYERS as $index => [$first, $last, $domain, $team]) {
             $email = self::slug($first).'.'.self::slug($last).($index % 3 === 0 ? '' : ($index + 71)).'@'.$domain;
 
             $user = User::firstOrCreate(['email' => $email], [
                 'name' => $first.' '.$last,
                 'password' => Hash::make('password'),
                 'team_name' => User::where('team_name', $team)->exists() ? null : $team,
-                'team_short_name' => User::where('team_short_name', $short)->exists() ? null : $short,
-                'team_abbr' => User::where('team_abbr', $abbr)->exists() ? null : $abbr,
             ]);
 
             if (! $user->email_verified_at) {

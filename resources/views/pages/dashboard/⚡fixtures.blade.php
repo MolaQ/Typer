@@ -140,7 +140,7 @@ new class extends Component {
 
         return $this->competition
             ->entries()
-            ->with(['seasonTeam.user:id,name,team_name,team_abbr', 'seasonTeam.bot:id,name'])
+            ->with(['seasonTeam.user:id,name,team_name', 'seasonTeam.bot:id,name'])
             ->get();
     }
 
@@ -272,7 +272,7 @@ new class extends Component {
 
     private function sideRelations(): array
     {
-        return ['home.seasonTeam.user:id,name,team_name,team_abbr', 'home.seasonTeam.bot:id,name', 'away.seasonTeam.user:id,name,team_name,team_abbr', 'away.seasonTeam.bot:id,name'];
+        return ['home.seasonTeam.user:id,name,team_name', 'home.seasonTeam.bot:id,name', 'away.seasonTeam.user:id,name,team_name', 'away.seasonTeam.bot:id,name'];
     }
 
     private function authorizeAbility(Permission $permission): void

@@ -160,7 +160,7 @@ new class extends Component {
     public function teams()
     {
         return SeasonTeam::query()
-            ->with(['user:id,name,email,team_name,team_short_name,team_abbr', 'bot:id,name,sort_order'])
+            ->with(['user:id,name,email,team_name', 'bot:id,name,sort_order'])
             ->where('season_id', $this->seasonId)
             ->inLeague($this->selectedLeague)
             ->orderBy('position')
@@ -1047,9 +1047,6 @@ new class extends Component {
                                     <span>{{ $team->name }}</span>
                                     @if ($team->is_bot)
                                         <flux:badge size="sm" color="zinc">{{ __('Bot') }}</flux:badge>
-                                    @elseif ($team->user?->team_abbr)
-                                        <flux:badge size="sm" color="blue">{{ $team->user->team_abbr }}
-                                        </flux:badge>
                                     @endif
                                 </div>
                             </flux:table.cell>

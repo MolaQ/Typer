@@ -61,13 +61,11 @@ new class extends Component {
             ->whereHas('roles')
             ->whereDoesntHave('roles', fn ($r) => $r->whereIn('name', Players::BLOCKING_ROLES))
             ->where(fn ($w) => $w->where('team_name', 'like', $like)
-                ->orWhere('team_short_name', 'like', $like)
-                ->orWhere('team_abbr', 'like', $like)
                 ->orWhere('name', 'like', $like))
             ->orderByRaw('team_name is null')
             ->orderBy('team_name')
             ->limit(self::LIMIT)
-            ->get(['id', 'name', 'team_name', 'team_abbr'])
+            ->get(['id', 'name', 'team_name'])
             ->map(fn (User $u) => [
                 'title' => $u->team_name ?: $u->name,
                 'sub' => $u->team_name ? $u->name : null,

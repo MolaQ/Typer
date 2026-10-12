@@ -18,8 +18,6 @@ class CreateAdminUserSeeder extends Seeder
                 'name' => 'Admin User',
                 'password' => bcrypt('password'),
                 'team_name' => 'Kolejorz Kaczory',
-                'team_short_name' => 'Kolejorz',
-                'team_abbr' => 'KOLKAC',
             ]
         );
 

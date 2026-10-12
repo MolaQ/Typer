@@ -12,11 +12,7 @@ class TeamNameChangeRequest extends Model
     protected $fillable = [
         'user_id',
         'current_team_name',
-        'current_team_short_name',
-        'current_team_abbr',
         'requested_team_name',
-        'requested_team_short_name',
-        'requested_team_abbr',
         'status',
         'reviewed_by',
         'reviewed_at',

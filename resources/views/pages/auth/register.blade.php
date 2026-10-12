@@ -22,13 +22,6 @@
             <flux:input name="team_name" :label="__('Team name')" :value="old('team_name')" type="text" required
                 minlength="3" maxlength="40" :placeholder="__('Full team name')" />
 
-            <!-- Team short name -->
-            <flux:input name="team_short_name" :label="__('Team short name')" :value="old('team_short_name')"
-                type="text" required minlength="3" maxlength="20" :placeholder="__('Short team name')" />
-
-            <!-- Team abbreviation -->
-            <flux:input name="team_abbr" :label="__('Team abbreviation')" :value="old('team_abbr')" type="text" required
-                minlength="3" maxlength="6" class="uppercase" :placeholder="__('3 to 6 letters')" />
 
             <flux:separator />
 

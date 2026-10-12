@@ -103,8 +103,6 @@ new class extends Component {
     {
         return match ($key) {
             'team_name' => __('Team name'),
-            'team_short_name' => __('Team short name'),
-            'team_abbr' => __('Team abbreviation'),
             'roles' => __('Roles'),
             'number' => __('Season number'),
             'slogan' => __('Slogan'),
