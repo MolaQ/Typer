@@ -80,6 +80,16 @@ class SeasonTeam extends Model
      * ----------------------------------------------------------------*/
 
     /** SeasonTeam::inLeague(League::Ekstraklasa)->get() */
+    /** Profil zespołu: gracza (/teams) albo bota (/bots), null dla pustego miejsca. */
+    public function profileUrl(): ?string
+    {
+        if ($this->user_id && $this->user) {
+            return route('team.show', $this->user);
+        }
+
+        return $this->bot_id && $this->bot ? route('bot.show', $this->bot) : null;
+    }
+
     public function scopeInLeague(Builder $query, League $league): Builder
     {
         $query->where('position', '>=', $league->firstPosition());

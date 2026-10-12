@@ -2,6 +2,10 @@
 
 namespace App\Support;
 
+use App\Models\User;
+use Closure;
+use Illuminate\Validation\Rule;
+
 /**
  * Domyślne nazwy 512 botów (jedno źródło prawdy, tak jak enum Permission dla uprawnień).
  *
@@ -536,6 +540,28 @@ class BotNames
             'Brzesko Bastion',
             'Mistrzowie Kierownicy Chodzież ',
             'Trzyliterowa Rejestracja',
+        ];
+    }
+
+    /**
+     * Reguły nazwy bota (panel botów i propozycje graczy): 3-40 znaków, unikalna wśród botów
+     * (bez $ignoreBotId) i niepokrywająca się z nazwą zespołu żadnego gracza.
+     *
+     * @return array<int, mixed>
+     */
+    public static function rules(?int $ignoreBotId = null): array
+    {
+        return [
+            'required',
+            'string',
+            'min:3',
+            'max:40',
+            Rule::unique('bots', 'name')->ignore($ignoreBotId),
+            function (string $attribute, mixed $value, Closure $fail) {
+                if (User::whereRaw('LOWER(team_name) = ?', [mb_strtolower((string) $value)])->exists()) {
+                    $fail(__('This name is already used by a player.'));
+                }
+            },
         ];
     }
 

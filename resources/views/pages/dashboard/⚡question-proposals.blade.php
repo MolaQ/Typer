@@ -2,9 +2,12 @@
 
 use App\Enums\Permission;
 use App\Enums\QuestionSide;
+use App\Models\Bot;
 use App\Models\Question;
 use App\Models\QuestionProposal;
 use App\Support\Audit;
+use App\Support\BotNames;
+use Illuminate\Support\Str;
 use Flux\Flux;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Facades\DB;
@@ -14,8 +17,9 @@ use Livewire\Component;
 use Livewire\WithPagination;
 
 /**
- * Propozycje pytań bonusowych od graczy (formularz w stopce strony publicznej). Akceptacja dodaje pytanie
- * do banku (z możliwością poprawienia treści i typu), odrzucenie zapisuje powód.
+ * Propozycje graczy (formularz w stopce i na stronie głównej): pytania bonusowe i nazwy botów. Akceptacja pytania
+ * dodaje je do banku (z możliwością poprawienia treści i typu), akceptacja nazwy nadaje ją wybranemu botowi.
+ * Odrzucenie zapisuje powód.
  */
 new class extends Component {
     use WithPagination;
@@ -27,6 +31,12 @@ new class extends Component {
     public ?int $acceptId = null;
     public string $acceptText = '';
     public string $acceptSide = 'offensive';
+
+    // Akceptacja nazwy bota: admin wybiera bota, który ją dostaje
+    public ?int $nameId = null;
+    public string $nameText = '';
+    public string $botSearch = '';
+    public ?int $nameBotId = null;
 
     // Odrzucenie
     public ?int $rejectId = null;
@@ -52,7 +62,7 @@ new class extends Component {
     #[Computed]
     public function proposals()
     {
-        return QuestionProposal::with(['user:id,name,email', 'reviewer:id,name'])
+        return QuestionProposal::with(['user:id,name,email', 'reviewer:id,name', 'bot:id,name'])
             ->when(array_key_exists($this->status, $this->stats), fn($q) => $q->where('status', $this->status))
             ->latest('id')
             ->paginate(15, pageName: 'proposalsPage');
@@ -67,10 +77,10 @@ new class extends Component {
     {
         $this->authorizeAbility(Permission::SeasonEdit);
 
-        $proposal = QuestionProposal::pending()->findOrFail($id);
+        $proposal = QuestionProposal::pending()->where('kind', QuestionProposal::QUESTION)->findOrFail($id);
         $this->acceptId = $proposal->id;
         $this->acceptText = $proposal->text;
-        $this->acceptSide = $proposal->side->value;
+        $this->acceptSide = $proposal->side?->value ?? 'offensive';
         $this->resetValidation();
 
         Flux::modal('accept-proposal')->show();
@@ -116,6 +126,74 @@ new class extends Component {
             : Flux::toast(variant: 'warning', text: __('This proposal has already been handled.'));
     }
 
+    /** Boty do wyboru przy nadawaniu nazwy: najpierw z domyślną nazwą (jeszcze niezmienione), z wyszukiwaniem. */
+    #[Computed]
+    public function botOptions()
+    {
+        return Bot::query()
+            ->when(trim($this->botSearch) !== '', fn ($q) => $q->where('name', 'like', '%' . trim($this->botSearch) . '%'))
+            ->orderBy('sort_order')
+            ->limit(50)
+            ->get(['id', 'sort_order', 'name']);
+    }
+
+    public function openName(int $id): void
+    {
+        $this->authorizeAbility(Permission::SeasonEdit);
+
+        $proposal = QuestionProposal::pending()->where('kind', QuestionProposal::BOT_NAME)->findOrFail($id);
+        $this->nameId = $proposal->id;
+        $this->nameText = $proposal->text;
+        $this->botSearch = '';
+        $this->nameBotId = null;
+        $this->resetValidation();
+        unset($this->botOptions);
+
+        Flux::modal('accept-bot-name')->show();
+    }
+
+    public function acceptName(): void
+    {
+        $this->authorizeAbility(Permission::SeasonEdit);
+
+        $this->nameText = Str::squish($this->nameText);
+        $this->validate([
+            'nameBotId' => ['required', 'integer', 'exists:bots,id'],
+            'nameText' => BotNames::rules($this->nameBotId),
+        ], [], ['nameBotId' => __('Bot'), 'nameText' => __('Bot name')]);
+
+        $done = DB::transaction(function (): bool {
+            $proposal = QuestionProposal::query()->lockForUpdate()->find($this->nameId);
+            $bot = Bot::find($this->nameBotId);
+
+            if (!$proposal || !$bot || $proposal->status !== QuestionProposal::PENDING) {
+                return false;
+            }
+
+            $old = $bot->name;
+            $bot->update(['name' => $this->nameText]);
+
+            $proposal->update([
+                'status' => QuestionProposal::ACCEPTED,
+                'bot_id' => $bot->id,
+                'reviewed_by' => auth()->id(),
+                'reviewed_at' => now(),
+            ]);
+
+            Audit::log('bot.renamed', $proposal->user, ['name' => $old], ['name' => $bot->name], __('Bot') . ' #' . $bot->sort_order);
+
+            return true;
+        });
+
+        Flux::modal('accept-bot-name')->close();
+        $this->reset('nameId', 'nameText', 'botSearch', 'nameBotId');
+        unset($this->stats, $this->proposals);
+
+        $done
+            ? Flux::toast(variant: 'success', text: __('Bot renamed.'))
+            : Flux::toast(variant: 'warning', text: __('This proposal has already been handled.'));
+    }
+
     public function openReject(int $id): void
     {
         $this->authorizeAbility(Permission::SeasonEdit);
@@ -158,7 +236,7 @@ new class extends Component {
 <div class="flex h-full w-full flex-1 flex-col gap-6">
     <div class="space-y-1">
         <flux:heading size="xl" level="1">{{ __('Question proposals') }}</flux:heading>
-        <flux:text>{{ __('Bonus questions proposed by players. An accepted question joins the question bank.') }}</flux:text>
+        <flux:text>{{ __('Bonus questions and bot names proposed by players. An accepted question joins the question bank, an accepted name goes to the bot you choose.') }}</flux:text>
     </div>
 
     <div class="flex flex-wrap gap-2">
@@ -176,7 +254,7 @@ new class extends Component {
         <table class="w-full text-sm">
             <thead class="text-xs text-zinc-500">
                 <tr class="border-b border-zinc-200 dark:border-zinc-700">
-                    <th class="px-3 py-2 text-left">{{ __('Question') }}</th>
+                    <th class="px-3 py-2 text-left">{{ __('Proposal') }}</th>
                     <th class="px-3 py-2 text-left">{{ __('Type') }}</th>
                     <th class="px-3 py-2 text-left">{{ __('Player') }}</th>
                     <th class="px-3 py-2 text-left">{{ __('Sent') }}</th>
@@ -192,7 +270,16 @@ new class extends Component {
                                 <div class="text-xs text-red-600">{{ $proposal->reject_reason }}</div>
                             @endif
                         </td>
-                        <td class="px-3 py-2"><flux:badge size="sm" :color="$proposal->side->color()">{{ $proposal->side->label() }}</flux:badge></td>
+                        <td class="px-3 py-2">
+                            @if ($proposal->isBotName())
+                                <flux:badge size="sm" color="zinc" icon="cpu-chip">{{ __('Bot name') }}</flux:badge>
+                                @if ($proposal->bot)
+                                    <div class="mt-1 text-xs text-zinc-500">{{ __('Bot') }} #{{ $proposal->bot_id }}</div>
+                                @endif
+                            @elseif ($proposal->side)
+                                <flux:badge size="sm" :color="$proposal->side->color()">{{ $proposal->side->label() }}</flux:badge>
+                            @endif
+                        </td>
                         <td class="px-3 py-2">
                             <div>{{ $proposal->user?->name }}</div>
                             <div class="text-xs text-zinc-500">{{ $proposal->user?->email }}</div>
@@ -201,7 +288,11 @@ new class extends Component {
                         <td class="px-3 py-2 text-right">
                             @if ($proposal->status === \App\Models\QuestionProposal::PENDING)
                                 <div class="flex justify-end gap-1">
-                                    <flux:button size="xs" variant="primary" icon="check" wire:click="openAccept({{ $proposal->id }})">{{ __('Accept') }}</flux:button>
+                                    @if ($proposal->isBotName())
+                                        <flux:button size="xs" variant="primary" icon="check" wire:click="openName({{ $proposal->id }})">{{ __('Accept') }}</flux:button>
+                                    @else
+                                        <flux:button size="xs" variant="primary" icon="check" wire:click="openAccept({{ $proposal->id }})">{{ __('Accept') }}</flux:button>
+                                    @endif
                                     <flux:button size="xs" variant="ghost" icon="x-mark" wire:click="openReject({{ $proposal->id }})">{{ __('Reject') }}</flux:button>
                                 </div>
                             @else
@@ -238,6 +329,26 @@ new class extends Component {
                     <flux:button variant="ghost">{{ __('Cancel') }}</flux:button>
                 </flux:modal.close>
                 <flux:button type="submit" variant="primary">{{ __('Add to the bank') }}</flux:button>
+            </div>
+        </form>
+    </flux:modal>
+
+    <flux:modal name="accept-bot-name" class="w-full max-w-lg">
+        <form wire:submit="acceptName" class="space-y-5">
+            <flux:heading size="lg">{{ __('Give the name to a bot') }}</flux:heading>
+            <flux:text>{{ __('Choose the bot that gets this name. Its history, trophies and statistics stay with it.') }}</flux:text>
+            <flux:input wire:model="nameText" :label="__('Bot name')" maxlength="40" />
+            <flux:input wire:model.live.debounce.300ms="botSearch" icon="magnifying-glass" :label="__('Find a bot')" :placeholder="__('Search by name...')" />
+            <flux:select wire:model="nameBotId" :label="__('Bot')" :placeholder="__('Choose a bot')">
+                @foreach ($this->botOptions as $option)
+                    <flux:select.option :value="$option->id" wire:key="bo-{{ $option->id }}">#{{ $option->sort_order }} {{ $option->name }}</flux:select.option>
+                @endforeach
+            </flux:select>
+            <div class="flex justify-end gap-2">
+                <flux:modal.close>
+                    <flux:button variant="ghost">{{ __('Cancel') }}</flux:button>
+                </flux:modal.close>
+                <flux:button type="submit" variant="primary">{{ __('Rename the bot') }}</flux:button>
             </div>
         </form>
     </flux:modal>

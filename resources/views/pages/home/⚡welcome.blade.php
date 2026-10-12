@@ -207,4 +207,7 @@ new #[Layout('layouts::public')] class extends Component {
 
     {{-- Newsy z panelu z ocenami kciukami: siatka 3 x 5 z paginacją --}}
     <livewire:pages::home.news />
+
+    {{-- Propozycje graczy: pytanie bonusowe albo nazwa bota (dashboard/question-proposals) --}}
+    <livewire:pages::home.question-proposal variant="card" />
 </div>

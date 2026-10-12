@@ -147,9 +147,9 @@
                 @endif
             </div>
 
-            @if ($team->user)
+            @if ($team->profileUrl())
                 <div class="flex justify-end">
-                    <flux:button size="sm" variant="ghost" icon-trailing="arrow-right" :href="route('team.show', $team->user)" wire:navigate>
+                    <flux:button size="sm" variant="ghost" icon-trailing="arrow-right" :href="$team->profileUrl()" wire:navigate>
                         {{ __('Team profile') }}
                     </flux:button>
                 </div>

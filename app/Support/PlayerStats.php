@@ -234,13 +234,66 @@ final class PlayerStats
     }
 
     /**
+     * Statystyki sezonu bota (profil /bots): tylko kolejki, w których bot naprawdę grał (team_scores.bot_id, Ownership),
+     * także gdy w trakcie sezonu zmienił miejsce na liście. Bot nie odpowiada na pytania, więc bez bonusów i pytań.
+     *
+     * @return array<string, mixed>
+     */
+    public static function botSeason(Bot $bot, Season $season): array
+    {
+        $rows = TeamScore::query()
+            ->join('matchdays', 'matchdays.id', '=', 'team_scores.matchday_id')
+            ->where('matchdays.season_id', $season->id)
+            ->where('team_scores.bot_id', $bot->id)
+            ->select('team_scores.*', 'matchdays.number', 'matchdays.lech_goals as real_lech')
+            ->get();
+
+        $perMatchday = $rows->unique('matchday_id')->sortBy('number')->values();
+        $tipped = $perMatchday->where('has_tip', true);
+        $tips = $tipped->count();
+        [$streak, $streakBest] = self::streak($perMatchday->map(fn ($r) => (bool) $r->outcome_hit)->all());
+
+        // Mecze: wszystkie miejsca, którymi bot grał w sezonie, tylko z jego kolejek.
+        $teamIds = $rows->pluck('season_team_id')->merge(
+            SeasonTeam::where('season_id', $season->id)->where('bot_id', $bot->id)->pluck('id')
+        )->unique();
+        $teamOfEntry = CompetitionEntry::whereIn('season_team_id', $teamIds)->pluck('season_team_id', 'id');
+        $results = [];
+        foreach (Fixture::whereIn('competition_id', Competition::where('season_id', $season->id)->select('id'))
+            ->whereNotNull('home_goals')->orderBy('round')->orderBy('id')->get() as $fixture) {
+            foreach ([[$fixture->home_entry_id, true], [$fixture->away_entry_id, false]] as [$entryId, $home]) {
+                if ($entryId && isset($teamOfEntry[$entryId])
+                    && Ownership::at($season->id, (int) $teamOfEntry[$entryId], (int) $fixture->round) === 'b'.$bot->id) {
+                    $results[] = self::result($fixture, (int) $entryId, $home);
+                }
+            }
+        }
+
+        return array_merge(self::empty(), [
+            'scored' => $perMatchday->count(),
+            'tips' => $tips,
+            'exact' => $tipped->where('exact_hit', true)->count(),
+            'diff' => $tipped->where('diff_hit', true)->count(),
+            'outcome' => $tipped->where('outcome_hit', true)->count(),
+            'accuracy' => $tips > 0 ? round($tipped->where('outcome_hit', true)->count() / $tips * 100) : null,
+            'tip_points' => (int) $tipped->sum('tip_points'),
+            'avg_tip' => $tips > 0 ? round($tipped->avg('tip_points'), 2) : null,
+            'outcome_streak' => $streak,
+            'outcome_streak_best' => $streakBest,
+            'optimism' => $tips > 0 ? round($tipped->avg(fn ($r) => $r->tip_lech - $r->real_lech), 2) : null,
+            'best_matchday' => $best = self::bestMatchday($rows),
+            'best_points' => $best['points'] ?? null,
+        ], self::matchSummary($results));
+    }
+
+    /**
      * Moje skalpy (premium): rywale (gracze i boty), z którymi gracz ma lepszy bilans bezpośredni (więcej wygranych
      * niż porażek) ze wszystkich sezonów i rozgrywek, od najwyżej w rankingu Hall of Fame (potem bilans, potem nazwa).
      *
      * $blacklist = true: Czarna lista (premium), czyli odwrotnie: rywale z gorszym dla gracza bilansem
      * (więcej porażek niż wygranych), od najgorszego bilansu (potem ranking Hall of Fame).
      *
-     * @return array<int, array{name: string, owner: ?string, user: ?User, bot: bool, won: int, drawn: int, lost: int, hof: float}>
+     * @return array<int, array{name: string, owner: ?string, user: ?User, url: string, bot: bool, won: int, drawn: int, lost: int, hof: float}>
      */
     public static function scalps(User $user, bool $blacklist = false): array
     {
@@ -299,16 +352,16 @@ final class PlayerStats
         $hofUsers = HallOfFameAward::whereIn('user_id', $userIds)->groupBy('user_id')->selectRaw('user_id, sum(points) as total')->pluck('total', 'user_id');
         $hofBots = HallOfFameAward::whereIn('bot_id', $botIds)->groupBy('bot_id')->selectRaw('bot_id, sum(points) as total')->pluck('total', 'bot_id');
         $users = User::whereIn('id', $userIds)->get(['id', 'name', 'team_name'])->keyBy('id');
-        $bots = Bot::whereIn('id', $botIds)->pluck('name', 'id');
+        $bots = Bot::whereIn('id', $botIds)->get(['id', 'name'])->keyBy('id');
 
         $out = [];
         foreach ($records as $owner => $record) {
             $id = (int) substr($owner, 1);
 
             if ($owner[0] === 'u' && ($rival = $users->get($id))) {
-                $out[] = ['name' => $rival->team_name ?: $rival->name, 'owner' => $rival->name, 'user' => $rival, 'bot' => false, 'hof' => round((float) ($hofUsers[$id] ?? 0), 1)] + $record;
-            } elseif ($owner[0] === 'b' && isset($bots[$id])) {
-                $out[] = ['name' => $bots[$id], 'owner' => null, 'user' => null, 'bot' => true, 'hof' => round((float) ($hofBots[$id] ?? 0), 1)] + $record;
+                $out[] = ['name' => $rival->team_name ?: $rival->name, 'owner' => $rival->name, 'user' => $rival, 'url' => route('team.show', $rival), 'bot' => false, 'hof' => round((float) ($hofUsers[$id] ?? 0), 1)] + $record;
+            } elseif ($owner[0] === 'b' && ($bot = $bots->get($id))) {
+                $out[] = ['name' => $bot->name, 'owner' => null, 'user' => null, 'url' => route('bot.show', $bot), 'bot' => true, 'hof' => round((float) ($hofBots[$id] ?? 0), 1)] + $record;
             }
         }
 

@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Support\BotNames;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Str;
 
 /**
  * Bot: zespół bez właściciela z nazwą edytowalną w panelu admina.
@@ -21,6 +22,18 @@ class Bot extends Model
         return [
             'sort_order' => 'integer',
         ];
+    }
+
+    /** Adres profilu /bots/{id}-{nazwa}, jak przy zespołach graczy. */
+    public function getRouteKey(): string
+    {
+        return $this->getKey().'-'.Str::slug($this->name);
+    }
+
+    /** Z adresu liczy się tylko id na początku, więc linki działają też po zmianie nazwy. */
+    public function resolveRouteBinding($value, $field = null): ?self
+    {
+        return $this->newQuery()->whereKey((int) $value)->first();
     }
 
     /** Domyślna nazwa tego slotu z App\Support\BotNames (do przywracania). */

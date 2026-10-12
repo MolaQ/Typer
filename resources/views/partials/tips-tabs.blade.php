@@ -325,7 +325,7 @@
             <div class="grid gap-3 sm:grid-cols-2">
                 @foreach ($this->myScalps as $scalp)
                     @php
-                        $scalpHref = $scalp['user'] ? route('team.show', $scalp['user']) : null;
+                        $scalpHref = $scalp['url'];
                     @endphp
                     <a @if ($scalpHref) href="{{ $scalpHref }}" wire:navigate @endif wire:key="scalp-{{ $loop->index }}"
                         class="group flex items-center gap-3 rounded-2xl border border-zinc-200 bg-white p-3 shadow-xs transition hover:-translate-y-0.5 hover:border-orange-300 hover:shadow-md dark:border-zinc-700 dark:bg-zinc-900">
@@ -371,7 +371,7 @@
             <div class="grid gap-3 sm:grid-cols-2">
                 @foreach ($this->myBlacklist as $rival)
                     @php
-                        $rivalHref = $rival['user'] ? route('team.show', $rival['user']) : null;
+                        $rivalHref = $rival['url'];
                     @endphp
                     <a @if ($rivalHref) href="{{ $rivalHref }}" wire:navigate @endif wire:key="black-{{ $loop->index }}"
                         class="group flex items-center gap-3 rounded-2xl border border-zinc-200 bg-white p-3 shadow-xs transition hover:-translate-y-0.5 hover:border-zinc-400 hover:shadow-md dark:border-zinc-700 dark:bg-zinc-900">

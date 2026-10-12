@@ -73,6 +73,11 @@ new class extends Component {
                 'sub' => $u->team_name ? $u->name : null,
                 'url' => route('team.show', $u),
             ])
+            // Boty też mają profil (/bots), po zespołach graczy.
+            ->concat(\App\Models\Bot::where('name', 'like', $like)->orderBy('name')->limit(self::LIMIT)->get(['id', 'name'])
+                ->map(fn (\App\Models\Bot $b) => ['title' => $b->name, 'sub' => __('Bot'), 'url' => route('bot.show', $b)]))
+            ->take(self::LIMIT)
+            ->values()
             ->all();
     }
 

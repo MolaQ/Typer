@@ -2,13 +2,11 @@
 
 use App\Enums\Permission;
 use App\Models\Bot;
-use App\Models\User;
 use App\Support\Audit;
 use App\Support\BotNames;
 use Flux\Flux;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Str;
-use Illuminate\Validation\Rule;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Url;
 use Livewire\Component;
@@ -86,20 +84,8 @@ new class extends Component {
     protected function rules(): array
     {
         return [
-            'name' => [
-                'required',
-                'string',
-                'min:3',
-                'max:40',
-                // Nazwa bota musi być unikalna wśród botów (wielkość liter nie ma znaczenia).
-                Rule::unique('bots', 'name')->ignore($this->botId),
-                // ...i nie może pokrywać się z nazwą zespołu żadnego gracza.
-                function (string $attribute, mixed $value, \Closure $fail) {
-                    if (User::whereRaw('LOWER(team_name) = ?', [mb_strtolower((string) $value)])->exists()) {
-                        $fail(__('This name is already used by a player.'));
-                    }
-                },
-            ],
+            // Wspólne reguły z propozycjami nazw od graczy (BotNames::rules).
+            'name' => BotNames::rules($this->botId),
         ];
     }
 
@@ -234,7 +220,9 @@ new class extends Component {
             @forelse ($this->bots as $bot)
                 <flux:table.row :key="'bot-'.$bot->id">
                     <flux:table.cell variant="strong">{{ $bot->sort_order }}</flux:table.cell>
-                    <flux:table.cell>{{ $bot->name }}</flux:table.cell>
+                    <flux:table.cell>
+                        <flux:link :href="route('bot.show', $bot)" wire:navigate>{{ $bot->name }}</flux:link>
+                    </flux:table.cell>
                     <flux:table.cell>
                         @if ($bot->isRenamed())
                             <flux:badge size="sm" color="amber">{{ __('Renamed') }}</flux:badge>

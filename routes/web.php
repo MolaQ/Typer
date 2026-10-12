@@ -20,6 +20,7 @@ Route::livewire('results/{season_slug?}/{competition_slug?}/{round_slug?}', 'pag
     ->name('results');
 Route::livewire('hall-of-fame', 'pages::hall-of-fame')->name('hall-of-fame');
 Route::livewire('teams/{user}', 'pages::team-profile')->name('team.show');
+Route::livewire('bots/{bot}', 'pages::bot-profile')->name('bot.show');
 
 // Premium i wsparcie (etap 15): cennik i płatność online, powiadomienia od Przelewy24 (bez CSRF, patrz bootstrap/app.php).
 Route::livewire('support', 'pages::support')->name('support');

@@ -257,8 +257,8 @@ final class Rivals
             $side = [
                 'name' => $team?->name ?? ($index === 1 && $fixture->isBye() ? Fixture::VIRTUAL_OPPONENT : __('Seat :number', ['number' => $index === 0 ? $fixture->home_seat : $fixture->away_seat])),
                 'owner' => $team?->user?->name,
-                // Profil zespołu (tylko zespoły graczy; boty nie mają profilu).
-                'profile' => $team?->user ? route('team.show', $team->user) : null,
+                // Profil zespołu gracza albo bota.
+                'profile' => $team?->profileUrl(),
                 'user_id' => $team?->user_id,
                 'season_team_id' => $team?->id,
                 // Aktualne tytuły (miniatury trofeów w nagłówku okna, App\Support\Champions).
