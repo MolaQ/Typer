@@ -64,7 +64,7 @@ class BotNames
             'Trzynastka Poznań',
             'Piła Ultras',
             'Stara Ostrovia',
-            'WhitePower Piła',
+            'Syfikiła Piła',
             'Lords Śrem',
             'Nyndza ze Swarzyndza',
             'Bema',
