@@ -66,6 +66,11 @@ class SimulateSeason extends Command
 
     private const EUROPE = ['Manchester United', 'Borussia Dortmund'];
 
+    /** Rozkład typów kibiców (procent): wygrana Lecha, remis, reszta to porażka. Z ręcznej gry: większość stawia na Lecha. */
+    private const TIP_WIN = 85;
+
+    private const TIP_DRAW = 10;
+
     private const SLOGANS = [
         'Kolejorz gra, a my typujemy!',
         'Jeden mecz, tysiąc typów.',
@@ -272,7 +277,7 @@ class SimulateSeason extends Command
                 }
                 $answers = $this->answers($sets, 1, 1);
             } else {
-                [$lech, $opponent] = [mt_rand(0, 2), mt_rand(0, 2)];
+                [$lech, $opponent] = $this->fanTip();
                 $answers = $this->answers($sets, 0, 2);
             }
 
@@ -319,6 +324,32 @@ class SimulateSeason extends Command
         }
 
         $this->line($line);
+    }
+
+    /**
+     * Typ kibica (Lech : rywal): 85% wygrana Lecha (1-3 bramki Lecha), 10% remis (0:0-2:2), 5% porażka.
+     *
+     * @return array{0: int, 1: int}
+     */
+    private function fanTip(): array
+    {
+        $roll = mt_rand(1, 100);
+
+        if ($roll <= self::TIP_WIN) {
+            $lech = mt_rand(1, 3);
+
+            return [$lech, mt_rand(0, $lech - 1)];
+        }
+
+        if ($roll <= self::TIP_WIN + self::TIP_DRAW) {
+            $goals = mt_rand(0, 2);
+
+            return [$goals, $goals];
+        }
+
+        $opponent = mt_rand(1, 3);
+
+        return [mt_rand(0, $opponent - 1), $opponent];
     }
 
     /**
