@@ -260,7 +260,7 @@ new #[Layout('layouts::public')] class extends Component {
         }
 
         $this->round = $target;
-        unset($this->table, $this->tableMoves, $this->legendsOut, $this->cupPlayed, $this->matchday, $this->matches);
+        unset($this->table, $this->tableMoves, $this->finalMoves, $this->legendsOut, $this->cupPlayed, $this->matchday, $this->matches);
         $this->updatedRound();
     }
 
@@ -365,6 +365,23 @@ new #[Layout('layouts::public')] class extends Component {
         }
 
         return $moves;
+    }
+
+    /**
+     * Ostatnia kolejka ligi z wynikami: awanse i spadki całego sezonu z czyszczeniem z botów
+     * (Standings::seasonMoves), id miejsca na liście => 'up'/'down'. Wcześniej pusta tablica i zostają stałe strefy.
+     *
+     * @return array<int, string>
+     */
+    #[Computed]
+    public function finalMoves(): array
+    {
+        if (!$this->hasTable || !in_array($this->competition->type, [CompetitionType::League, CompetitionType::Swiss], true)
+            || $this->round < (int) Fixture::where('competition_id', $this->competition->id)->max('round')) {
+            return [];
+        }
+
+        return Standings::seasonMoves($this->competition->season_id);
     }
 
     #[Computed]
@@ -812,7 +829,10 @@ new #[Layout('layouts::public')] class extends Component {
                             <tbody class="bg-white text-zinc-800 dark:bg-zinc-900 dark:text-zinc-100">
                                 @foreach ($this->table as $index => $row)
                                     @php
-                                        $zone = \App\Support\Standings::zone($this->competition, $index + 1, $this->table->count());
+                                        // Po ostatniej kolejce belki wynikają z faktycznych awansów i spadków (razem z zamianami za boty).
+                                        $zone = $this->finalMoves !== []
+                                            ? ($this->finalMoves[$row['team']->id] ?? null)
+                                            : \App\Support\Standings::zone($this->competition, $index + 1, $this->table->count());
                                         $zoneClass = match ($zone) {
                                             'up' => 'border-l-4 border-l-green-500',
                                             'down' => 'border-l-4 border-l-red-500',
@@ -889,6 +909,9 @@ new #[Layout('layouts::public')] class extends Component {
                                     @endif
                                     @if ($hasRelegation)
                                         <span class="flex items-center gap-1"><span class="inline-block h-3 w-1 bg-red-500"></span>{{ __('Relegation') }}</span>
+                                    @endif
+                                @if ($this->finalMoves !== [])
+                                        <span>{{ __('Final moves, including swaps for bots') }}</span>
                                     @endif
                                 </p>
                             @endif

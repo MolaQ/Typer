@@ -93,6 +93,34 @@ final class Promotion
         return $result;
     }
 
+    /**
+     * Kierunek zmiany ligi każdego przenoszonego zespołu (do oznaczeń w tabelach ostatniej kolejki):
+     * id => 'up' (awans) albo 'down' (spadek), razem z zamianami z czyszczenia z botów.
+     *
+     * @param  array<int, array<int, array{id: int, human: bool}>>  $tiers
+     * @return array<int, string>
+     */
+    public static function moves(array $tiers): array
+    {
+        $from = [];
+        foreach ($tiers as $level => $teams) {
+            foreach ($teams as $team) {
+                $from[$team['id']] = $level;
+            }
+        }
+
+        $moves = [];
+        foreach (self::apply($tiers) as $level => $ids) {
+            foreach ($ids as $id) {
+                if ($from[$id] !== $level) {
+                    $moves[$id] = $from[$id] > $level ? 'up' : 'down';
+                }
+            }
+        }
+
+        return $moves;
+    }
+
     /** Zespoły w kolejności tabeli końcowej ich dotychczasowej ligi. */
     private static function inTableOrder(array $teams, array $table): array
     {

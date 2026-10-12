@@ -125,6 +125,48 @@ final class Standings
         return null;
     }
 
+    /** @var array<int, array<int, string>> */
+    private static array $seasonMoves = [];
+
+    /**
+     * Awanse i spadki po ostatniej kolejce sezonu (regulamin, punkt 9), razem z zamianami z czyszczenia z botów:
+     * id miejsca na liście (season_teams) => 'up' albo 'down'. Pusta tablica, dopóki ostatnia kolejka
+     * lig nie ma wyników (w trakcie sezonu nie pokazujemy prognozy, tylko stałe strefy z zone()).
+     *
+     * @return array<int, string>
+     */
+    public static function seasonMoves(int $seasonId): array
+    {
+        if (isset(self::$seasonMoves[$seasonId])) {
+            return self::$seasonMoves[$seasonId];
+        }
+
+        $competitions = Competition::where('season_id', $seasonId)
+            ->whereIn('type', [CompetitionType::League->value, CompetitionType::Swiss->value])
+            ->get();
+
+        $fixtures = Fixture::whereIn('competition_id', $competitions->pluck('id'));
+        $lastRound = (clone $fixtures)->max('round');
+        $finished = $lastRound !== null
+            && ! (clone $fixtures)->where('round', $lastRound)->whereNull('home_goals')->exists();
+
+        if (! $finished) {
+            return self::$seasonMoves[$seasonId] = [];
+        }
+
+        $eligible = Players::eligible()->pluck('id')->flip();
+        $tiers = [];
+        foreach ($competitions as $competition) {
+            $level = $competition->type === CompetitionType::Swiss ? League::Podworkowa->value : (int) $competition->tier;
+            foreach (self::for($competition) as $row) {
+                $userId = $row['team']->user_id;
+                $tiers[$level][] = ['id' => $row['team']->id, 'human' => $userId !== null && isset($eligible[$userId])];
+            }
+        }
+
+        return self::$seasonMoves[$seasonId] = $tiers === [] ? [] : Promotion::moves($tiers);
+    }
+
     /**
      * Id wpisów od najlepszego (klasyfikacja do losowania kolejnej rundy Ligi podwórkowej).
      *

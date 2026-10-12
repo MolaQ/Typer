@@ -1402,5 +1402,6 @@
     "Current holder: :title": "Aktualny triumfator: :title",
     "Up :count places": "W górę o :count",
     "Down :count places": "W dół o :count",
-    "Not on the season list": "Bez miejsca na liście sezonu"
+    "Not on the season list": "Bez miejsca na liście sezonu",
+    "Final moves, including swaps for bots": "Awanse i spadki po sezonie, razem z zamianami za boty"
 }
