@@ -108,7 +108,7 @@ class SimulateSeason extends Command
     /** @var array<string, mixed>|null zajęte nazwy zespołów (małymi literami) */
     private ?array $takenNames = null;
 
-    /** @var list<string>|null nieużyte nazwy klubów z puli */
+    /** @var list<string>|null nieużyte nazwy zespołów (kluby, potem generator) */
     private ?array $clubNames = null;
 
     public function handle(SetUpSeason $setUp, SaveTip $saveTip, SaveMatchdayResult $results, FinishSeason $finish): int
@@ -128,6 +128,8 @@ class SimulateSeason extends Command
 
             return self::FAILURE;
         }
+
+        $this->renameNumberedTeams();
 
         $start = now()->startOfMinute();
 
@@ -342,9 +344,25 @@ class SimulateSeason extends Command
      | Gracze: nowe konta i ban
      * ================================================================*/
 
+    /** Konta z wcześniejszych symulacji z nazwą w rodzaju „Dębiec Naramowice 34” dostają nową nazwę z puli. */
+    private function renameNumberedTeams(): void
+    {
+        $renamed = 0;
+        foreach (User::where('email', 'like', '%@sim.test')->whereNotNull('team_name')->get() as $user) {
+            if (preg_match('/\s\d+$/u', (string) $user->team_name) === 1) {
+                $user->forceFill(['team_name' => $this->uniqueTeamName()])->save();
+                $renamed++;
+            }
+        }
+
+        if ($renamed > 0) {
+            $this->line("Zmienione nazwy zespołów z numerem: {$renamed}.");
+        }
+    }
+
     /**
      * Losuje nazwę zespołu (najpierw z puli prawdziwych klubów), której nie ma jeszcze żaden gracz ani bot (bez względu na wielkość liter).
-     * Gdy pula się wyczerpie, dopisuje kolejny numer, aż nazwa będzie wolna.
+     * Numer dopisuje dopiero po wyczerpaniu wszystkich kilku tysięcy nazw.
      */
     private function uniqueTeamName(): string
     {
@@ -354,33 +372,38 @@ class SimulateSeason extends Command
             ->flip()
             ->all();
 
-        // Najpierw prawdziwe kluby z puli (database/data/club-names.php), potem generator.
+        // Kolejność: prawdziwe kluby (database/data/club-names.php), potem „przydomek miejsce”, potem z dopiskiem.
+        // array_pop bierze od końca, więc kluby lądują na końcu listy.
         if ($this->clubNames === null) {
             /** @var list<string> $clubs */
             $clubs = require database_path('data/club-names.php');
+            $plain = $suffixed = [];
+            foreach (self::TEAM_PREFIXES as $prefix) {
+                foreach (self::TEAM_PLACES as $place) {
+                    $plain[] = $prefix.' '.$place;
+                    foreach (self::TEAM_SUFFIXES as $suffix) {
+                        $suffixed[] = $prefix.' '.$place.' '.$suffix;
+                    }
+                }
+            }
             shuffle($clubs);
-            $this->clubNames = $clubs;
+            shuffle($plain);
+            shuffle($suffixed);
+            $this->clubNames = array_merge($suffixed, $plain, $clubs);
         }
 
-        while (($club = array_pop($this->clubNames)) !== null) {
-            if (! isset($this->takenNames[mb_strtolower($club)])) {
-                $this->takenNames[mb_strtolower($club)] = true;
+        while (($candidate = array_pop($this->clubNames)) !== null) {
+            if (! isset($this->takenNames[mb_strtolower($candidate)])) {
+                $this->takenNames[mb_strtolower($candidate)] = true;
 
-                return $club;
+                return $candidate;
             }
         }
 
-        for ($try = 0; $try < 200; $try++) {
-            $name = self::TEAM_PREFIXES[array_rand(self::TEAM_PREFIXES)].' '.self::TEAM_PLACES[array_rand(self::TEAM_PLACES)]
-                .($try >= 50 ? ' '.self::TEAM_SUFFIXES[array_rand(self::TEAM_SUFFIXES)] : '');
-
-            if (! isset($this->takenNames[mb_strtolower($name)])) {
-                break;
-            }
-        }
-
-        for ($suffix = 2; isset($this->takenNames[mb_strtolower($name)]); $suffix++) {
-            $name = self::TEAM_PREFIXES[0].' '.self::TEAM_PLACES[0].' '.$suffix;
+        // Ostateczność (kilka tysięcy nazw zajętych): kolejny numer.
+        $name = self::TEAM_PREFIXES[0].' '.self::TEAM_PLACES[0];
+        for ($number = 2; isset($this->takenNames[mb_strtolower($name)]); $number++) {
+            $name = self::TEAM_PREFIXES[0].' '.self::TEAM_PLACES[0].' '.$number;
         }
 
         $this->takenNames[mb_strtolower($name)] = true;
