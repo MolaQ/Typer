@@ -24,9 +24,10 @@ use App\Support\Premium;
 use App\Support\Roster;
 use App\Support\Standings;
 use App\Support\SystemFeed;
+use Carbon\CarbonInterface;
 use DomainException;
 use Illuminate\Console\Command;
-use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 
@@ -46,7 +47,7 @@ use Illuminate\Support\Str;
  *     raz na sezon ban jednego gracza (bez admina),
  *  4. zakończenie sezonu (FinishSeason: tabele końcowe, Hall of Fame, nieaktywni) i 10-15% nowych kont na następny sezon.
  *
- * Czas: symulacja przestawia zegar aplikacji (Carbon::setTestNow), żeby typy były przed pierwszym gwizdkiem,
+ * Czas: symulacja przestawia zegar aplikacji (Date::setTestNow), żeby typy były przed pierwszym gwizdkiem,
  * a wyniki po nim; na końcu zegar wraca do normalnego.
  */
 class SimulateSeason extends Command
@@ -86,7 +87,11 @@ class SimulateSeason extends Command
     private const TEAM_WORDS = ['Kolejorz', 'Kaczory', 'Wiara', 'Bułgarska', 'Rataje', 'Wilda', 'Jeżyce', 'Łazarz', 'Winogrady', 'Piątkowo',
         'Dębiec', 'Naramowice', 'Smochowice', 'Junikowo', 'Grunwald', 'Malta', 'Cytadela', 'Warta', 'Koziołki', 'Ostrów'];
 
-    /** Zdarzenia sezonu do podsumowania. @var array<int, string> */
+    /**
+     * Zdarzenia sezonu do podsumowania.
+     *
+     * @var array<int, string>
+     */
     private array $log = [];
 
     private ?string $passwordHash = null;
@@ -113,7 +118,7 @@ class SimulateSeason extends Command
 
         try {
             // Przygotowanie sezonu „godzinę wcześniej”, żeby pytania dało się losować przed pierwszym gwizdkiem.
-            Carbon::setTestNow($start->copy()->subHour());
+            Date::setTestNow($start->copy()->subHour());
             $season = $this->createSeason($start);
             $this->section('Sezon '.$season->title.': „'.$season->slogan.'”');
             $this->printCalendar($season);
@@ -132,7 +137,7 @@ class SimulateSeason extends Command
 
             // Koniec sezonu chwilę po ostatnim meczu.
             $last = Matchday::where('season_id', $season->id)->orderByDesc('number')->firstOrFail();
-            Carbon::setTestNow($last->kickoff_at?->copy()->addMinutes(2));
+            Date::setTestNow($last->kickoff_at?->copy()->addMinutes(2));
 
             $moves = $this->moveSummary($season);
             $finished = $finish->handle($season->refresh(), 'symulacja');
@@ -148,7 +153,7 @@ class SimulateSeason extends Command
 
             return self::FAILURE;
         } finally {
-            Carbon::setTestNow();
+            Date::setTestNow();
         }
 
         $this->section('Podsumowanie');
@@ -164,7 +169,7 @@ class SimulateSeason extends Command
      | Przygotowanie sezonu
      * ================================================================*/
 
-    private function createSeason(Carbon $start): Season
+    private function createSeason(CarbonInterface $start): Season
     {
         $season = Season::create([
             'number' => (int) Season::max('number') + 1,
@@ -191,7 +196,7 @@ class SimulateSeason extends Command
         }
         shuffle($games);
 
-        foreach (array_values($games) as $index => [$opponent, $competition]) {
+        foreach ($games as $index => [$opponent, $competition]) {
             $matchday = Matchday::where('season_id', $season->id)->where('number', $index + 1)->firstOrFail();
             $matchday->assignMatch(LechMatch::create([
                 'opponent' => $opponent,
@@ -236,7 +241,7 @@ class SimulateSeason extends Command
 
         foreach ($tippers->values() as $index => $user) {
             /** @var User $user */
-            Carbon::setTestNow($kickoff->copy()->subMinutes((int) $leads[$index]));
+            Date::setTestNow($kickoff->copy()->subMinutes((int) $leads[$index]));
             $isAdmin = $user->hasRole(RoleName::Admin->value);
 
             if ($isAdmin) {
@@ -272,12 +277,12 @@ class SimulateSeason extends Command
         }
         $correct = collect($sets)->flatten()->mapWithKeys(fn ($id) => [$id => (string) mt_rand(0, 1)])->all();
 
-        Carbon::setTestNow($kickoff->copy()->addSeconds(30));
+        Date::setTestNow($kickoff->copy()->addSeconds(30));
         $stats = $results->handle($matchday->fresh() ?? $matchday, $lechGoals, $opponentGoals, $correct);
 
         $line = sprintf('Kolejka %d: %s %d:%d (%s) | typy %d/%d%s | mecze %d, odpadli %d',
             $matchday->number,
-            $matchday->fixture,
+            (string) $matchday->getAttribute('fixture'),
             $lechGoals,
             $opponentGoals,
             $matchday->competitionLabel() ?? '-',
@@ -394,7 +399,7 @@ class SimulateSeason extends Command
     private function printCalendar(Season $season): void
     {
         $rows = Matchday::where('season_id', $season->id)->orderBy('number')->get()
-            ->map(fn (Matchday $m) => [$m->number, $m->fixture, $m->competitionLabel() ?? '-', $m->kickoff_at?->format('H:i')])
+            ->map(fn (Matchday $m): array => [$m->number, (string) $m->getAttribute('fixture'), $m->competitionLabel() ?? '-', (string) $m->kickoff_at?->format('H:i')])
             ->all();
         $this->table(['#', 'Mecz', 'Rozgrywki', 'Gwizdek'], $rows);
     }
@@ -461,17 +466,21 @@ class SimulateSeason extends Command
     private function printTrophies(Season $season): void
     {
         $names = HallOfFame::trophies();
-        $rows = HallOfFameAward::with(['user:id,name,team_name', 'bot:id,name'])
+        $awards = HallOfFameAward::with(['user:id,name,team_name', 'bot:id,name'])
             ->where('season_id', $season->id)
             ->whereNotNull('trophy')
             ->get()
-            ->sortBy(fn (HallOfFameAward $a) => HallOfFame::trophyRank((string) $a->trophy))
-            ->map(fn (HallOfFameAward $a) => [
-                $names[$a->trophy] ?? $a->trophy,
-                $a->user ? ($a->user->team_name ?: $a->user->name) : ($a->bot?->name.' [BOT]'),
-            ])
-            ->values()
-            ->all();
+            ->sortBy(fn (HallOfFameAward $a) => HallOfFame::trophyRank((string) $a->trophy));
+
+        $rows = [];
+        foreach ($awards as $award) {
+            $user = $award->user;
+            $bot = $award->bot;
+            $rows[] = [
+                $names[(string) $award->trophy] ?? (string) $award->trophy,
+                $user instanceof User ? ($user->team_name ?: $user->name) : ($bot ? $bot->name.' [BOT]' : '-'),
+            ];
+        }
 
         $this->table(['Trofeum', 'Zdobywca'], $rows);
         $humans = HallOfFameAward::where('season_id', $season->id)->whereNotNull('trophy')->whereNotNull('user_id')->count();
