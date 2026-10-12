@@ -65,6 +65,7 @@ class QuestionProposal extends Model
         return $this->belongsTo(Question::class);
     }
 
+    /** @return BelongsTo<Bot, $this> */
     public function bot(): BelongsTo
     {
         return $this->belongsTo(Bot::class);

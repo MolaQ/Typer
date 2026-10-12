@@ -280,7 +280,7 @@ final class PlayerStats
             'avg_tip' => $tips > 0 ? round($tipped->avg('tip_points'), 2) : null,
             'outcome_streak' => $streak,
             'outcome_streak_best' => $streakBest,
-            'optimism' => $tips > 0 ? round($tipped->avg(fn ($r) => $r->tip_lech - $r->real_lech), 2) : null,
+            'optimism' => $tips > 0 ? round($tipped->avg(fn ($r) => $r->tip_lech - (int) $r->getAttribute('real_lech')), 2) : null,
             'best_matchday' => $best = self::bestMatchday($rows),
             'best_points' => $best['points'] ?? null,
         ], self::matchSummary($results));
