@@ -49,6 +49,7 @@ new class extends Component {
             ->when(!$this->showAll, fn($q) => $q->where(fn($q) => $q->whereNull('kickoff_at')->orWhere('kickoff_at', '>=', now()->subDay())))
             ->orderByRaw('kickoff_at is null')
             ->orderBy('kickoff_at')
+            ->orderBy('id')
             ->get();
     }
 
@@ -206,7 +207,7 @@ new class extends Component {
     <div class="flex flex-wrap items-start justify-between gap-4">
         <div>
             <flux:heading size="xl" level="1">{{ __('Lech calendar') }}</flux:heading>
-            <flux:subheading>{{ __('Preliminary calendar of Lech matches. Each matchday of a season picks its match from this list (Matches, edit matchday).') }}</flux:subheading>
+            <flux:subheading>{{ __('Preliminary calendar of Lech matches. A new season adds an unnamed match for each matchday: fill in the opponent and the kickoff here or in Matchdays.') }}</flux:subheading>
         </div>
 
         <div class="flex items-center gap-3">
@@ -249,8 +250,13 @@ new class extends Component {
                         </flux:table.cell>
                         <flux:table.cell variant="strong">
                             <div class="flex flex-wrap items-center gap-2">
-                                <span>{{ $match->fixture() }}</span>
-                                <flux:badge size="sm" color="zinc">{{ $match->is_home ? __('Home') : __('Away') }}</flux:badge>
+                                @if ($match->isPlaceholder())
+                                    {{-- „Mecz bez nazwy” z utworzenia sezonu: czeka na rywala i termin --}}
+                                    <flux:badge size="sm" color="amber" icon="pencil-square">{{ $match->fixture() }}</flux:badge>
+                                @else
+                                    <span>{{ $match->fixture() }}</span>
+                                    <flux:badge size="sm" color="zinc">{{ $match->is_home ? __('Home') : __('Away') }}</flux:badge>
+                                @endif
                             </div>
                         </flux:table.cell>
                         <flux:table.cell class="text-zinc-500">{{ $match->competitionLabel() }}</flux:table.cell>

@@ -318,9 +318,10 @@ new class extends Component {
         if ($isNew) {
             Audit::log('season.created', null, [], $after, $season->title);
 
-            // Nowy sezon dostaje od razu 9 pustych kolejek (rywala i termin uzupełnia admin).
+            // Nowy sezon dostaje od razu 9 kolejek z „meczami bez nazwy” w kalendarzu (rywala i termin uzupełnia admin).
             $matchdays = $season->createMissingMatchdays();
-            Audit::log('matchday.created', null, [], ['matchdays' => $matchdays], $season->title);
+            $placeholders = $season->createPlaceholderMatches();
+            Audit::log('matchday.created', null, [], ['matchdays' => $matchdays, 'placeholder_matches' => $placeholders], $season->title);
         } elseif ($before !== $after) {
             Audit::log('season.updated', null, $before, $after, $season->title);
         }
@@ -336,7 +337,7 @@ new class extends Component {
         }
 
         // „Utwórz sezon” jednym kliknięciem: lista, zatwierdzenie ze wszystkimi rozgrywkami i pytania (SetUpSeason).
-        // Mecze Lecha admin wybiera potem w kolejkach z kalendarza. Przy błędzie sezon zostaje szkicem.
+        // Rywali i terminy „meczów bez nazwy” admin uzupełnia potem w kolejkach. Przy błędzie sezon zostaje szkicem.
         try {
             $result = app(\App\Actions\Seasons\SetUpSeason::class)->handle($season);
         } catch (DomainException $e) {
@@ -347,7 +348,7 @@ new class extends Component {
 
         $this->clearCaches();
         Flux::toast(
-            text: __('Season created and approved: :players players, :leagues leagues, :fixtures fixtures, :questions questions. Now choose the Lech matches for the matchdays.', $result),
+            text: __('Season created and approved: :players players, :leagues leagues, :fixtures fixtures, :questions questions. Fill in the unnamed Lech matches of the matchdays.', $result),
             variant: 'success',
         );
     }

@@ -81,6 +81,25 @@ new class extends Component {
         Flux::toast(text: __(':count questions drawn.', ['count' => $filled]), variant: 'success');
     }
 
+    /** Gracze z rolą bez miejsca na liście sezonu trafiają do Ligi podwórkowej (jak przy zmianie roli, Roster::place). */
+    public function placeUnlisted(int $seasonId): void
+    {
+        abort_unless(auth()->user()->can(Permission::SeasonEdit->value), 403);
+
+        $season = Season::findOrFail($seasonId);
+        $placed = 0;
+
+        foreach (\App\Support\Players::unlisted($season->id)->orderBy('created_at')->orderBy('id')->get() as $user) {
+            if (DB::transaction(fn() => \App\Support\Roster::place($season->id, $user->id, \App\Enums\League::Podworkowa))) {
+                $placed++;
+                Audit::log('season_list.player_assigned', $user, [], ['league' => \App\Enums\League::Podworkowa->label()], ($user->team_name ?: $user->name) . ' (' . $season->title . ')');
+            }
+        }
+
+        unset($this->alerts, $this->numbers);
+        Flux::toast(text: trans_choice(':count player added to Liga podwórkowa.|:count players added to Liga podwórkowa.', $placed, ['count' => $placed]), variant: 'success');
+    }
+
     /** Losuje kolejną rundę Ligi podwórkowej (runda 1 z listy, dalsze z klasyfikacji). */
     public function drawSwiss(int $competitionId): void
     {

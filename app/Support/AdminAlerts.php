@@ -8,6 +8,7 @@ use App\Actions\Questions\DrawQuestions;
 use App\Actions\Seasons\BuildListFromPrevious;
 use App\Enums\CompetitionType;
 use App\Enums\MatchdayStatus;
+use App\Enums\RoleName;
 use App\Enums\SeasonStatus;
 use App\Models\Competition;
 use App\Models\Fixture;
@@ -46,6 +47,8 @@ final class AdminAlerts
         } else {
             $alerts = array_merge($alerts, self::lifecycle());
         }
+
+        $alerts = array_merge($alerts, self::players($season));
 
         $withoutRole = Players::withoutRole()->whereNotNull('email_verified_at')->count();
         if ($withoutRole > 0) {
@@ -164,6 +167,19 @@ final class AdminAlerts
         $params = ['season' => $upcoming->id];
         $alerts = [];
 
+        // Mecze bez nazwy (utworzone z sezonem) albo kolejki bez meczu: rywal i termin do uzupełnienia w „Kolejkach”.
+        $missing = Matchday::where('season_id', $upcoming->id)->get()->reject(fn (Matchday $m) => $m->isFilled())->count();
+        if ($missing > 0) {
+            $alerts[] = self::alert(
+                self::WARNING,
+                'calendar',
+                __(':season: add the Lech matches', ['season' => $upcoming->title]),
+                trans_choice(':count matchday has no opponent or kick-off time.|:count matchdays have no opponent or kick-off time.', $missing, ['count' => $missing]),
+                'dashboard.matchdays',
+                $params,
+            );
+        }
+
         if ($upcoming->status === SeasonStatus::Draft) {
             $hasList = SeasonTeam::where('season_id', $upcoming->id)->exists();
             $hasPrevious = BuildListFromPrevious::previousSeason($upcoming) !== null;
@@ -177,18 +193,6 @@ final class AdminAlerts
                         ? __('Use "Build from the previous season": promotion, relegation and European places come from the final standings.')
                         : __('Build the list automatically from the registered players.'),
                     'dashboard.season-teams',
-                    $params,
-                );
-            }
-
-            $missing = Matchday::where('season_id', $upcoming->id)->get()->reject(fn (Matchday $m) => $m->isFilled())->count();
-            if ($missing > 0) {
-                $alerts[] = self::alert(
-                    self::WARNING,
-                    'calendar',
-                    __(':season: add the Lech matches', ['season' => $upcoming->title]),
-                    trans_choice(':count matchday has no opponent or kick-off time.|:count matchdays have no opponent or kick-off time.', $missing, ['count' => $missing]),
-                    'dashboard.matchdays',
                     $params,
                 );
             }
@@ -248,6 +252,58 @@ final class AdminAlerts
             'dashboard.competitions',
             ['season' => $season->id],
         )];
+    }
+
+    /**
+     * Gracze a sezon (trwający albo najbliższy): gracze z rolą bez miejsca na liście (akcja: do Ligi podwórkowej),
+     * a przed startem sezonu także liczba kont Inactive i zbanowanych do rozważenia przywrócenia (panel użytkowników).
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    private static function players(?Season $current): array
+    {
+        $season = $current ?? Season::whereIn('status', [SeasonStatus::Draft->value, SeasonStatus::Approved->value])->orderBy('number')->first();
+
+        if (! $season || ! SeasonTeam::where('season_id', $season->id)->exists()) {
+            return [];
+        }
+
+        $alerts = [];
+        $unlisted = Players::unlisted($season->id)->count();
+
+        if ($unlisted > 0) {
+            $alerts[] = self::alert(
+                self::WARNING,
+                'user-plus',
+                trans_choice(':season: :count player is not in any league|:season: :count players are not in any league', $unlisted, ['count' => $unlisted, 'season' => $season->title]),
+                __('They have the role, but no place on the list. Adding puts them in Liga podwórkowa.'),
+                'dashboard.season-teams',
+                ['season' => $season->id],
+                ['method' => 'placeUnlisted', 'arg' => $season->id, 'label' => __('Add to Liga podwórkowa')],
+            );
+        }
+
+        // Przed pierwszym gwizdkiem sezonu warto przejrzeć konta wyłączone z gry (przywrócenie = Liga podwórkowa).
+        if ($season->status !== SeasonStatus::Active) {
+            foreach ([RoleName::Inactive, RoleName::Banned] as $role) {
+                $count = User::whereHas('roles', fn ($q) => $q->where('name', $role->value))->count();
+
+                if ($count > 0) {
+                    $alerts[] = self::alert(
+                        self::INFO,
+                        $role === RoleName::Banned ? 'no-symbol' : 'moon',
+                        $role === RoleName::Banned
+                            ? trans_choice(':count banned user|:count banned users', $count, ['count' => $count])
+                            : trans_choice(':count inactive user|:count inactive users', $count, ['count' => $count]),
+                        __('Before :season starts, consider restoring some of them. A restored player joins Liga podwórkowa.', ['season' => $season->title]),
+                        'dashboard.users',
+                        ['roleFilter' => $role->value],
+                    );
+                }
+            }
+        }
+
+        return $alerts;
     }
 
     /** Liga podwórkowa: runda N+1 powinna być rozlosowana, gdy kolejka N jest przeliczona. */

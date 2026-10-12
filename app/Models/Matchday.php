@@ -66,17 +66,26 @@ class Matchday extends Model
     /**
      * Przypisuje mecz z kalendarza: kolejka dostaje kopię danych i status „zaplanowana”.
      * Typy graczy zostają (np. po przełożeniu meczu i wyborze nowego), gracze mogą je zmienić do nowego gwizdka.
+     * Przełożona jest tylko kolejka z meczem oznaczonym jako przełożony. Mecz bez terminu (np. „mecz bez nazwy”
+     * utworzony z sezonem) zostawia kolejkę zaplanowaną, a typowanie i tak otwiera się dopiero z terminem.
+     * Poprzedni „mecz bez nazwy” tej kolejki, który nie jest już nigdzie przypisany, jest usuwany z kalendarza.
      */
     public function assignMatch(LechMatch $match): void
     {
+        $previous = $this->lech_match_id;
+
         $this->fill([
             'lech_match_id' => $match->id,
             'opponent' => $match->opponent,
             'is_home' => $match->is_home,
             'competition' => $match->competition,
             'kickoff_at' => $match->kickoff_at,
-            'status' => $match->postponed || $match->kickoff_at === null ? MatchdayStatus::Postponed : MatchdayStatus::Planned,
+            'status' => $match->postponed ? MatchdayStatus::Postponed : MatchdayStatus::Planned,
         ])->save();
+
+        if ($previous !== null && $previous !== $match->id) {
+            LechMatch::placeholders()->whereKey($previous)->whereDoesntHave('matchday')->delete();
+        }
     }
 
     /**

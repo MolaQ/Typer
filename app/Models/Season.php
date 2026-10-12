@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use App\Enums\MatchCompetition;
+use App\Enums\MatchdayStatus;
 use App\Enums\SeasonStatus;
 use App\Support\Roman;
 use Illuminate\Database\Eloquent\Builder;
@@ -88,6 +90,30 @@ class Season extends Model
                 $this->matchdays()->create(['number' => $n]);
                 $created++;
             }
+        }
+
+        return $created;
+    }
+
+    /**
+     * Każda nierozegrana kolejka bez meczu dostaje „mecz bez nazwy” w kalendarzu Lecha (bez rywala i terminu).
+     * Admin uzupełnia go później w „Kolejkach” albo w kalendarzu, a zmiana od razu trafia do kolejki.
+     *
+     * @return int ile meczów utworzono
+     */
+    public function createPlaceholderMatches(): int
+    {
+        $created = 0;
+
+        foreach (Matchday::where('season_id', $this->id)->whereNull('lech_match_id')->where('status', '!=', MatchdayStatus::Played->value)->get() as $matchday) {
+            $matchday->assignMatch(LechMatch::create([
+                'opponent' => '',
+                'is_home' => true,
+                'competition' => MatchCompetition::DEFAULT->value,
+                'kickoff_at' => null,
+                'postponed' => false,
+            ]));
+            $created++;
         }
 
         return $created;
