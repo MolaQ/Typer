@@ -13,6 +13,7 @@ use App\Models\HallOfFameAward;
 use App\Models\Matchday;
 use App\Models\Season;
 use App\Models\SeasonTeam;
+use App\Models\TeamScore;
 use App\Models\Tip;
 use App\Models\User;
 use App\Support\Audit;
@@ -184,6 +185,8 @@ class FinishSeason
 
     /**
      * Gracze z listy sezonu, którzy nie typowali w 5 kolejnych rozegranych kolejkach.
+     * Liczą się tylko kolejki, w których gracz miał już miejsce na liście (team_scores.user_id, Ownership):
+     * kto dołączył w trakcie sezonu, nie dostaje „braków” za kolejki sprzed dołączenia.
      *
      * @return array<int, User>
      */
@@ -200,6 +203,10 @@ class FinishSeason
             ->groupBy('user_id')
             ->map(fn ($tips) => $tips->pluck('matchday_id')->flip());
 
+        $played = TeamScore::whereIn('matchday_id', $matchdays)->whereIn('user_id', $userIds)->get(['matchday_id', 'user_id'])
+            ->groupBy('user_id')
+            ->map(fn ($scores) => $scores->pluck('matchday_id')->flip());
+
         $inactive = [];
 
         foreach ($userIds as $userId) {
@@ -207,6 +214,9 @@ class FinishSeason
             $best = 0;
 
             foreach ($matchdays as $matchdayId) {
+                if (! isset($played[$userId][$matchdayId])) {
+                    continue;
+                }
                 $streak = isset($tipped[$userId][$matchdayId]) ? 0 : $streak + 1;
                 $best = max($best, $streak);
             }
