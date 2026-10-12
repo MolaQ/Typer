@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\MatchCompetition;
 use App\Enums\MatchdayStatus;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Carbon;
@@ -43,9 +44,30 @@ class LechMatch extends Model
         return $this->hasOne(Matchday::class);
     }
 
-    /** "Lech Poznań – Legia" albo "Legia – Lech Poznań". */
+    /**
+     * „Mecz bez nazwy”: miejsce w kalendarzu utworzone razem z kolejkami sezonu (Season::createPlaceholderMatches),
+     * rywala i termin admin uzupełnia później. Poznajemy go po pustym rywalu.
+     */
+    public function isPlaceholder(): bool
+    {
+        return blank($this->opponent);
+    }
+
+    /**
+     * @param  Builder<LechMatch>  $query
+     */
+    public function scopePlaceholders(Builder $query): void
+    {
+        $query->where('opponent', '');
+    }
+
+    /** "Lech Poznań – Legia" albo "Legia – Lech Poznań", a dla meczu bez rywala „Mecz bez nazwy”. */
     public function fixture(): string
     {
+        if ($this->isPlaceholder()) {
+            return __('Unnamed match');
+        }
+
         return $this->is_home ? 'Lech Poznań – '.$this->opponent : $this->opponent.' – Lech Poznań';
     }
 
