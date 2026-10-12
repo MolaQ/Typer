@@ -105,7 +105,7 @@ class Season extends Model
     {
         $created = 0;
 
-        foreach ($this->matchdays()->whereNull('lech_match_id')->where('status', '!=', MatchdayStatus::Played->value)->get() as $matchday) {
+        foreach (Matchday::where('season_id', $this->id)->whereNull('lech_match_id')->where('status', '!=', MatchdayStatus::Played->value)->get() as $matchday) {
             $matchday->assignMatch(LechMatch::create([
                 'opponent' => '',
                 'is_home' => true,
