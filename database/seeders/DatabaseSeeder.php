@@ -22,7 +22,7 @@ class DatabaseSeeder extends Seeder
             BotsSeeder::class,
             QuestionsSeeder::class,
             TrophyIconsSeeder::class,
-            PlayersSeeder::class,
+            //PlayersSeeder::class,
             // DemoSeasonSeeder::class, // sezon testowy: kolejka 1 za 10 minut, rozgrywki i terminarze
             NewsSeeder::class, // 25 newsów do strony głównej
         ]);
