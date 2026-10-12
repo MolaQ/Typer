@@ -250,7 +250,7 @@ class SimulateSeason extends Command
 
         // Typy: 90-100% graczy z listy sezonu, w kolejności zapisu (wcześniejszy zapis = mniejszy numer).
         $players = User::whereIn('id', SeasonTeam::where('season_id', $matchday->season_id)->whereNotNull('user_id')->pluck('user_id'))->with('roles')->get();
-        $share = mt_rand(90, 100) / 100;
+        $share = mt_rand(98, 100) / 100;
         $tippers = $players->shuffle()->take((int) round($players->count() * $share));
         $leads = collect(range(1, max(1, $tippers->count())))->map(fn () => mt_rand(1, 600))->sortDesc()->values();
         $saved = 0;
@@ -273,7 +273,7 @@ class SimulateSeason extends Command
                 $answers = $this->answers($sets, 1, 1);
             } else {
                 [$lech, $opponent] = [mt_rand(0, 2), mt_rand(0, 2)];
-                $answers = $this->answers($sets, 0, 3);
+                $answers = $this->answers($sets, 0, 2);
             }
 
             try {
