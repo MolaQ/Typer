@@ -31,7 +31,7 @@ final class PlayerStats
     /**
      * Kolejki sezonu z typem gracza i punktami (rozliczone) albo informacją o braku typu.
      *
-     * @return array<int, array{matchday: Matchday, tip: ?string, default: bool, points: ?int, exact: bool, missing: bool, open: bool}>
+     * @return array<int, array{matchday: Matchday, tip: ?string, points: ?int, exact: bool, missing: bool, open: bool}>
      */
     public static function matchdays(User $user, Season $season): array
     {
