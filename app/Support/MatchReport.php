@@ -52,7 +52,7 @@ class MatchReport
     /**
      * Czyste rozliczenie (bez bazy).
      *
-     * @param  list<array{id: int, position: PlayerPosition, started: bool, on: int|null, off: int|null, yellow: bool, red: bool}>  $appearances
+     * @param  array<int, array{id: int, position: PlayerPosition, started: bool, on: int|null, off: int|null, yellow: bool, red: bool}>  $appearances
      * @param  array<int, array{side: string, minute: int|null, scorer: int|null, assist: int|null}>  $goals
      * @param  array<string, int>  $settings  Designation::values()
      * @return array<int, array<string, mixed>>

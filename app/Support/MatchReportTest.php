@@ -4,11 +4,17 @@ use App\Enums\PlayerPosition;
 use App\Support\Designation;
 use App\Support\MatchReport;
 
+/**
+ * @return array{id: int, position: PlayerPosition, started: bool, on: int|null, off: int|null, yellow: bool, red: bool}
+ */
 function reportAppearance(int $id, PlayerPosition $position, bool $started = true, ?int $on = null, ?int $off = null): array
 {
     return ['id' => $id, 'position' => $position, 'started' => $started, 'on' => $on, 'off' => $off, 'yellow' => false, 'red' => false];
 }
 
+/**
+ * @return array{side: string, minute: int|null, scorer: int|null, assist: int|null}
+ */
 function reportGoal(string $side, ?int $minute, ?int $scorer = null, ?int $assist = null): array
 {
     return ['side' => $side, 'minute' => $minute, 'scorer' => $scorer, 'assist' => $assist];
