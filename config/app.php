@@ -14,7 +14,7 @@ return [
     */
 
     'name' => env('APP_NAME', 'LechTYPER'),
-    'version' => env('APP_VERSION', '0.4.0'),
+    'version' => env('APP_VERSION', '0.9.0'),
 
     /*
     |--------------------------------------------------------------------------
