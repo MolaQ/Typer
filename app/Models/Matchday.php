@@ -7,6 +7,7 @@ use App\Enums\MatchdayStatus;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Carbon;
 
 /**
@@ -20,6 +21,7 @@ use Illuminate\Support\Carbon;
  * @property string|null $competition
  * @property Carbon|null $kickoff_at
  * @property MatchdayStatus $status
+ * @property bool $extra_time mecz z dogrywką (raport meczu)
  */
 class Matchday extends Model
 {
@@ -37,6 +39,7 @@ class Matchday extends Model
         'status',
         'lech_goals',
         'opponent_goals',
+        'extra_time',
     ];
 
     protected $attributes = [
@@ -53,6 +56,7 @@ class Matchday extends Model
             'status' => MatchdayStatus::class,
             'lech_goals' => 'integer',
             'opponent_goals' => 'integer',
+            'extra_time' => 'boolean',
         ];
     }
 
@@ -107,6 +111,26 @@ class Matchday extends Model
         }
 
         return null;
+    }
+
+    /**
+     * Raport meczu: występy zawodników Lecha.
+     *
+     * @return HasMany<MatchAppearance, $this>
+     */
+    public function appearances(): HasMany
+    {
+        return $this->hasMany(MatchAppearance::class);
+    }
+
+    /**
+     * Raport meczu: gole (obie strony).
+     *
+     * @return HasMany<MatchGoal, $this>
+     */
+    public function goals(): HasMany
+    {
+        return $this->hasMany(MatchGoal::class);
     }
 
     public function season(): BelongsTo

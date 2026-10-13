@@ -321,5 +321,11 @@ new class extends Component {
                 </flux:button>
             </div>
         @endif
+
+        {{-- Raport meczu do desygnowania zawodników (pojawia się po wpisaniu wyniku, przy zmianie wyniku ładuje się od nowa). --}}
+        @if ($this->matchday->lech_goals !== null)
+            <livewire:pages::dashboard.match-report :matchday-id="$this->matchday->id"
+                :key="'report-' . $this->matchday->id . '-' . $this->matchday->lech_goals . '-' . $this->matchday->opponent_goals" />
+        @endif
     @endif
 </div>

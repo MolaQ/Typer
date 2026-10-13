@@ -61,6 +61,8 @@ return new class extends Migration
             // Wynik po 90 minutach (Lech : rywal), wpisuje admin w dashboard/results.
             $table->unsignedTinyInteger('lech_goals')->nullable();
             $table->unsignedTinyInteger('opponent_goals')->nullable();
+            // Mecz z dogrywką: dwie dodatkowe połowy (minuty 91-120) w raporcie meczu (blokady, doświadczenie).
+            $table->boolean('extra_time')->default(false);
             $table->timestamps();
             $table->unique(['season_id', 'number']);
         });
