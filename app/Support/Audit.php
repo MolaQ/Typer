@@ -82,6 +82,9 @@ class Audit
             // Boty
             'bot.renamed' => __('Bot renamed'),
             'bot.proposal_rejected' => __('Bot name proposal rejected'),
+
+            // Desygnowanie zawodników
+            'designation.settings' => __('Designation settings changed'),
         ];
     }
 

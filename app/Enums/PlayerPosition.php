@@ -22,7 +22,7 @@ enum PlayerPosition: string
         };
     }
 
-    /** Skrót do tabel: BR, OB, PO, NA. */
+    /** Skrót do tabel: B, O, P, N. */
     public function short(): string
     {
         return match ($this) {

@@ -14,12 +14,13 @@ use App\Models\Tip;
 use App\Support\EuropeanCup;
 use App\Support\LegendsLeague;
 use App\Support\Scoring;
+use App\Support\Squad;
 use DomainException;
 use Illuminate\Support\Facades\DB;
 
 /**
  * Przelicza kolejkę po wpisaniu wyniku meczu Lecha (regulamin, punkty 3, 6, 7, 8):
- *  1. boty dostają losowy typ 0-3 : 0-3 (raz, potem zostaje zapisany),
+ *  1. boty dostają losowy typ 0-3 : 0-3 (raz, potem zostaje zapisany) i losowych zawodników (Squad::pickForBots),
  *  2. każdy zespół dostaje dorobek (team_scores) dla każdego typu swoich rozgrywek (score_set),
  *  3. mecze tej kolejki we wszystkich rozgrywkach dostają wynik,
  *  4. w pucharze (i w fazie pucharowej pucharów europejskich) zwycięzca wchodzi na lepsze miejsce pary
@@ -87,6 +88,15 @@ class ScoreMatchday
             }
 
             $botTips = $this->botTips($matchday, $teams->whereNull('user_id')->pluck('id')->all());
+
+            // Boty wystawiają zawodników w swoich typach rozgrywek (losowo, z blokadami, Support\Squad).
+            $setsOfBot = [];
+            foreach ($teams as $team) {
+                if ($team->user_id === null && $team->bot_id !== null && isset($setsOfTeam[$team->id])) {
+                    $setsOfBot[$team->bot_id] = array_keys($setsOfTeam[$team->id]);
+                }
+            }
+            Squad::pickForBots($matchday, $setsOfBot);
             $humanTips = Tip::where('matchday_id', $matchday->id)->get()->keyBy('user_id');
 
             // --- Dorobek zespołów ---

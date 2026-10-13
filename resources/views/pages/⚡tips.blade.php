@@ -15,7 +15,8 @@ use Livewire\Attributes\Layout;
 use Livewire\Component;
 
 /**
- * Typowanie gracza: wynik meczu Lecha (jeden typ na wszystkie rozgrywki). Zapis możliwy do godziny pierwszego gwizdka.
+ * Typowanie gracza: wynik meczu Lecha (jeden typ na wszystkie rozgrywki) i desygnowanie zawodników
+ * (pages::home.designation-panels). Zapis możliwy do godziny pierwszego gwizdka.
  * Uwaga: nie nazywaj własności "slots" ani "rows" – Livewire rezerwuje część nazw.
  */
 new #[Layout('layouts::public')] class extends Component {
@@ -673,6 +674,11 @@ new #[Layout('layouts::public')] class extends Component {
             @endif
         </div>
     </div>
+
+    {{-- Desygnowanie zawodników: karty typów rozgrywek (Support\Squad) --}}
+    @if ($this->matchday->isFilled())
+        <livewire:pages::home.designation-panels :matchday-id="$this->matchday->id" :key="'designation-' . $this->matchday->id" />
+    @endif
 
     @else
         @include('partials.tips-tabs')

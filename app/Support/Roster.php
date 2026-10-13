@@ -9,6 +9,7 @@ use App\Enums\SeasonStatus;
 use App\Models\Bot;
 use App\Models\Competition;
 use App\Models\CompetitionEntry;
+use App\Models\DesignatedPlayer;
 use App\Models\Fixture;
 use App\Models\Matchday;
 use App\Models\Season;
@@ -206,6 +207,9 @@ class Roster
         if ($open->isEmpty()) {
             return 0;
         }
+
+        // Wystawieni zawodnicy też (desygnowanie, Support\Squad).
+        DesignatedPlayer::whereIn('matchday_id', $open)->where('user_id', $userId)->delete();
 
         return Tip::whereIn('matchday_id', $open)->where('user_id', $userId)->delete();
     }

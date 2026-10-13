@@ -13,8 +13,8 @@
         default => ['blue', __('Settled')],
     };
     $phaseInfo = match ($phase) {
-        \App\Support\Rivals::OPEN => __('Everyone sees whether a tip is in. Premium also sees the outcome of the tip.'),
-        \App\Support\Rivals::CLOSED => __('Everyone sees the outcome of the tip. Premium also sees the exact tip and when it was saved.'),
+        \App\Support\Rivals::OPEN => __('Everyone sees whether a tip is in and how many players are fielded. Premium also sees the outcome of the tip and the positions.'),
+        \App\Support\Rivals::CLOSED => __('Everyone sees the outcome of the tip and the positions of the fielded players. Premium also sees the exact tip, when it was saved and the players.'),
         default => __('Full settlement: tip, points for the tip and bonuses.'),
     };
     // Etykiety wierszy rozliczenia: jednolite tło.
@@ -237,6 +237,37 @@
                             </div>
                         @endif
                     </dl>
+                @endif
+
+                {{--
+                    Wystawieni zawodnicy (desygnowanie): przed gwizdkiem liczba (premium: pozycje),
+                    po gwizdku pozycje B O P N (premium: nazwiska), Rivals::lineup.
+                --}}
+                @if ($side['lineup'] ?? null)
+                    @php
+                        $lineup = $side['lineup'];
+                    @endphp
+                    <div class="space-y-1.5 border-t border-lech-200/70 pt-2 text-xs dark:border-lech-800">
+                        <div class="{{ $mirror }} flex items-center justify-between gap-2">
+                            <span class="{{ $labelClass }}">{{ __('Fielded players') }}</span>
+                            @if ($lineup['positions'])
+                                <span class="flex gap-1">
+                                    @foreach ($lineup['positions'] as $short => $onPos)
+                                        <span class="{{ $onPos > 0 ? 'bg-lech-100 text-lech-900 ring-1 ring-lech-200 dark:bg-lech-900/60 dark:text-lech-100 dark:ring-lech-800' : 'bg-zinc-100 text-zinc-400 dark:bg-white/5' }} rounded px-1.5 py-0.5 font-bold tabular-nums">{{ $short }} {{ $onPos }}</span>
+                                    @endforeach
+                                </span>
+                            @else
+                                <x-tone-tile :tone="$lineup['count'] > 0 ? 'neutral' : 'zinc'" class="{{ $tileWidth }}">{{ $lineup['count'] }}</x-tone-tile>
+                            @endif
+                        </div>
+                        @if ($lineup['names'])
+                            <div class="flex flex-wrap gap-1 {{ $left ? 'justify-end' : '' }}">
+                                @foreach ($lineup['names'] as $lineupName)
+                                    <span class="rounded-full bg-white px-2 py-0.5 text-[11px] font-medium text-zinc-700 ring-1 ring-lech-200 dark:bg-zinc-800 dark:text-zinc-200 dark:ring-lech-800">{{ $lineupName }}</span>
+                                @endforeach
+                            </div>
+                        @endif
+                    </div>
                 @endif
             </div>
         @endforeach

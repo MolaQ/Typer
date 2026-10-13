@@ -61,6 +61,24 @@ return new class extends Migration
             $table->index(['matchday_id', 'side']);
         });
 
+        // Desygnowanie: zawodnicy wystawieni przez klub (gracz albo bot) w kolejce do jednego typu rozgrywek.
+        // Każdy klub ma całą kadrę Lecha; dorobek zawodnika w klubie (gole, asysty, kartki, doświadczenie, blokady)
+        // liczy się tylko z kolejek, w których klub go wystawił (Support\Squad).
+        Schema::create('designated_players', function (Blueprint $table) {
+            $table->id();
+            $table->foreignId('matchday_id')->constrained()->cascadeOnDelete();
+            // Klub: gracz albo bot (dokładnie jedno z dwóch).
+            $table->foreignId('user_id')->nullable()->constrained()->cascadeOnDelete();
+            $table->foreignId('bot_id')->nullable()->constrained('bots')->cascadeOnDelete();
+            // Typ rozgrywek (CompetitionType::scoreSet): league | cup | champions | legends.
+            $table->string('score_set', 20);
+            $table->foreignId('lech_player_id')->constrained()->cascadeOnDelete();
+            $table->timestamps();
+            // Zawodnik w kolejce tylko w jednym typie rozgrywek danego klubu.
+            $table->unique(['matchday_id', 'user_id', 'lech_player_id']);
+            $table->unique(['matchday_id', 'bot_id', 'lech_player_id']);
+        });
+
         // Ustawienia desygnowania (Support\Designation, domyślne w kodzie), klucz i wartość.
         Schema::create('designation_settings', function (Blueprint $table) {
             $table->id();
@@ -73,6 +91,7 @@ return new class extends Migration
     public function down(): void
     {
         Schema::dropIfExists('designation_settings');
+        Schema::dropIfExists('designated_players');
         Schema::dropIfExists('match_goals');
         Schema::dropIfExists('match_appearances');
         Schema::dropIfExists('lech_players');

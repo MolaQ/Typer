@@ -7,7 +7,7 @@ use Illuminate\Support\Facades\Schema;
 
 /**
  * Ustawienia desygnowania zawodników Lecha (regulamin: desygnowanie, reguły R1-R10 w trakcie ustalania).
- * Wartości domyślne są tutaj, zmiany w tabeli designation_settings (panel w przygotowaniu).
+ * Wartości domyślne są tutaj, zmiany w tabeli designation_settings (panel dashboard/designation-settings).
  */
 class Designation
 {
@@ -23,8 +23,9 @@ class Designation
     public const DEFAULTS = [
         // R1: najwyżej tylu zawodników w jednym typie rozgrywek na kolejkę.
         'max_players' => 6,
-        // R7: tylu losowych zawodników dostaje bot w każdym typie rozgrywek.
-        'bot_players' => 1,
+        // R7: bot wystawia w każdym typie rozgrywek losowo od min do max dostępnych zawodników.
+        'bot_players_min' => 0,
+        'bot_players_max' => 2,
         // R4: tyle punktów ataku rywala zabiera czyste konto bramkarza i obrońcy.
         'clean_sheet_goalkeeper' => 1,
         'clean_sheet_defender' => 1,

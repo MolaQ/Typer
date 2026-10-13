@@ -2,10 +2,14 @@
 
 namespace App\Support;
 
+use App\Enums\CompetitionType;
 use App\Enums\MatchdayStatus;
+use App\Enums\PlayerPosition;
 use App\Models\Competition;
 use App\Models\CompetitionEntry;
+use App\Models\DesignatedPlayer;
 use App\Models\Fixture;
+use App\Models\LechPlayer;
 use App\Models\Matchday;
 use App\Models\SeasonTeam;
 use App\Models\TeamScore;
@@ -188,6 +192,8 @@ final class Rivals
                 $side['score'] = $score;
             }
 
+            $side['lineup'] = $team && $matchday ? self::lineup($team, $side['score'], $matchday, $set, $phase, $premium) : null;
+
             $sides[] = $side;
         }
 
@@ -197,6 +203,42 @@ final class Rivals
             'played' => $fixture->isPlayed(),
             'score' => $fixture->isPlayed() ? $fixture->score() : null,
             'sides' => $sides,
+        ];
+    }
+
+    /**
+     * Wystawieni zawodnicy strony meczu (desygnowanie, Support\Squad) z widocznością jak typ:
+     * przed gwizdkiem wszyscy widzą liczbę, premium pozycje; po gwizdku wszyscy widzą pozycje (B O P N), premium nazwiska.
+     * Bot wystawia skład przy przeliczeniu kolejki, więc przed wynikami nic nie pokazujemy.
+     *
+     * @return array{count: int, positions: array<string, int>|null, names: array<int, string>|null}|null
+     */
+    private static function lineup(SeasonTeam $team, ?TeamScore $score, Matchday $matchday, CompetitionType $set, string $phase, bool $premium): ?array
+    {
+        $userId = $score ? $score->user_id : $team->user_id;
+        $botId = $score ? $score->bot_id : $team->bot_id;
+
+        if ($userId === null && $phase !== self::PLAYED) {
+            return null;
+        }
+
+        $players = DesignatedPlayer::with('player')->where('matchday_id', $matchday->id)->where('score_set', $set->value)
+            ->where($userId !== null ? 'user_id' : 'bot_id', $userId ?? $botId)
+            ->get()->pluck('player')->filter()
+            ->sortBy(fn (LechPlayer $p) => array_search($p->position->value, PlayerPosition::values(), true));
+
+        $positions = [];
+        foreach (PlayerPosition::cases() as $position) {
+            $positions[$position->short()] = $players->where('position', $position)->count();
+        }
+
+        $showPositions = $phase !== self::OPEN || $premium;
+        $showNames = $phase !== self::OPEN && $premium;
+
+        return [
+            'count' => $players->count(),
+            'positions' => $showPositions ? $positions : null,
+            'names' => $showNames ? $players->map(fn (LechPlayer $p) => $p->position->short().' '.$p->name)->values()->all() : null,
         ];
     }
 

@@ -133,12 +133,16 @@
 
             @if ($canSeasons || $canRoles || $canLogs)
                 <flux:sidebar.group expandable
-                    :expanded="request()->routeIs('dashboard.hall-of-fame', 'dashboard.bots', 'dashboard.sponsors', 'dashboard.competition-colors', 'dashboard.roles', 'dashboard.logs')"
+                    :expanded="request()->routeIs('dashboard.hall-of-fame', 'dashboard.designation-settings', 'dashboard.bots', 'dashboard.sponsors', 'dashboard.competition-colors', 'dashboard.roles', 'dashboard.logs')"
                     :heading="__('Game settings')" class="grid">
                     @if ($canSeasons)
                         <flux:sidebar.item icon="star" :href="route('dashboard.hall-of-fame')"
                             :current="request()->routeIs('dashboard.hall-of-fame')" wire:navigate>
                             {{ __('Hall of Fame') }}
+                        </flux:sidebar.item>
+                        <flux:sidebar.item icon="user-group" :href="route('dashboard.designation-settings')"
+                            :current="request()->routeIs('dashboard.designation-settings')" wire:navigate>
+                            {{ __('Line-ups') }}
                         </flux:sidebar.item>
                         <flux:sidebar.item icon="cpu-chip" :href="route('dashboard.bots')"
                             :current="request()->routeIs('dashboard.bots')" wire:navigate>

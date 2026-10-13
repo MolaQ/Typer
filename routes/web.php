@@ -80,6 +80,9 @@ Route::middleware(['auth', 'verified', 'permission:'.Permission::DashboardAccess
     Route::livewire('dashboard/hall-of-fame', 'pages::dashboard.hall-of-fame')
         ->middleware('permission:season-list')
         ->name('dashboard.hall-of-fame');
+    Route::livewire('dashboard/designation-settings', 'pages::dashboard.designation-settings')
+        ->middleware('permission:season-list')
+        ->name('dashboard.designation-settings');
     Route::livewire('dashboard/competition-colors', 'pages::dashboard.competition-colors')
         ->middleware('permission:season-list')
         ->name('dashboard.competition-colors');
