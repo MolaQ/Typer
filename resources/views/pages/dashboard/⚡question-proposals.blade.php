@@ -103,7 +103,7 @@ new class extends Component {
                 return false;
             }
 
-            $question = Question::create(['text' => $this->acceptText, 'side' => $this->acceptSide, 'is_active' => true]);
+            $question = Question::create(['text' => $this->acceptText, 'side' => $this->acceptSide, 'is_active' => true] + Question::guessAttributes($this->acceptText));
 
             $proposal->update([
                 'status' => QuestionProposal::ACCEPTED,
