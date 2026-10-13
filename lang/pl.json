@@ -1505,5 +1505,10 @@
     "Whole match": "Cały mecz",
     "active": "aktywnych",
     ":count question changed.|:count questions changed.": "Zmieniono :count pytanie.|Zmieniono :count pytania.|Zmieniono :count pytań.",
-    "Lech player": "Zawodnik"
+    "Lech player": "Zawodnik",
+    "Not enough questions in the bank. Add more active questions.": "Za mało pytań w banku. Dodaj więcej aktywnych pytań.",
+    "The bank has enough active questions": "Bank ma wystarczająco aktywnych pytań",
+    "Questions in the pool": "Pytania w worku",
+    "Yes/no bonus questions in one pool: each drawn question lands in the offensive or the defensive set. Every matchday needs 10 questions for each competition type, without repeats.": "Pytania bonusowe tak/nie w jednym worku: wylosowane pytanie trafia do zestawu ofensywnego albo defensywnego. Każda kolejka potrzebuje 10 pytań na każdy typ rozgrywek, bez powtórzeń.",
+    "You can correct the wording before adding it to the bank.": "Przed dodaniem do banku możesz poprawić treść."
 }

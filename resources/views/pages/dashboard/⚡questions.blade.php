@@ -4,7 +4,6 @@ use App\Enums\MatchWeight;
 use App\Enums\Permission;
 use App\Enums\QuestionData;
 use App\Enums\QuestionMatchType;
-use App\Enums\QuestionSide;
 use App\Enums\QuestionSubject;
 use App\Models\Question;
 use App\Models\QuestionCategory;
@@ -31,9 +30,6 @@ new class extends Component {
 
     #[Url(except: '')]
     public string $search = '';
-
-    #[Url(except: '')]
-    public string $side = '';
 
     #[Url(except: '')]
     public string $state = '';
@@ -66,7 +62,6 @@ new class extends Component {
     // Formularz pytania
     public ?int $questionId = null;
     public string $text = '';
-    public string $formSide = 'offensive';
     public bool $isActive = true;
     public string $formCategory = '';
     public string $formSubject = 'lech';
@@ -94,18 +89,10 @@ new class extends Component {
     #[Computed]
     public function stats(): array
     {
-        $rows = Question::selectRaw('side, is_active, count(*) as total')->groupBy('side', 'is_active')->get();
-
-        $count = fn(string $side, ?bool $active = null) => (int) $rows
-            ->where('side', $side)
-            ->when($active !== null, fn($c) => $c->where('is_active', $active))
-            ->sum('total');
-
+        // Jeden worek: pytania nie mają strony, atak albo obronę dostają przy losowaniu kolejki.
         return [
-            'offensive' => $count('offensive'),
-            'defensive' => $count('defensive'),
-            'offensiveActive' => $count('offensive', true),
-            'defensiveActive' => $count('defensive', true),
+            'total' => Question::count(),
+            'active' => Question::where('is_active', true)->count(),
         ];
     }
 
@@ -131,7 +118,6 @@ new class extends Component {
     {
         return Question::query()
             ->when($this->search !== '', fn($q) => $q->where('text', 'like', '%' . $this->search . '%'))
-            ->when(in_array($this->side, array_column(QuestionSide::cases(), 'value'), true), fn($q) => $q->where('side', $this->side))
             ->when($this->state === 'active', fn($q) => $q->where('is_active', true))
             ->when($this->state === 'inactive', fn($q) => $q->where('is_active', false))
             ->when($this->categoryFilter === 'none', fn($q) => $q->whereNull('category_id'))
@@ -162,17 +148,17 @@ new class extends Component {
     #[Computed]
     public function hasFilters(): bool
     {
-        return collect([$this->search, $this->side, $this->state, $this->categoryFilter, $this->subjectFilter, $this->matchTypeFilter, $this->weightFilter, $this->dataFilter])->contains(fn($v) => $v !== '');
+        return collect([$this->search, $this->state, $this->categoryFilter, $this->subjectFilter, $this->matchTypeFilter, $this->weightFilter, $this->dataFilter])->contains(fn($v) => $v !== '');
     }
 
     private function safeSortBy(): string
     {
-        return in_array($this->sortBy, ['text', 'side', 'created_at'], true) ? $this->sortBy : 'created_at';
+        return in_array($this->sortBy, ['text', 'created_at'], true) ? $this->sortBy : 'created_at';
     }
 
     public function sort(string $column): void
     {
-        if (!in_array($column, ['text', 'side', 'created_at'], true)) {
+        if (!in_array($column, ['text', 'created_at'], true)) {
             return;
         }
 
@@ -189,7 +175,7 @@ new class extends Component {
     /** Każda zmiana filtra wraca na pierwszą stronę i czyści zaznaczenie. */
     public function updated(string $property): void
     {
-        if (in_array($property, ['search', 'side', 'state', 'categoryFilter', 'subjectFilter', 'matchTypeFilter', 'weightFilter', 'dataFilter'], true)) {
+        if (in_array($property, ['search', 'state', 'categoryFilter', 'subjectFilter', 'matchTypeFilter', 'weightFilter', 'dataFilter'], true)) {
             $this->resetPage('questionsPage');
             $this->checked = [];
         }
@@ -203,7 +189,7 @@ new class extends Component {
 
     public function clearFilters(): void
     {
-        $this->reset('search', 'side', 'state', 'categoryFilter', 'subjectFilter', 'matchTypeFilter', 'weightFilter', 'dataFilter', 'checked');
+        $this->reset('search', 'state', 'categoryFilter', 'subjectFilter', 'matchTypeFilter', 'weightFilter', 'dataFilter', 'checked');
         $this->resetPage('questionsPage');
     }
 
@@ -246,7 +232,6 @@ new class extends Component {
     {
         return [
             'text' => ['required', 'string', 'min:5', 'max:255', Rule::unique('questions', 'text')->ignore($this->questionId)],
-            'formSide' => ['required', Rule::in(array_column(QuestionSide::cases(), 'value'))],
             'isActive' => ['boolean'],
             'formCategory' => ['nullable', Rule::exists('question_categories', 'id')],
             'formSubject' => ['required', Rule::enum(QuestionSubject::class)],
@@ -262,7 +247,6 @@ new class extends Component {
     {
         return [
             'text' => __('Question'),
-            'formSide' => __('Type'),
             'formCategory' => __('Category'),
             'formSubject' => __('Concerns'),
             'formMatchTypes' => __('Lech matches'),
@@ -287,7 +271,6 @@ new class extends Component {
 
         $this->questionId = $question->id;
         $this->text = $question->text;
-        $this->formSide = $question->side->value;
         $this->isActive = $question->is_active;
         $this->formCategory = (string) ($question->category_id ?? '');
         $this->formSubject = $question->subject->value;
@@ -324,17 +307,9 @@ new class extends Component {
         $isNew = !$question->exists;
         $before = $isNew ? [] : $this->snapshot($question);
 
-        // Zmiana strony pytania użytego w zestawie zepsułaby zestaw (5 ofensywnych + 5 defensywnych).
-        if (!$isNew && $question->side->value !== $this->formSide && $question->assignments()->exists()) {
-            $this->addError('formSide', __('This question is used in a matchday. You cannot change its type.'));
-
-            return;
-        }
-
         $question
             ->fill([
                 'text' => $this->text,
-                'side' => $this->formSide,
                 'is_active' => $this->isActive,
                 'category_id' => $this->formCategory !== '' ? (int) $this->formCategory : null,
                 'subject' => $this->formSubject,
@@ -356,7 +331,7 @@ new class extends Component {
     /** Nowy formularz: aktywne, Lech, liga + PP + Europa, wszystkie wagi, dane podstawowe. */
     public function resetForm(): void
     {
-        $this->reset('questionId', 'text', 'formSide', 'isActive', 'formCategory', 'formSubject', 'formData');
+        $this->reset('questionId', 'text', 'isActive', 'formCategory', 'formSubject', 'formData');
         $this->formMatchTypes = array_values(array_diff(QuestionMatchType::values(), [QuestionMatchType::Friendly->value]));
         $this->formWeights = MatchWeight::values();
         $this->resetValidation();
@@ -484,7 +459,6 @@ new class extends Component {
     {
         return [
             'text' => $question->text,
-            'side' => $question->side->label(),
             'active' => $question->is_active,
             'category' => $question->category?->name,
             'subject' => $question->subject->label(),
@@ -511,7 +485,7 @@ new class extends Component {
         <div>
             <flux:heading size="xl" level="1">{{ __('Question bank') }}</flux:heading>
             <flux:subheading>
-                {{ __('Yes/no bonus questions. Every matchday needs 5 offensive and 5 defensive questions for each competition type, without repeats.') }}
+                {{ __('Yes/no bonus questions in one pool: each drawn question lands in the offensive or the defensive set. Every matchday needs 10 questions for each competition type, without repeats.') }}
             </flux:subheading>
         </div>
 
@@ -523,26 +497,15 @@ new class extends Component {
         @endcan
     </div>
 
-    <div class="grid gap-4 md:grid-cols-2">
-        <flux:card class="flex items-center gap-4">
-            <flux:icon.arrow-trending-up class="size-8 text-green-500" />
-            <div>
-                <flux:text>{{ __('Offensive questions') }}</flux:text>
-                <flux:heading size="xl">{{ $this->stats['offensiveActive'] }} <span
-                        class="text-sm font-normal text-zinc-500">/ {{ $this->stats['offensive'] }}
-                        {{ __('active') }}</span></flux:heading>
-            </div>
-        </flux:card>
-        <flux:card class="flex items-center gap-4">
-            <flux:icon.shield-check class="size-8 text-blue-500" />
-            <div>
-                <flux:text>{{ __('Defensive questions') }}</flux:text>
-                <flux:heading size="xl">{{ $this->stats['defensiveActive'] }} <span
-                        class="text-sm font-normal text-zinc-500">/ {{ $this->stats['defensive'] }}
-                        {{ __('active') }}</span></flux:heading>
-            </div>
-        </flux:card>
-    </div>
+    <flux:card class="flex items-center gap-4">
+        <flux:icon.question-mark-circle class="size-8 text-lech-600" />
+        <div>
+            <flux:text>{{ __('Questions in the pool') }}</flux:text>
+            <flux:heading size="xl">{{ $this->stats['active'] }} <span
+                    class="text-sm font-normal text-zinc-500">/ {{ $this->stats['total'] }}
+                    {{ __('active') }}</span></flux:heading>
+        </div>
+    </flux:card>
 
     {{-- Kategorie jako szybki filtr: aktywne / wszystkie pytania w kategorii --}}
     <div class="flex flex-wrap gap-2">
@@ -597,12 +560,6 @@ new class extends Component {
                 <flux:select.option :value="$case->value">{{ $case->label() }}</flux:select.option>
             @endforeach
         </flux:select>
-        <flux:select wire:model.live="side">
-            <flux:select.option value="">{{ __('All types') }}</flux:select.option>
-            @foreach (\App\Enums\QuestionSide::cases() as $case)
-                <flux:select.option :value="$case->value">{{ $case->label() }}</flux:select.option>
-            @endforeach
-        </flux:select>
         @if ($this->hasFilters)
             <flux:button variant="ghost" icon="x-mark" wire:click="clearFilters">{{ __('Clear filters') }}</flux:button>
         @endif
@@ -631,8 +588,6 @@ new class extends Component {
             <flux:table.column class="w-8" />
             <flux:table.column sortable :sorted="$sortBy === 'text'" :direction="$sortDirection"
                 wire:click="sort('text')">{{ __('Question') }}</flux:table.column>
-            <flux:table.column sortable :sorted="$sortBy === 'side'" :direction="$sortDirection"
-                wire:click="sort('side')">{{ __('Type') }}</flux:table.column>
             <flux:table.column>{{ __('Used') }}</flux:table.column>
             <flux:table.column>{{ __('Status') }}</flux:table.column>
             <flux:table.column />
@@ -667,9 +622,6 @@ new class extends Component {
                                 <flux:badge size="sm" color="orange" icon="chart-bar">{{ $question->data_level->label() }}</flux:badge>
                             @endif
                         </div>
-                    </flux:table.cell>
-                    <flux:table.cell>
-                        <flux:badge size="sm" :color="$question->side->color()">{{ $question->side->label() }}</flux:badge>
                     </flux:table.cell>
                     <flux:table.cell class="tabular-nums text-zinc-500">{{ $question->assignments_count }}</flux:table.cell>
                     <flux:table.cell>
@@ -758,16 +710,8 @@ new class extends Component {
                 @endforeach
             </flux:radio.group>
 
-            <div class="grid gap-4 sm:grid-cols-2">
-                <flux:select wire:model="formSide" :label="__('Type')">
-                    @foreach (\App\Enums\QuestionSide::cases() as $case)
-                        <flux:select.option :value="$case->value">{{ $case->label() }}</flux:select.option>
-                    @endforeach
-                </flux:select>
-
-                <flux:switch wire:model="isActive" :label="__('Active')"
-                    :description="__('Turned off questions are not drawn.')" />
-            </div>
+            <flux:switch wire:model="isActive" :label="__('Active')"
+                :description="__('Turned off questions are not drawn.')" />
 
             <div class="flex justify-end gap-2">
                 <flux:modal.close>

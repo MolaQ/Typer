@@ -67,14 +67,15 @@ class DrawQuestions
                         continue;
                     }
 
-                    $pool = Question::where('is_active', true)->where('side', $side->value)->pluck('id')->all();
+                    // Jeden worek: pytanie nie ma strony, trafia do ataku albo obrony zależnie od wolnego miejsca.
+                    $pool = Question::where('is_active', true)->pluck('id')->all();
                     $picked = [];
 
                     // Liga Legend i puchary europejskie: najpierw losujemy spośród najtrudniejszych pytań (najmniej
                     // poprawnych odpowiedzi), z puli dwa razy większej niż oba zestawy razem, żeby zestawy nie były
                     // co kolejkę identyczne i żeby starczyło trudnych pytań dla obu.
                     if (in_array($competitionType, self::HARD, true)) {
-                        $hard = QuestionDifficulty::hardest(MatchdayQuestion::PER_SIDE * 2 * count(self::HARD), $side->value)
+                        $hard = QuestionDifficulty::hardest(MatchdayQuestion::PER_SIDE * 2 * count(self::HARD) * 2)
                             ->map(fn ($row) => $row['question']->id)->all();
                         $picked = QuestionPicker::pick($hard, $used, count($missing));
                     }
@@ -82,7 +83,7 @@ class DrawQuestions
                     $picked = array_merge($picked, QuestionPicker::pick($pool, array_merge($used, $picked), count($missing) - count($picked)));
 
                     if (count($picked) < count($missing)) {
-                        throw new DomainException(__('Not enough :side questions in the bank. Add more active questions.', ['side' => mb_strtolower($side->label())]));
+                        throw new DomainException(__('Not enough questions in the bank. Add more active questions.'));
                     }
 
                     $rows = [];

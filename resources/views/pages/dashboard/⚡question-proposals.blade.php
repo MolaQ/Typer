@@ -1,7 +1,6 @@
 <?php
 
 use App\Enums\Permission;
-use App\Enums\QuestionSide;
 use App\Models\Bot;
 use App\Models\Question;
 use App\Models\QuestionProposal;
@@ -30,7 +29,6 @@ new class extends Component {
     // Akceptacja z poprawkami
     public ?int $acceptId = null;
     public string $acceptText = '';
-    public string $acceptSide = 'offensive';
 
     // Akceptacja nazwy bota: admin wybiera bota, który ją dostaje
     public ?int $nameId = null;
@@ -80,7 +78,6 @@ new class extends Component {
         $proposal = QuestionProposal::pending()->where('kind', QuestionProposal::QUESTION)->findOrFail($id);
         $this->acceptId = $proposal->id;
         $this->acceptText = $proposal->text;
-        $this->acceptSide = $proposal->side?->value ?? 'offensive';
         $this->resetValidation();
 
         Flux::modal('accept-proposal')->show();
@@ -93,8 +90,7 @@ new class extends Component {
         $this->acceptText = trim($this->acceptText);
         $this->validate([
             'acceptText' => ['required', 'string', 'min:5', 'max:255', 'unique:questions,text'],
-            'acceptSide' => ['required', 'in:' . implode(',', array_column(QuestionSide::cases(), 'value'))],
-        ], [], ['acceptText' => __('Question'), 'acceptSide' => __('Type')]);
+        ], [], ['acceptText' => __('Question')]);
 
         $done = DB::transaction(function (): bool {
             $proposal = QuestionProposal::query()->lockForUpdate()->find($this->acceptId);
@@ -103,7 +99,7 @@ new class extends Component {
                 return false;
             }
 
-            $question = Question::create(['text' => $this->acceptText, 'side' => $this->acceptSide, 'is_active' => true] + Question::guessAttributes($this->acceptText));
+            $question = Question::create(['text' => $this->acceptText, 'is_active' => true] + Question::guessAttributes($this->acceptText));
 
             $proposal->update([
                 'status' => QuestionProposal::ACCEPTED,
@@ -112,13 +108,13 @@ new class extends Component {
                 'reviewed_at' => now(),
             ]);
 
-            Audit::log('question.proposal_accepted', $proposal->user, ['text' => $proposal->text], ['text' => $question->text, 'side' => $question->side->label()], $question->text);
+            Audit::log('question.proposal_accepted', $proposal->user, ['text' => $proposal->text], ['text' => $question->text], $question->text);
 
             return true;
         });
 
         Flux::modal('accept-proposal')->close();
-        $this->reset('acceptId', 'acceptText', 'acceptSide');
+        $this->reset('acceptId', 'acceptText');
         unset($this->stats, $this->proposals);
 
         $done
@@ -276,8 +272,8 @@ new class extends Component {
                                 @if ($proposal->bot)
                                     <div class="mt-1 text-xs text-zinc-500">{{ __('Bot') }} #{{ $proposal->bot_id }}</div>
                                 @endif
-                            @elseif ($proposal->side)
-                                <flux:badge size="sm" :color="$proposal->side->color()">{{ $proposal->side->label() }}</flux:badge>
+                            @else
+                                <flux:badge size="sm" color="blue" icon="question-mark-circle">{{ __('Question') }}</flux:badge>
                             @endif
                         </td>
                         <td class="px-3 py-2">
@@ -317,13 +313,8 @@ new class extends Component {
     <flux:modal name="accept-proposal" class="w-full max-w-lg">
         <form wire:submit="accept" class="space-y-5">
             <flux:heading size="lg">{{ __('Accept the question') }}</flux:heading>
-            <flux:text>{{ __('You can correct the wording and type before adding it to the bank.') }}</flux:text>
+            <flux:text>{{ __('You can correct the wording before adding it to the bank.') }}</flux:text>
             <flux:textarea wire:model="acceptText" :label="__('Question')" rows="3" />
-            <flux:radio.group wire:model="acceptSide" :label="__('Type')" variant="segmented">
-                @foreach (\App\Enums\QuestionSide::cases() as $option)
-                    <flux:radio :value="$option->value" :label="$option->label()" />
-                @endforeach
-            </flux:radio.group>
             <div class="flex justify-end gap-2">
                 <flux:modal.close>
                     <flux:button variant="ghost">{{ __('Cancel') }}</flux:button>

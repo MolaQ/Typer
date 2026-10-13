@@ -40,13 +40,13 @@ final class QuestionDifficulty
     }
 
     /**
-     * Najtrudniejsze aktywne pytania (najniższy odsetek poprawnych odpowiedzi), opcjonalnie z jednej strony.
+     * Najtrudniejsze aktywne pytania (najniższy odsetek poprawnych odpowiedzi).
      *
      * @return Collection<int, array{question: Question, answers: int, correct: int, rate: float}>
      */
-    public static function hardest(int $limit, ?string $side = null): Collection
+    public static function hardest(int $limit): Collection
     {
-        return self::ranked($limit, $side, 'asc');
+        return self::ranked($limit, 'asc');
     }
 
     /**
@@ -54,16 +54,16 @@ final class QuestionDifficulty
      *
      * @return Collection<int, array{question: Question, answers: int, correct: int, rate: float}>
      */
-    public static function easiest(int $limit, ?string $side = null): Collection
+    public static function easiest(int $limit): Collection
     {
-        return self::ranked($limit, $side, 'desc');
+        return self::ranked($limit, 'desc');
     }
 
     /**
      * @param  'asc'|'desc'  $direction
      * @return Collection<int, array{question: Question, answers: int, correct: int, rate: float}>
      */
-    private static function ranked(int $limit, ?string $side, string $direction): Collection
+    private static function ranked(int $limit, string $direction): Collection
     {
         $rates = self::rates()->filter(fn ($r) => $r['answers'] >= self::MIN_ANSWERS);
 
@@ -73,7 +73,6 @@ final class QuestionDifficulty
 
         $questions = Question::whereIn('id', $rates->keys())
             ->where('is_active', true)
-            ->when($side, fn ($q) => $q->where('side', $side))
             ->get()
             ->keyBy('id');
 

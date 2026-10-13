@@ -105,7 +105,7 @@ new class extends Component {
         return $this->matchday?->questionsEditable() ?? false;
     }
 
-    /** Pytania do wyboru w modalu: aktywne, ze strony tego miejsca, jeszcze nieużyte w kolejce. */
+    /** Pytania do wyboru w modalu: aktywne (jeden worek dla ataku i obrony), jeszcze nieużyte w kolejce. */
     #[Computed]
     public function candidates()
     {
@@ -115,7 +115,6 @@ new class extends Component {
 
         return Question::query()
             ->where('is_active', true)
-            ->where('side', $this->slotSide)
             ->whereNotIn('id', MatchdayQuestion::where('matchday_id', $this->matchday->id)->select('question_id'))
             ->when(trim($this->search) !== '', fn($q) => $q->where('text', 'like', '%' . trim($this->search) . '%'))
             ->orderBy('text')

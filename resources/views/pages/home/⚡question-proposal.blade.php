@@ -1,6 +1,5 @@
 <?php
 
-use App\Enums\QuestionSide;
 use App\Models\QuestionProposal;
 use App\Support\BotNames;
 use Flux\Flux;
@@ -16,7 +15,6 @@ use Livewire\Component;
 new class extends Component {
     public string $kind = QuestionProposal::QUESTION;
     public string $text = '';
-    public string $side = 'offensive';
 
     /** Wariant wyglądu: 'footer' (tekst + przycisk) albo 'card' (karta na stronie głównej). */
     public string $variant = 'footer';
@@ -29,7 +27,7 @@ new class extends Component {
 
     public function open(string $kind = QuestionProposal::QUESTION): void
     {
-        $this->reset('text', 'side');
+        $this->reset('text');
         $this->kind = in_array($kind, [QuestionProposal::QUESTION, QuestionProposal::BOT_NAME], true) ? $kind : QuestionProposal::QUESTION;
         $this->resetValidation();
         Flux::modal($this->modalName())->show();
@@ -56,8 +54,7 @@ new class extends Component {
             : [
                 'kind' => ['required', Rule::in([QuestionProposal::QUESTION, QuestionProposal::BOT_NAME])],
                 'text' => ['required', 'string', 'min:10', 'max:255', Rule::unique('questions', 'text'), Rule::unique('question_proposals', 'text')->where('kind', QuestionProposal::QUESTION)],
-                'side' => ['required', Rule::in(array_column(QuestionSide::cases(), 'value'))],
-            ], [], ['text' => $isBot ? __('Bot name') : __('Question'), 'side' => __('Type')]);
+            ], [], ['text' => $isBot ? __('Bot name') : __('Question')]);
 
         if (QuestionProposal::pending()->where('user_id', $user->id)->count() >= QuestionProposal::MAX_PENDING) {
             $this->addError('text', __('You already have :count proposals waiting for the administrator.', ['count' => QuestionProposal::MAX_PENDING]));
@@ -69,10 +66,9 @@ new class extends Component {
             'user_id' => $user->id,
             'kind' => $this->kind,
             'text' => $this->text,
-            'side' => $isBot ? null : $this->side,
         ]);
 
-        $this->reset('text', 'side');
+        $this->reset('text');
         Flux::modal($this->modalName())->close();
         Flux::toast(variant: 'success', text: $isBot
             ? __('Thank you! The administrator will review your bot name.')
@@ -126,12 +122,6 @@ new class extends Component {
                     <flux:input wire:model="text" :label="__('Bot name')" maxlength="40" :placeholder="__('e.g. Kolejorz z Wildy')" />
                 @else
                     <flux:textarea wire:model="text" :label="__('Question')" rows="3" :placeholder="__('e.g. Will Lech score in the first 15 minutes?')" />
-
-                    <flux:radio.group wire:model="side" :label="__('Type')" variant="segmented">
-                        @foreach (\App\Enums\QuestionSide::cases() as $option)
-                            <flux:radio :value="$option->value" :label="$option->label()" />
-                        @endforeach
-                    </flux:radio.group>
                 @endif
 
                 <div class="flex justify-end gap-2">

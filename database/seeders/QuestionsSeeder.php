@@ -2,14 +2,13 @@
 
 namespace Database\Seeders;
 
-use App\Enums\QuestionSide;
 use App\Models\Question;
 use Illuminate\Database\Seeder;
 
 /**
- * Przykładowy bank pytań tak/nie: 45 ofensywnych (o ataku Lecha) i 45 defensywnych (o obronie i grze rywala).
+ * Przykładowy bank pytań tak/nie: 45 o ataku Lecha i 45 o obronie i grze rywala, wszystkie w jednym worku.
  * Kategoria, „dotyczy”, wymagane dane i rodzaje meczów są przypisywane wstępnie po treści (Question::guessAttributes).
- * Pełny zestaw 8 typów rozgrywek w kolejce wymaga co najmniej 40 pytań z każdej strony, bo w jednej
+ * Pełne zestawy w kolejce wymagają co najmniej 10 pytań na każdy typ rozgrywek, bo w jednej
  * kolejce pytania się nie powtarzają. Można uruchamiać wielokrotnie (istniejące pytania są pomijane),
  * a własne pytania dodajesz na stronie "Bank pytań".
  *
@@ -19,12 +18,9 @@ class QuestionsSeeder extends Seeder
 {
     public function run(): void
     {
-        foreach (self::offensive() as $text) {
-            Question::firstOrCreate(['text' => $text], ['side' => QuestionSide::Offensive->value, 'is_active' => true] + Question::guessAttributes($text));
-        }
-
-        foreach (self::defensive() as $text) {
-            Question::firstOrCreate(['text' => $text], ['side' => QuestionSide::Defensive->value, 'is_active' => true] + Question::guessAttributes($text));
+        // Jeden worek: pytania nie mają strony, atak albo obronę dostają przy losowaniu kolejki.
+        foreach (array_merge(self::offensive(), self::defensive()) as $text) {
+            Question::firstOrCreate(['text' => $text], ['is_active' => true] + Question::guessAttributes($text));
         }
     }
 

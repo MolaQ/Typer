@@ -4,7 +4,6 @@ namespace App\Support;
 
 use App\Actions\Questions\DrawQuestions;
 use App\Enums\CompetitionType;
-use App\Enums\QuestionSide;
 use App\Enums\RoleName;
 use App\Enums\SeasonStatus;
 use App\Models\Bot;
@@ -130,18 +129,17 @@ class SeasonChecklist
         // --- Pytania ---
         $perSide = MatchdayQuestion::PER_SIDE;
         $types = DrawQuestions::typesOfSeason($season->id);
-        $need = $perSide * max(1, count($types));
-        foreach ([QuestionSide::Offensive, QuestionSide::Defensive] as $side) {
-            $have = Question::where('side', $side)->where('is_active', true)->count();
-            $items[] = self::item(
-                __('Questions'),
-                __('The bank has enough :side questions', ['side' => mb_strtolower($side->label())]),
-                $have >= $need,
-                $have.' / '.$need,
-                'dashboard.questions',
-                'php artisan db:seed --class=QuestionsSeeder'
-            );
-        }
+        // Jeden worek pytań na atak i obronę: w kolejce potrzeba pytań na obie strony wszystkich zestawów.
+        $need = $perSide * 2 * max(1, count($types));
+        $have = Question::where('is_active', true)->count();
+        $items[] = self::item(
+            __('Questions'),
+            __('The bank has enough active questions'),
+            $have >= $need,
+            $have.' / '.$need,
+            'dashboard.questions',
+            'php artisan db:seed --class=QuestionsSeeder'
+        );
 
         $slotsPerMatchday = $perSide * 2 * count($types);
         $counts = MatchdayQuestion::whereIn('matchday_id', $matchdays->pluck('id'))

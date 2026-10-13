@@ -2,7 +2,6 @@
 
 namespace App\Models;
 
-use App\Enums\QuestionSide;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
@@ -15,7 +14,6 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property int $user_id
  * @property string $kind question / bot_name
  * @property string $text
- * @property QuestionSide|null $side
  * @property int|null $bot_id
  * @property string $status
  * @property string|null $reject_reason
@@ -38,14 +36,13 @@ class QuestionProposal extends Model
     /** Ile propozycji jeden gracz może mieć jednocześnie w kolejce. */
     public const MAX_PENDING = 5;
 
-    protected $fillable = ['user_id', 'kind', 'bot_id', 'text', 'side', 'status', 'reject_reason', 'question_id', 'reviewed_by', 'reviewed_at'];
+    protected $fillable = ['user_id', 'kind', 'bot_id', 'text', 'status', 'reject_reason', 'question_id', 'reviewed_by', 'reviewed_at'];
 
     protected $attributes = ['status' => self::PENDING, 'kind' => self::QUESTION];
 
     protected function casts(): array
     {
         return [
-            'side' => QuestionSide::class,
             'reviewed_at' => 'datetime',
         ];
     }

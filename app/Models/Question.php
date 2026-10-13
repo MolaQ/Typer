@@ -5,7 +5,6 @@ namespace App\Models;
 use App\Enums\MatchWeight;
 use App\Enums\QuestionData;
 use App\Enums\QuestionMatchType;
-use App\Enums\QuestionSide;
 use App\Enums\QuestionSubject;
 use App\Support\QuestionClassifier;
 use Illuminate\Database\Eloquent\Builder;
@@ -20,7 +19,6 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  *
  * @property int $id
  * @property string $text
- * @property QuestionSide $side
  * @property int|null $category_id
  * @property QuestionSubject $subject
  * @property array<int, string>|null $match_types wartości QuestionMatchType
@@ -30,14 +28,13 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  */
 class Question extends Model
 {
-    protected $fillable = ['text', 'side', 'category_id', 'subject', 'match_types', 'weights', 'data_level', 'is_active'];
+    protected $fillable = ['text', 'category_id', 'subject', 'match_types', 'weights', 'data_level', 'is_active'];
 
     protected $attributes = ['is_active' => true, 'subject' => 'lech', 'data_level' => 'basic'];
 
     protected function casts(): array
     {
         return [
-            'side' => QuestionSide::class,
             'subject' => QuestionSubject::class,
             'data_level' => QuestionData::class,
             'match_types' => 'array',
