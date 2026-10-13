@@ -77,6 +77,13 @@ new #[Layout('layouts::public')] class extends Component {
         return $this->currentSeason ? PlayerStats::botSeason($this->bot, $this->currentSeason) : null;
     }
 
+    /** Zawodnicy klubu bota z dorobkiem (Support\ClubStats). */
+    #[Computed]
+    public function clubPlayers(): array
+    {
+        return \App\Support\ClubStats::players(null, $this->bot->id, $this->currentSeason?->id);
+    }
+
     #[Computed]
     public function awards()
     {
@@ -248,6 +255,11 @@ new #[Layout('layouts::public')] class extends Component {
             @endif
         </flux:card>
     @endif
+
+    {{-- Zawodnicy Lecha w klubie bota i ich dorobek (desygnowanie, Support\ClubStats) --}}
+    <flux:card>
+        @include('partials.club-players', ['clubPlayers' => $this->clubPlayers, 'clubTitle' => __('Bot players')])
+    </flux:card>
 
     {{-- Gablota --}}
     <flux:card class="space-y-4">

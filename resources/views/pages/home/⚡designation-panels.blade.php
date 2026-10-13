@@ -159,9 +159,17 @@ new class extends Component {
                         {{-- Wystawieni: klik zdejmuje --}}
                         <div class="flex min-h-9 flex-wrap gap-1.5 px-3 pb-2">
                             @forelse ($minePlayers as $player)
+                                @php
+                                    // Wybrany, a potem zablokowany (raport poprzedniej kolejki wpisany później): wybór przepada.
+                                    $forfeit = ($locks[$player->id] ?? 0) > 0;
+                                @endphp
                                 <button type="button" wire:click="toggle('{{ $set->value }}', {{ $player->id }})" @disabled(! $open)
-                                    class="comp-chip flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-bold shadow-sm" title="{{ $open ? __('Remove') : '' }}">
+                                    class="{{ $forfeit ? 'bg-red-600 text-white' : 'comp-chip' }} flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-bold shadow-sm"
+                                    title="{{ $forfeit ? __('This player rests now: the pick does not count.') : ($open ? __('Remove') : '') }}">
                                     <span class="opacity-70">{{ $player->position->short() }}</span> {{ $player->name }}
+                                    @if ($forfeit)
+                                        <flux:icon.no-symbol variant="micro" />
+                                    @endif
                                     @if ($open)
                                         <flux:icon.x-mark variant="micro" />
                                     @endif

@@ -73,6 +73,21 @@ return new class extends Migration
             // Typ rozgrywek (CompetitionType::scoreSet): league | cup | champions | legends.
             $table->string('score_set', 20);
             $table->foreignId('lech_player_id')->constrained()->cascadeOnDelete();
+            // Rozliczenie przy przeliczeniu kolejki (ScoreMatchday). counted: null = jeszcze nie, false = przepadł (blokada), true = liczy się.
+            $table->boolean('counted')->nullable();
+            $table->unsignedTinyInteger('minutes')->default(0);
+            $table->unsignedTinyInteger('goals')->default(0);
+            $table->unsignedTinyInteger('assists')->default(0);
+            $table->unsignedTinyInteger('own_goals')->default(0);
+            // Czyste konto bramkarza albo obrońcy (null = nie dotyczy: inna pozycja albo nie grał).
+            $table->boolean('clean_sheet')->nullable();
+            $table->boolean('yellow')->default(false);
+            $table->boolean('red')->default(false);
+            // Punkty ataku (gole + asysty) i obrony (czyste konto) dla klubu, doświadczenie i kolejki blokady z tego meczu.
+            $table->unsignedTinyInteger('attack')->default(0);
+            $table->unsignedTinyInteger('defense')->default(0);
+            $table->unsignedTinyInteger('experience')->default(0);
+            $table->unsignedTinyInteger('lock')->default(0);
             $table->timestamps();
             // Zawodnik w kolejce tylko w jednym typie rozgrywek danego klubu.
             $table->unique(['matchday_id', 'user_id', 'lech_player_id']);

@@ -173,6 +173,11 @@
                     --}}
                     @php
                         $terms = [[__('Tip'), $score->tip_points, 'term'], ['+', null, null], [__('Offensive bonus'), $score->offense_bonus, 'term']];
+                        // Samobóje wystawionych zawodników rywala to punkty ataku tej strony (R8).
+                        if ((int) ($other['score']?->own_goals ?? 0) > 0) {
+                            $terms[] = ['+', null, null];
+                            $terms[] = [__('Rival\'s own goals'), $other['score']->own_goals, 'term'];
+                        }
                         if (!$other['virtual']) {
                             $terms[] = ['−', null, null];
                             $terms[] = [__('Rival\'s defence'), $rivalDefense, 'term'];

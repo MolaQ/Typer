@@ -35,9 +35,16 @@ return new class extends Migration
             $table->boolean('outcome_hit')->default(false);
             $table->boolean('diff_hit')->default(false);
             $table->boolean('exact_hit')->default(false);
-            // Bonus ataku i obrony (punkty desygnowanych zawodników; na razie 0, pytania usunięto).
+            // Bonus ataku (gole i asysty wystawionych zawodników) i obrony (czyste konta), Support\Squad.
             $table->unsignedTinyInteger('offense_bonus')->default(0);
             $table->unsignedTinyInteger('defense_bonus')->default(0);
+            // Samobóje wystawionych zawodników: tyle punktów ataku dostaje rywal.
+            $table->unsignedTinyInteger('own_goals')->default(0);
+            // Doświadczenie wystawionych zawodników w klubie (z tym meczem): rozstrzyga remisy w pucharach przed czasem typu.
+            $table->unsignedSmallInteger('experience')->default(0);
+            // Kartki wystawionych zawodników (kryteria tabeli po bonusach, mniej = wyżej).
+            $table->unsignedTinyInteger('yellow_cards')->default(0);
+            $table->unsignedTinyInteger('red_cards')->default(0);
             // Wynik ofensywny = punkty za typ + bonus ofensywny; gole w meczu = max(0, offense - defense_bonus rywala).
             $table->unsignedTinyInteger('offense')->default(0);
             $table->timestamps();

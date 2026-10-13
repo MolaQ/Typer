@@ -253,6 +253,25 @@ new class extends Component {
         $this->refresh();
     }
 
+    /** Po zmianach w raporcie rozliczonej kolejki: przeliczenie z nowymi punktami zawodników. */
+    public function recalculate(SaveMatchdayResult $action): void
+    {
+        if (!$this->guard()) {
+            return;
+        }
+
+        try {
+            $stats = $action->recalculate($this->matchday);
+        } catch (DomainException $e) {
+            Flux::toast(variant: 'danger', text: $e->getMessage());
+
+            return;
+        }
+
+        $this->refresh();
+        Flux::toast(variant: 'success', text: __('Matchday recalculated. Matches settled: :count.', ['count' => $stats['fixtures']]));
+    }
+
     /** Minuta, strzelec albo asystent gola (pusta wartość czyści pole). */
     public function setGoal(int $goalId, string $field, mixed $value): void
     {
@@ -332,6 +351,19 @@ new class extends Component {
                     </flux:button>
                 </div>
             </div>
+
+            @if ($editable)
+                <flux:callout icon="calculator" :variant="$md->status === \App\Enums\MatchdayStatus::Played ? 'secondary' : 'warning'">
+                    <flux:callout.text>
+                        {{ __('Points of the fielded players come from this report. After changes recalculate the matchday.') }}
+                    </flux:callout.text>
+                    @if ($md->status === \App\Enums\MatchdayStatus::Played)
+                        <x-slot name="actions">
+                            <flux:button size="sm" icon="calculator" wire:click="recalculate" wire:loading.attr="disabled">{{ __('Recalculate again') }}</flux:button>
+                        </x-slot>
+                    @endif
+                </flux:callout>
+            @endif
 
             @if ($this->warnings)
                 <flux:callout variant="warning" icon="exclamation-triangle">

@@ -28,6 +28,10 @@ use Illuminate\Support\Carbon;
  * @property int $offense_bonus
  * @property int $defense_bonus
  * @property int $offense
+ * @property int $own_goals samobóje wystawionych zawodników (punkty ataku dla rywala)
+ * @property int $experience doświadczenie wystawionych zawodników w klubie (remisy w pucharach)
+ * @property int $yellow_cards
+ * @property int $red_cards
  */
 class TeamScore extends Model
 {
@@ -37,6 +41,7 @@ class TeamScore extends Model
         'has_tip', 'tip_lech', 'tip_opponent', 'tipped_at', 'tip_order',
         'tip_points', 'outcome_hit', 'diff_hit', 'exact_hit',
         'offense_bonus', 'defense_bonus', 'offense',
+        'own_goals', 'experience', 'yellow_cards', 'red_cards',
     ];
 
     protected function casts(): array

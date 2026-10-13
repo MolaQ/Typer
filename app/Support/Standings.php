@@ -14,7 +14,8 @@ use Illuminate\Support\Collection;
 /**
  * Tabela rozgrywek ligowych (ligi, podwórkowa, grupy pucharów europejskich) z rozegranych meczów.
  * Kryteria (regulamin, punkt 4): punkty, bilans goli, bramki strzelone, wygrane, remisy,
- * dokładne typy, trafione różnice, trafione rozstrzygnięcia, bonusy, punkty Hall of Fame
+ * dokładne typy, trafione różnice, trafione rozstrzygnięcia, bonusy (atak + obrona zawodników), czerwone i żółte kartki
+ * wystawionych zawodników (mniej = wyżej), punkty Hall of Fame
  * (stan na początku sezonu, HallOfFame::pointsBefore), a na końcu pozycja na liście przedsezonowej.
  * Dokładne typy i bonusy liczymy z kolejek, w których zespół rozegrał mecz w tych rozgrywkach.
  */
@@ -24,7 +25,7 @@ final class Standings
      * Puchary europejskie: $entryIds zawęża tabelę do jednej grupy, a $maxRound do meczów fazy grupowej.
      *
      * @param  array<int, int>|null  $entryIds
-     * @return Collection<int, array{entry_id: int, team: SeasonTeam, played: int, won: int, drawn: int, lost: int, for: int, against: int, diff: int, points: int, exact: int, diff_hits: int, outcome_hits: int, bonus: int, hof: int}>
+     * @return Collection<int, array{entry_id: int, team: SeasonTeam, played: int, won: int, drawn: int, lost: int, for: int, against: int, diff: int, points: int, exact: int, diff_hits: int, outcome_hits: int, bonus: int, red: int, yellow: int, hof: int}>
      */
     public static function for(Competition $competition, ?array $entryIds = null, ?int $maxRound = null): Collection
     {
@@ -41,7 +42,7 @@ final class Standings
                 'team' => $entry->seasonTeam,
                 'played' => 0, 'won' => 0, 'drawn' => 0, 'lost' => 0,
                 'for' => 0, 'against' => 0, 'diff' => 0, 'points' => 0,
-                'exact' => 0, 'diff_hits' => 0, 'outcome_hits' => 0, 'bonus' => 0,
+                'exact' => 0, 'diff_hits' => 0, 'outcome_hits' => 0, 'bonus' => 0, 'red' => 0, 'yellow' => 0,
                 'hof' => $season ? HallOfFame::teamPointsBefore($season, $entry->seasonTeam?->user_id, $entry->seasonTeam?->bot_id) : 0,
             ];
         }
@@ -89,6 +90,8 @@ final class Standings
                     $row['diff_hits'] += (int) $score->diff_hit;
                     $row['outcome_hits'] += (int) $score->outcome_hit;
                     $row['bonus'] += $score->bonus();
+                    $row['red'] += $score->red_cards;
+                    $row['yellow'] += $score->yellow_cards;
                 }
                 unset($row);
             }
@@ -191,9 +194,10 @@ final class Standings
     private static function sort(array $rows): Collection
     {
         return collect($rows)->sort(function (array $a, array $b) {
-            foreach (['points', 'diff', 'for', 'won', 'drawn', 'exact', 'diff_hits', 'outcome_hits', 'bonus', 'hof'] as $key) {
+            foreach (['points', 'diff', 'for', 'won', 'drawn', 'exact', 'diff_hits', 'outcome_hits', 'bonus', 'red', 'yellow', 'hof'] as $key) {
                 if ($a[$key] !== $b[$key]) {
-                    return $b[$key] <=> $a[$key];
+                    // Kartki wystawionych zawodników (R10): mniej = wyżej.
+                    return in_array($key, ['red', 'yellow'], true) ? $a[$key] <=> $b[$key] : $b[$key] <=> $a[$key];
                 }
             }
 

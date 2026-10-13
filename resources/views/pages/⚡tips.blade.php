@@ -22,13 +22,13 @@ use Livewire\Component;
 new #[Layout('layouts::public')] class extends Component {
     public int $number = 0;
 
-    /** Zakładka: tip (typowanie), competitions (rozgrywki), stats (statystyki), history (historia), scalps (moje skalpy), blacklist (czarna lista). */
+    /** Zakładka: tip (typowanie), competitions (rozgrywki), stats (statystyki), club (mój klub), history (historia), scalps (moje skalpy), blacklist (czarna lista). */
     public string $tab = 'tip';
 
     /** Zakładki w adresie po polsku: /tips/kolejka-3/statystyki (typowanie bez części zakładki). */
     private const TAB_SLUGS = [
         'tip' => 'typ', 'competitions' => 'rozgrywki',
-        'stats' => 'statystyki', 'history' => 'historia', 'scalps' => 'skalpy', 'blacklist' => 'czarna-lista',
+        'stats' => 'statystyki', 'club' => 'moj-klub', 'history' => 'historia', 'scalps' => 'skalpy', 'blacklist' => 'czarna-lista',
     ];
 
     /** Wpisany wynik (teksty, bo pole formularza może być puste). */
@@ -229,6 +229,13 @@ new #[Layout('layouts::public')] class extends Component {
     public function myCompetitions(): array
     {
         return \App\Support\PlayerStats::competitions(auth()->user(), $this->season);
+    }
+
+    /** Zawodnicy klubu gracza z dorobkiem (zakładka „Mój klub”, Support\ClubStats). */
+    #[Computed]
+    public function myClub(): array
+    {
+        return \App\Support\ClubStats::players(auth()->id(), null, $this->season?->id);
     }
 
     #[Computed]
@@ -459,6 +466,7 @@ new #[Layout('layouts::public')] class extends Component {
             'tip' => ['pencil-square', __('Tipping')],
             'competitions' => ['trophy', __('Competitions')],
             'stats' => ['chart-bar', __('Statistics')],
+            'club' => ['user-group', __('My club')],
             'history' => ['clock', __('History and records')],
             'scalps' => ['fire', __('My scalps')],
             'blacklist' => ['no-symbol', __('Blacklist')],

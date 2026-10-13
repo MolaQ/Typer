@@ -97,6 +97,9 @@ class ScoreMatchday
                 }
             }
             Squad::pickForBots($matchday, $setsOfBot);
+
+            // Dorobek wystawionych zawodników z raportu meczu: klub => typ rozgrywek => sumy (Support\Squad::settle).
+            $lineups = Squad::settle($matchday);
             $humanTips = Tip::where('matchday_id', $matchday->id)->get()->keyBy('user_id');
 
             // --- Dorobek zespołów ---
@@ -115,9 +118,10 @@ class ScoreMatchday
                 $tipOrder = $tip instanceof Tip ? $tip->save_order : null;
 
                 foreach (array_keys($setsOfTeam[$team->id] ?? []) as $set) {
-                    // Atak i obrona zawodników: na razie 0 (desygnowanie zawodników w przygotowaniu).
-                    $offense = 0;
-                    $defense = 0;
+                    // Atak (gole i asysty) i obrona (czyste konta) wystawionych zawodników.
+                    $lineup = $lineups[Squad::clubKey($team->user_id, $team->bot_id)][$set] ?? [];
+                    $offense = $lineup['attack'] ?? 0;
+                    $defense = $lineup['defense'] ?? 0;
 
                     $row = [
                         'matchday_id' => $matchday->id,
@@ -137,6 +141,10 @@ class ScoreMatchday
                         'offense_bonus' => $offense,
                         'defense_bonus' => $defense,
                         'offense' => $tipResult['points'] + $offense,
+                        'own_goals' => $lineup['own_goals'] ?? 0,
+                        'experience' => $lineup['experience'] ?? 0,
+                        'yellow_cards' => $lineup['yellow'] ?? 0,
+                        'red_cards' => $lineup['red'] ?? 0,
                         'created_at' => $now,
                         'updated_at' => $now,
                     ];
@@ -165,13 +173,14 @@ class ScoreMatchday
                 $home = $scores[$entries[$fixture->home_entry_id]->season_team_id][$set] ?? null;
 
                 if ($fixture->isBye()) {
-                    // Wirtualny rywal (Lech Poznań): bramki Lecha z prawdziwego meczu minus defensywa gracza.
+                    // Wirtualny rywal (Lech Poznań): bramki Lecha z prawdziwego meczu (plus samobóje gracza) minus defensywa gracza.
                     $homeGoals = $home['offense'] ?? 0;
-                    $awayGoals = Scoring::goals($matchday->lech_goals, $home['defense_bonus'] ?? 0);
+                    $awayGoals = Scoring::goals($matchday->lech_goals + ($home['own_goals'] ?? 0), $home['defense_bonus'] ?? 0);
                 } elseif ($fixture->away_entry_id !== null) {
+                    // Samobój wystawionego zawodnika = punkt ataku dla rywala (R8).
                     $away = $scores[$entries[$fixture->away_entry_id]->season_team_id][$set] ?? null;
-                    $homeGoals = Scoring::goals($home['offense'] ?? 0, $away['defense_bonus'] ?? 0);
-                    $awayGoals = Scoring::goals($away['offense'] ?? 0, $home['defense_bonus'] ?? 0);
+                    $homeGoals = Scoring::goals(($home['offense'] ?? 0) + ($away['own_goals'] ?? 0), $away['defense_bonus'] ?? 0);
+                    $awayGoals = Scoring::goals(($away['offense'] ?? 0) + ($home['own_goals'] ?? 0), $home['defense_bonus'] ?? 0);
                 } else {
                     continue; // puchar: rywal jeszcze nieznany
                 }
@@ -184,10 +193,14 @@ class ScoreMatchday
                 } elseif ($awayGoals > $homeGoals) {
                     $winner = $fixture->away_entry_id;
                 } elseif ($competition->type->decidedByTime($fixture->round)) {
+                    // Remis w pucharze („po karnych”): najpierw doświadczenie wystawionych zawodników, potem czas zapisu typu.
                     $byTime = true;
-                    $winner = Scoring::homeWinsOnTime($home['tip_order'] ?? null, $away['tip_order'] ?? null)
-                        ? $fixture->home_entry_id
-                        : $fixture->away_entry_id;
+                    $homeExp = $home['experience'] ?? 0;
+                    $awayExp = $away['experience'] ?? 0;
+                    $homeWins = $homeExp !== $awayExp
+                        ? $homeExp > $awayExp
+                        : Scoring::homeWinsOnTime($home['tip_order'] ?? null, $away['tip_order'] ?? null);
+                    $winner = $homeWins ? $fixture->home_entry_id : $fixture->away_entry_id;
                 }
 
                 $fixture->update([
