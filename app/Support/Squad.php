@@ -81,7 +81,7 @@ class Squad
 
         foreach ($picks as $pick) {
             $played = $previous[$pick->matchday_id];
-            $lock = self::report($played)[$pick->lech_player_id]['lock'] ?? 0;
+            $lock = (int) (self::report($played)[$pick->lech_player_id]['lock'] ?? 0);
             $left = $played->number + $lock - $matchday->number + 1;
 
             if ($lock > 0 && $left > 0) {
