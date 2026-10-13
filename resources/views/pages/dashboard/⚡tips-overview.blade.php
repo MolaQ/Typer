@@ -1,13 +1,10 @@
 <?php
 
 use App\Models\Matchday;
-use App\Models\MatchdayQuestion;
 use App\Models\Season;
 use App\Models\SeasonTeam;
 use App\Models\Tip;
-use App\Models\TipAnswer;
 use App\Support\Players;
-use Flux\Flux;
 use Illuminate\Contracts\View\View;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Url;
@@ -15,7 +12,7 @@ use Livewire\Component;
 use Livewire\WithPagination;
 
 /**
- * Podgląd typów kolejki dla admina: kto już typował, a kto jeszcze nie, oraz odpowiedzi wybranego gracza.
+ * Podgląd typów kolejki dla admina: kto już typował, a kto jeszcze nie.
  * Tylko odczyt (uprawnienie season-list), nic tu nie zmienia danych.
  */
 new class extends Component {
@@ -30,9 +27,6 @@ new class extends Component {
     /** all | tipped | missing */
     #[Url(as: 'show', except: 'all')]
     public string $show = 'all';
-
-    /** Gracz, którego odpowiedzi pokazujemy w oknie podglądu. */
-    public ?int $previewUserId = null;
 
     public function mount(): void
     {
@@ -123,7 +117,7 @@ new class extends Component {
         return $query->paginate(25);
     }
 
-    /** Typy i liczba odpowiedzi graczy z bieżącej strony: user_id => [Tip, liczba odpowiedzi]. */
+    /** Typy graczy z bieżącej strony: user_id => [Tip]. */
     #[Computed]
     public function details(): array
     {
@@ -133,61 +127,13 @@ new class extends Component {
 
         $ids = $this->players->getCollection()->pluck('user_id')->all();
         $tips = Tip::where('matchday_id', $this->matchday->id)->whereIn('user_id', $ids)->get()->keyBy('user_id');
-        $counts = TipAnswer::where('matchday_id', $this->matchday->id)->whereIn('user_id', $ids)
-            ->selectRaw('user_id, count(*) as c')->groupBy('user_id')->pluck('c', 'user_id');
 
         $out = [];
         foreach ($ids as $id) {
-            $out[$id] = ['tip' => $tips->get($id), 'answers' => (int) ($counts[$id] ?? 0)];
+            $out[$id] = ['tip' => $tips->get($id)];
         }
 
         return $out;
-    }
-
-    public function openPreview(int $userId): void
-    {
-        $this->previewUserId = $userId;
-        unset($this->preview);
-        Flux::modal('tip-preview')->show();
-    }
-
-    /**
-     * Typ i odpowiedzi wybranego gracza: zestawy pytań kolejki z jego odpowiedzią przy każdym pytaniu.
-     *
-     * @return array{team: ?SeasonTeam, tip: ?Tip, sets: array<int, array{label: string, sides: array<string, \Illuminate\Support\Collection>}>, answers: array<int, bool>}
-     */
-    #[Computed]
-    public function preview(): array
-    {
-        if (!$this->matchday || !$this->previewUserId) {
-            return ['team' => null, 'tip' => null, 'sets' => [], 'answers' => []];
-        }
-
-        $answers = TipAnswer::where('matchday_id', $this->matchday->id)->where('user_id', $this->previewUserId)
-            ->pluck('answer', 'matchday_question_id')
-            ->map(fn($a) => (bool) $a)
-            ->all();
-
-        $sets = MatchdayQuestion::with('question:id,text')
-            ->where('matchday_id', $this->matchday->id)
-            ->orderBy('position')
-            ->get()
-            ->groupBy(fn($slot) => $slot->competition_type->value)
-            // Tylko zestawy, na które gracz cokolwiek odpowiedział.
-            ->filter(fn($slots) => $slots->contains(fn($slot) => array_key_exists($slot->id, $answers)))
-            ->map(fn($slots) => [
-                'label' => $slots->first()->competition_type->questionSetLabel(),
-                'sides' => $slots->groupBy(fn($slot) => $slot->side->value)->all(),
-            ])
-            ->values()
-            ->all();
-
-        return [
-            'team' => SeasonTeam::where('season_id', $this->seasonId)->where('user_id', $this->previewUserId)->with('user')->first(),
-            'tip' => Tip::where('matchday_id', $this->matchday->id)->where('user_id', $this->previewUserId)->first(),
-            'sets' => $sets,
-            'answers' => $answers,
-        ];
     }
 }; ?>
 
@@ -249,15 +195,13 @@ new class extends Component {
             <flux:table.column>{{ __('Place') }}</flux:table.column>
             <flux:table.column>{{ __('Team') }}</flux:table.column>
             <flux:table.column>{{ __('Tip') }}</flux:table.column>
-            <flux:table.column>{{ __('Answers') }}</flux:table.column>
             <flux:table.column>{{ __('Saved') }}</flux:table.column>
-            <flux:table.column></flux:table.column>
         </flux:table.columns>
 
         <flux:table.rows>
             @forelse ($this->players as $team)
             @php
-                $detail = $this->details[$team->user_id] ?? ['tip' => null, 'answers' => 0];
+                $detail = $this->details[$team->user_id] ?? ['tip' => null];
             @endphp
             <flux:table.row :key="$team->id">
                 <flux:table.cell>{{ $team->position }}</flux:table.cell>
@@ -269,70 +213,15 @@ new class extends Component {
                         <flux:badge color="zinc">—</flux:badge>
                     @endif
                 </flux:table.cell>
-                <flux:table.cell>{{ $detail['answers'] }}</flux:table.cell>
                 <flux:table.cell>{{ $detail['tip']?->saved_at->translatedFormat('j F, H:i:s') ?? '—' }}
-                </flux:table.cell>
-                <flux:table.cell>
-                    @if ($detail['tip'])
-                        <flux:button size="xs" variant="ghost" icon="eye" wire:click="openPreview({{ $team->user_id }})">
-                            {{ __('Show') }}</flux:button>
-                    @endif
                 </flux:table.cell>
             </flux:table.row>
             @empty
             <flux:table.row>
-                <flux:table.cell colspan="6">{{ __('No players match your filters.') }}</flux:table.cell>
+                <flux:table.cell colspan="4">{{ __('No players match your filters.') }}</flux:table.cell>
             </flux:table.row>
             @endforelse
         </flux:table.rows>
     </flux:table>
     @endif
-    {{-- Okno: typ i odpowiedzi wybranego gracza --}}
-    <flux:modal name="tip-preview" class="w-full md:w-[48rem]">
-        @php
-            $preview = $this->preview;
-        @endphp
-        <div class="space-y-4">
-            <flux:heading size="lg">{{ $preview['team']?->name ?? __('Tip') }}</flux:heading>
-
-            @if ($preview['tip'])
-                <flux:text>
-                    {{ __('Saved tip: :score, last change :time.', ['score' => $preview['tip']->score(), 'time' => $preview['tip']->saved_at->translatedFormat('j F, H:i:s')]) }}
-                </flux:text>
-            @endif
-
-            @forelse ($preview['sets'] as $set)
-                <div class="space-y-2">
-                    <flux:heading>{{ $set['label'] }}</flux:heading>
-                    <div class="grid gap-4 md:grid-cols-2">
-                        @foreach ($set['sides'] as $sideValue => $slots)
-                            @php
-                                $side = \App\Enums\QuestionSide::from($sideValue);
-                            @endphp
-                            <div class="space-y-1">
-                                <flux:badge size="sm" :color="$side->color()">{{ $side->label() }}</flux:badge>
-                                @foreach ($slots as $slot)
-                                    @php
-                                        $given = $preview['answers'][$slot->id] ?? null;
-                                    @endphp
-                                    <div class="flex items-start justify-between gap-3 text-sm" wire:key="pv-{{ $slot->id }}">
-                                        <span class="min-w-0 flex-1">{{ $slot->position }}. {{ $slot->question->text }}</span>
-                                        @if ($given === null)
-                                            <flux:badge size="sm" color="zinc">{{ __('No answer') }}</flux:badge>
-                                        @elseif ($given)
-                                            <flux:badge size="sm" color="green">{{ __('Yes') }}</flux:badge>
-                                        @else
-                                            <flux:badge size="sm" color="red">{{ __('No') }}</flux:badge>
-                                        @endif
-                                    </div>
-                                @endforeach
-                            </div>
-                        @endforeach
-                    </div>
-                </div>
-            @empty
-                <flux:text>{{ __('No answers to the bonus questions.') }}</flux:text>
-            @endforelse
-        </div>
-    </flux:modal>
 </div>

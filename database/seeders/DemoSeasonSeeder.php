@@ -2,7 +2,6 @@
 
 namespace Database\Seeders;
 
-use App\Actions\Questions\DrawQuestions;
 use App\Actions\Seasons\ApproveSeason;
 use App\Enums\League;
 use App\Enums\MatchCompetition;
@@ -34,9 +33,8 @@ use Illuminate\Support\Facades\DB;
  *     tworzy wszystkie rozgrywki z uczestnikami według kolejności listy i terminarzami: 10 lig (każda po 9 kolejek),
  *     Puchar Polski (drabinka 512), Ligę podwórkową (runda 1), i Ligę Legend.
  *  5. Aktywacja sezonu (status Active), wpis w dzienniku (Audit::log) i w informacjach systemowych (SystemFeed).
- *  6. DrawQuestions::handle() losuje pytania bonusowe do każdej kolejki z banku (QuestionsSeeder).
  *
- * Wymaga wcześniej: RolesAndPermissionsSeeder, BotsSeeder (512 botów), QuestionsSeeder, PlayersSeeder.
+ * Wymaga wcześniej: RolesAndPermissionsSeeder, BotsSeeder (512 botów), PlayersSeeder.
  * Gdy jakiś sezon jest już aktywny, seeder nic nie robi (żeby nie zakończyć sezonu, na którym ktoś gra).
  *
  *   php artisan db:seed --class=DemoSeasonSeeder
@@ -70,7 +68,7 @@ class DemoSeasonSeeder extends Seeder
         ];
     }
 
-    public function run(ApproveSeason $approve, DrawQuestions $drawQuestions): void
+    public function run(ApproveSeason $approve): void
     {
         // Season::active() to zakres z modelu (status = active). Aktywny sezon zostawiamy w spokoju.
         if (Season::active()->exists()) {
@@ -100,15 +98,13 @@ class DemoSeasonSeeder extends Seeder
         }
 
         $this->activate($season->refresh());
-        $questions = $this->drawQuestions($season, $drawQuestions);
 
         $this->command?->info(sprintf(
-            'Sezon testowy %s: %d botów dopisanych, %d lig, %d meczów w terminarzach, %d pytań w kolejkach. Kolejka 1 startuje o %s.',
+            'Sezon testowy %s: %d botów dopisanych, %d lig, %d meczów w terminarzach. Kolejka 1 startuje o %s.',
             $season->title,
             $built['bots'] ?? 0,
             $built['leagues'] ?? 0,
             $built['fixtures'] ?? 0,
-            $questions,
             now()->addMinutes(self::FIRST_KICKOFF_MINUTES)->format('H:i'),
         ));
     }
@@ -200,24 +196,5 @@ class DemoSeasonSeeder extends Seeder
 
         Audit::log('season.activated', null, ['status' => $old], ['status' => SeasonStatus::Active->label()], $season->title);
         SystemFeed::record('seasons', 'Season :season started', ['season' => $season->title], 'results');
-    }
-
-    /**
-     * Krok 6: pytania bonusowe do każdej kolejki (wszystkie typy rozgrywek sezonu).
-     * Brak pytań w banku nie przerywa seedera: kolejka zostaje bez pytań, a admin może je dolosować w panelu.
-     */
-    private function drawQuestions(Season $season, DrawQuestions $drawQuestions): int
-    {
-        $total = 0;
-
-        foreach (Matchday::where('season_id', $season->id)->orderBy('number')->get() as $matchday) {
-            try {
-                $total += $drawQuestions->handle($matchday);
-            } catch (DomainException $e) {
-                $this->command?->warn("Kolejka {$matchday->number}: {$e->getMessage()}");
-            }
-        }
-
-        return $total;
     }
 }

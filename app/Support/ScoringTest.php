@@ -12,15 +12,6 @@ it('scores the tip from 0 to 3', function () {
         ->and(Scoring::tip(0, 2, 2, 0)['points'])->toBe(0);
 });
 
-it('zeroes a question set after one wrong answer', function () {
-    $correct = [1 => true, 2 => false, 3 => true, 4 => true, 5 => false];
-
-    expect(Scoring::set([1 => true, 2 => false, 3 => true], $correct))->toBe(['points' => 3, 'zeroed' => false])
-        ->and(Scoring::set([], $correct))->toBe(['points' => 0, 'zeroed' => false])
-        ->and(Scoring::set([1 => true, 2 => true], $correct))->toBe(['points' => 0, 'zeroed' => true])
-        ->and(Scoring::set([1 => true, 2 => true], [1 => true, 2 => null]))->toBe(['points' => 1, 'zeroed' => false]);
-});
-
 it('never gives negative goals', function () {
     expect(Scoring::goals(2, 3))->toBe(0)
         ->and(Scoring::goals(5, 2))->toBe(3);

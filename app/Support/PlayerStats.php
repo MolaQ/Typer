@@ -16,14 +16,13 @@ use App\Models\Season;
 use App\Models\SeasonTeam;
 use App\Models\TeamScore;
 use App\Models\Tip;
-use App\Models\TipAnswer;
 use App\Models\User;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 
 /**
  * Statystyki gracza do zakładek strony „Moje typy”: kolejki (typy i braki), postęp w rozgrywkach,
- * statystyki sezonu (typy, pytania, mecze, serie, miejsce wśród graczy) i historia z rekordami osobistymi.
+ * statystyki sezonu (typy, mecze, serie, miejsce wśród graczy) i historia z rekordami osobistymi.
  * Liczymy z gotowych danych: team_scores (rozliczone kolejki), fixtures (mecze) i final_standings (tabele końcowe).
  */
 final class PlayerStats
@@ -214,8 +213,8 @@ final class PlayerStats
     }
 
     /**
-     * Statystyki sezonu dowolnego zespołu (do okna z drużyną na stronie wyników). Bot nie odpowiada
-     * na pytania i nie ma typów do statystyk, więc ma tylko mecze.
+     * Statystyki sezonu dowolnego zespołu (do okna z drużyną na stronie wyników). Bot nie ma typów
+     * do statystyk, więc ma tylko mecze.
      *
      * @return array<string, mixed>
      */
@@ -234,7 +233,7 @@ final class PlayerStats
 
     /**
      * Statystyki sezonu bota (profil /bots): tylko kolejki, w których bot naprawdę grał (team_scores.bot_id, Ownership),
-     * także gdy w trakcie sezonu zmienił miejsce na liście. Bot nie odpowiada na pytania, więc bez bonusów i pytań.
+     * także gdy w trakcie sezonu zmienił miejsce na liście. Bot nie ma bonusów.
      *
      * @return array<string, mixed>
      */
@@ -557,7 +556,6 @@ final class PlayerStats
             ->groupBy('season_team_id');
 
         $matches = self::seasonMatches($season, $teamIds, $userOfTeam);
-        $questions = self::questionAccuracy($season);
         $leads = self::leadTimes($season);
         $duels = self::duels($season, $teamIds, $userOfTeam);
         $out = [];
@@ -584,11 +582,8 @@ final class PlayerStats
                 'avg_tip' => $tips > 0 ? round($tipped->avg('tip_points'), 2) : null,
                 'avg_offense' => $withTip->isNotEmpty() ? round($withTip->avg('offense_bonus'), 2) : null,
                 'avg_defense' => $withTip->isNotEmpty() ? round($withTip->avg('defense_bonus'), 2) : null,
-                'zeroed' => $withTip->where('offense_zeroed', true)->count() + $withTip->where('defense_zeroed', true)->count(),
                 'outcome_streak' => $streak,
                 'outcome_streak_best' => $streakBest,
-                'q_offense' => $questions[$userOfTeam[$teamId]]['offensive'] ?? null,
-                'q_defense' => $questions[$userOfTeam[$teamId]]['defensive'] ?? null,
                 // Optymizm: o ile goli Lecha średnio typujemy więcej (+) albo mniej (−) niż padło naprawdę.
                 'optimism' => $tips > 0 ? round($tipped->avg(fn ($r) => $r->tip_lech - $r->real_lech), 2) : null,
                 'lead_minutes' => $leads[$userOfTeam[$teamId]] ?? null,
@@ -598,31 +593,6 @@ final class PlayerStats
         }
 
         return self::$seasonCache[$season->id] = $out;
-    }
-
-    /**
-     * Trafność odpowiedzi na pytania w sezonie (rozliczone kolejki): id gracza => strona => procent poprawnych.
-     *
-     * @return array<int, array<string, int>>
-     */
-    private static function questionAccuracy(Season $season): array
-    {
-        $rows = TipAnswer::query()
-            ->join('matchday_questions', 'matchday_questions.id', '=', 'tip_answers.matchday_question_id')
-            ->join('matchdays', 'matchdays.id', '=', 'matchday_questions.matchday_id')
-            ->where('matchdays.season_id', $season->id)
-            ->where('matchdays.status', MatchdayStatus::Played->value)
-            ->whereNotNull('matchday_questions.correct_answer')
-            ->groupBy('tip_answers.user_id', 'matchday_questions.side')
-            ->selectRaw('tip_answers.user_id as user_id, matchday_questions.side as side, count(*) as answers, sum(case when tip_answers.answer = matchday_questions.correct_answer then 1 else 0 end) as correct')
-            ->get();
-
-        $out = [];
-        foreach ($rows as $row) {
-            $out[(int) $row->user_id][$row->side] = (int) round($row->correct / max(1, $row->answers) * 100);
-        }
-
-        return $out;
     }
 
     /**
@@ -644,7 +614,7 @@ final class PlayerStats
     }
 
     /**
-     * Najlepsza kolejka sezonu: najwięcej punktów za typ razem z bonusami (najlepszy zestaw pytań w tej kolejce).
+     * Najlepsza kolejka sezonu: najwięcej punktów za typ razem z bonusami (najlepsze rozgrywki w tej kolejce).
      *
      * @return array{number: int, points: int}|null
      */
@@ -667,8 +637,8 @@ final class PlayerStats
         return [
             'scored' => 0, 'tips' => 0, 'tips_ratio' => null, 'missing' => 0, 'exact' => 0, 'diff' => 0, 'outcome' => 0,
             'accuracy' => null, 'tip_points' => 0, 'avg_tip' => null, 'avg_offense' => null, 'avg_defense' => null,
-            'zeroed' => 0, 'outcome_streak' => 0, 'outcome_streak_best' => 0,
-            'q_offense' => null, 'q_defense' => null, 'optimism' => null, 'lead_minutes' => null, 'best_matchday' => null,
+            'outcome_streak' => 0, 'outcome_streak_best' => 0,
+            'optimism' => null, 'lead_minutes' => null, 'best_matchday' => null,
             'best_points' => null,
         ] + self::noDuels() + self::matchSummary([]);
     }
@@ -680,7 +650,7 @@ final class PlayerStats
     }
 
     /**
-     * Wyróżnienia z meczów sezonu (id zespołu => liczniki), z rozliczenia obu stron w zestawie pytań rozgrywek:
+     * Wyróżnienia z meczów sezonu (id zespołu => liczniki), z rozliczenia obu stron w typie rozgrywek:
      *  - Żelazna pięść: mój bonus ofensywny większy niż punkty za typ rywala + jego bonus ofensywny i defensywny,
      *  - Murarz: wygrany mecz, a mój bonus defensywny większy niż atak rywala (punkty za typ + bonus ofensywny),
      *  - Czarodziej: wygrany mecz mimo typu za 0 punktów,
@@ -697,21 +667,21 @@ final class PlayerStats
         $teamOfEntry = CompetitionEntry::whereIn('competition_id', $competitions->keys())->pluck('season_team_id', 'id');
         $wanted = array_flip($teamIds->all());
 
-        // Rozliczenia: zespół => kolejka => zestaw pytań => wiersz.
+        // Rozliczenia: zespół => kolejka => typ rozgrywek => wiersz.
         $scores = [];
         foreach (TeamScore::query()
             ->join('matchdays', 'matchdays.id', '=', 'team_scores.matchday_id')
             ->where('matchdays.season_id', $season->id)
-            ->get(['team_scores.season_team_id', 'team_scores.user_id', 'team_scores.question_set', 'team_scores.has_tip', 'team_scores.tip_points',
+            ->get(['team_scores.season_team_id', 'team_scores.user_id', 'team_scores.score_set', 'team_scores.has_tip', 'team_scores.tip_points',
                 'team_scores.exact_hit', 'team_scores.offense_bonus', 'team_scores.defense_bonus', 'matchdays.number']) as $row) {
-            $scores[$row->season_team_id][(int) $row->number][$row->question_set->value] = $row;
+            $scores[$row->season_team_id][(int) $row->number][$row->score_set->value] = $row;
         }
 
         $out = [];
         $fixtures = Fixture::whereIn('competition_id', $competitions->keys())->whereNotNull('home_goals')->whereNotNull('home_entry_id')->get();
 
         foreach ($fixtures as $fixture) {
-            $set = $competitions[$fixture->competition_id]->type->questionSet()->value;
+            $set = $competitions[$fixture->competition_id]->type->scoreSet()->value;
 
             foreach ([[$fixture->home_entry_id, $fixture->away_entry_id, true], [$fixture->away_entry_id, $fixture->home_entry_id, false]] as [$entryId, $rivalEntryId, $home]) {
                 $team = $entryId ? ($teamOfEntry[$entryId] ?? null) : null;

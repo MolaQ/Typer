@@ -9,8 +9,8 @@
         <div class="space-y-2">
             <flux:heading>{{ __('Contact') }}</flux:heading>
             <flux:text>kontakt@example.com</flux:text>
-            {{-- Propozycja pytania bonusowego do panelu admina --}}
-            <livewire:pages::home.question-proposal />
+            {{-- Propozycja nazwy bota do panelu admina --}}
+            <livewire:pages::home.bot-name-proposal />
         </div>
 
         <div class="space-y-2">

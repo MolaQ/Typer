@@ -16,7 +16,7 @@
         $canRequests = $user->can(\App\Enums\Permission::TeamChangeName->value);
         $canLogs = $user->can(\App\Enums\Permission::LogView->value);
         $canNews = $user->can(\App\Enums\Permission::NewsCreate->value);
-        $proposals = $canSeasons ? \App\Models\QuestionProposal::pending()->count() : 0;
+        $proposals = $canSeasons ? \App\Models\BotNameProposal::pending()->count() : 0;
 
         // Powiadomienia (pilne i ostrzeżenia) jako plakietka przy Pulpicie.
         $alerts = $canSeasons ? \App\Support\AdminAlerts::count() : 0;
@@ -29,7 +29,7 @@
             <flux:sidebar.collapse class="lg:hidden" />
         </flux:sidebar.header>
 
-        {{-- Menu panelu według kolejności pracy: sezon i jego kolejki (mecz, pytania, typy, wynik), rozgrywki,
+        {{-- Menu panelu według kolejności pracy: sezon i jego kolejki (mecz, typy, wynik), rozgrywki,
              gracze, treści, a na końcu rzadko zmieniane ustawienia. Kalendarz Lecha to zakładka „Kolejek”,
              lista kontrolna jest na pulpicie (pasek postępu sezonu). --}}
         <flux:sidebar.nav>
@@ -48,9 +48,9 @@
                         :current="request()->routeIs('dashboard.matchdays', 'dashboard.lech-calendar')" wire:navigate>
                         {{ __('Matchdays') }}
                     </flux:sidebar.item>
-                    <flux:sidebar.item icon="clipboard-document-list" :href="route('dashboard.matchday-questions')"
-                        :current="request()->routeIs('dashboard.matchday-questions')" wire:navigate>
-                        {{ __('Matchday questions') }}
+                    <flux:sidebar.item icon="users" :href="route('dashboard.lech-squad')"
+                        :current="request()->routeIs('dashboard.lech-squad')" wire:navigate>
+                        {{ __('Lech squad') }}
                     </flux:sidebar.item>
                     <flux:sidebar.item icon="check-badge" :href="route('dashboard.tips')"
                         :current="request()->routeIs('dashboard.tips')" wire:navigate>
@@ -113,7 +113,7 @@
 
             @if ($canSeasons || $canNews)
                 <flux:sidebar.group expandable
-                    :expanded="request()->routeIs('dashboard.news', 'dashboard.questions', 'dashboard.question-proposals', 'dashboard.lech-squad', 'dashboard.question-templates')"
+                    :expanded="request()->routeIs('dashboard.news', 'dashboard.bot-name-proposals')"
                     :heading="__('Site content')" class="grid">
                     @if ($canNews)
                         <flux:sidebar.item icon="newspaper" :href="route('dashboard.news')"
@@ -122,22 +122,10 @@
                         </flux:sidebar.item>
                     @endif
                     @if ($canSeasons)
-                        <flux:sidebar.item icon="question-mark-circle" :href="route('dashboard.questions')"
-                            :current="request()->routeIs('dashboard.questions')" wire:navigate>
-                            {{ __('Question bank') }}
-                        </flux:sidebar.item>
-                        <flux:sidebar.item icon="users" :href="route('dashboard.lech-squad')"
-                            :current="request()->routeIs('dashboard.lech-squad')" wire:navigate>
-                            {{ __('Lech squad') }}
-                        </flux:sidebar.item>
-                        <flux:sidebar.item icon="document-duplicate" :href="route('dashboard.question-templates')"
-                            :current="request()->routeIs('dashboard.question-templates')" wire:navigate>
-                            {{ __('Question templates') }}
-                        </flux:sidebar.item>
-                        <flux:sidebar.item icon="light-bulb" :href="route('dashboard.question-proposals')"
-                            :current="request()->routeIs('dashboard.question-proposals')"
+                        <flux:sidebar.item icon="cpu-chip" :href="route('dashboard.bot-name-proposals')"
+                            :current="request()->routeIs('dashboard.bot-name-proposals')"
                             :badge="$proposals ?: null" badge-color="amber" wire:navigate>
-                            {{ __('Question proposals') }}
+                            {{ __('Bot name proposals') }}
                         </flux:sidebar.item>
                     @endif
                 </flux:sidebar.group>

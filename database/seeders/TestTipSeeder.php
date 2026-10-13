@@ -3,16 +3,12 @@
 namespace Database\Seeders;
 
 use App\Enums\MatchdayStatus;
-use App\Enums\QuestionSide;
 use App\Enums\RoleName;
 use App\Enums\SeasonStatus;
 use App\Models\Matchday;
-use App\Models\MatchdayQuestion;
 use App\Models\SeasonTeam;
 use App\Models\Tip;
-use App\Models\TipAnswer;
 use App\Models\User;
-use App\Support\PlayerCompetitions;
 use App\Support\Players;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Seeder;
@@ -22,15 +18,12 @@ use Illuminate\Support\Facades\DB;
 /**
  * Typy testowe (tylko ręcznie: php artisan db:seed --class=TestTipSeeder).
  * Dla każdej nierozliczonej kolejki aktywnego sezonu (otwartej albo już po gwizdku) bierze 25 losowych graczy z listy sezonu
- * (bez adminów) i zapisuje im losowy typ 0-3 : 0-3 oraz 0-2 odpowiedzi ofensywne i 0-2 defensywne
- * w każdym zestawie pytań ich rozgrywek. Czas zapisu jest losowy, zawsze przed pierwszym gwizdkiem
- * i nie później niż teraz. Wcześniejszy typ i odpowiedzi wylosowanego gracza w tej kolejce są nadpisywane.
+ * (bez adminów) i zapisuje im losowy typ 0-3 : 0-3. Czas zapisu jest losowy, zawsze przed pierwszym gwizdkiem
+ * i nie później niż teraz. Wcześniejszy typ wylosowanego gracza w tej kolejce jest nadpisywany.
  */
 class TestTipSeeder extends Seeder
 {
     private const PLAYERS = 25;
-
-    private const MAX_ANSWERS_PER_SIDE = 2;
 
     public function run(): void
     {
@@ -56,9 +49,7 @@ class TestTipSeeder extends Seeder
                 ->limit(self::PLAYERS)
                 ->get();
 
-            $slots = MatchdayQuestion::where('matchday_id', $matchday->id)->get()->groupBy(fn ($s) => $s->competition_type->value);
-
-            DB::transaction(function () use ($matchday, $users, $slots) {
+            DB::transaction(function () use ($matchday, $users) {
                 foreach ($users as $user) {
                     $savedAt = self::randomTime($matchday->kickoff_at);
 
@@ -67,29 +58,10 @@ class TestTipSeeder extends Seeder
                         ['lech_goals' => random_int(0, 3), 'opponent_goals' => random_int(0, 3), 'saved_at' => $savedAt],
                     );
 
-                    TipAnswer::where('matchday_id', $matchday->id)->where('user_id', $user->id)->delete();
-
-                    // Odpowiedzi tylko w zestawach rozgrywek, w których gracz gra (jak przy zwykłym typowaniu).
-                    foreach (PlayerCompetitions::types($user->id, $matchday->season_id, $matchday->number) as $type) {
-                        $set = $slots->get($type->value, collect());
-
-                        foreach (QuestionSide::cases() as $side) {
-                            $picked = $set->where('side', $side)->shuffle()->take(random_int(0, self::MAX_ANSWERS_PER_SIDE));
-
-                            foreach ($picked as $slot) {
-                                TipAnswer::create([
-                                    'matchday_id' => $matchday->id,
-                                    'user_id' => $user->id,
-                                    'matchday_question_id' => $slot->id,
-                                    'answer' => (bool) random_int(0, 1),
-                                ]);
-                            }
-                        }
-                    }
                 }
             });
 
-            $this->command?->info("Kolejka {$matchday->number}: typy dla {$users->count()} graczy".($slots->isEmpty() ? ' (bez pytań: kolejka nie ma jeszcze zestawów).' : '.'));
+            $this->command?->info("Kolejka {$matchday->number}: typy dla {$users->count()} graczy.");
         }
     }
 

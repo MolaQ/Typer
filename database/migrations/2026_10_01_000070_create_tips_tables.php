@@ -5,7 +5,7 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
 /**
- * Typy graczy (wynik meczu Lecha i odpowiedzi na pytania), kolejność zapisów do remisów oraz typy botów.
+ * Typy graczy (wynik meczu Lecha), kolejność zapisów do remisów oraz typy botów.
  */
 return new class extends Migration
 {
@@ -19,7 +19,7 @@ return new class extends Migration
             $table->foreignId('user_id')->constrained()->cascadeOnDelete();
             $table->unsignedTinyInteger('lech_goals');
             $table->unsignedTinyInteger('opponent_goals');
-            // Chwila ostatniej zmiany typu lub odpowiedzi (z mikrosekundami), do wyświetlania.
+            // Chwila ostatniej zmiany typu (z mikrosekundami), do wyświetlania.
             $table->timestamp('saved_at', 6);
             // Numer ostatniego zapisu z tip_saves: rozstrzyga remisy w pucharach (mniejszy = wcześniej).
             $table->unsignedBigInteger('save_order')->nullable()->index();
@@ -38,20 +38,7 @@ return new class extends Migration
             $table->index(['matchday_id', 'user_id']);
         });
 
-        // Odpowiedzi gracza na pytania bonusowe (tak = true, nie = false). Brak wiersza = brak odpowiedzi.
-        // Odpowiedź dotyczy miejsca w zestawie kolejki; po odpadnięciu z rozgrywek zostaje (statystyka pytań).
-        Schema::create('tip_answers', function (Blueprint $table) {
-            $table->id();
-            $table->foreignId('matchday_id')->constrained()->cascadeOnDelete();
-            $table->foreignId('user_id')->constrained()->cascadeOnDelete();
-            $table->foreignId('matchday_question_id')->constrained()->cascadeOnDelete();
-            $table->boolean('answer');
-            $table->timestamps();
-            $table->unique(['user_id', 'matchday_question_id']);
-            $table->index(['matchday_id', 'user_id']);
-        });
-
-        // Typ bota na kolejkę: losowy wynik 0-3 : 0-3, bez pytań (regulamin, Boty).
+        // Typ bota na kolejkę: losowy wynik 0-3 : 0-3 (regulamin, Boty).
         // Zapisany, żeby ponowne przeliczenie kolejki dawało ten sam wynik.
         Schema::create('bot_tips', function (Blueprint $table) {
             $table->id();
@@ -67,7 +54,6 @@ return new class extends Migration
     public function down(): void
     {
         Schema::dropIfExists('bot_tips');
-        Schema::dropIfExists('tip_answers');
         Schema::dropIfExists('tip_saves');
         Schema::dropIfExists('tips');
     }

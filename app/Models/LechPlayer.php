@@ -5,10 +5,9 @@ namespace App\Models;
 use App\Enums\PlayerPosition;
 use App\Enums\PlayerStatus;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
- * Zawodnik z kadry Lecha (bank pytań 2.0, etap 2). Panel `dashboard/lech-squad`, start z `LechSquadSeeder`.
+ * Zawodnik z kadry Lecha, do desygnowania przez graczy. Panel `dashboard/lech-squad`, start z `LechSquadSeeder`.
  *
  * @property int $id
  * @property string $name
@@ -32,11 +31,5 @@ class LechPlayer extends Model
             'is_academy' => 'boolean',
             'status' => PlayerStatus::class,
         ];
-    }
-
-    /** @return HasMany<Question, $this> pytania o tego zawodnika (z szablonów) */
-    public function questions(): HasMany
-    {
-        return $this->hasMany(Question::class);
     }
 }

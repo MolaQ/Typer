@@ -8,25 +8,19 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**
- * Propozycja gracza: pytanie bonusowe (po akceptacji trafia do banku) albo nazwa bota (admin wybiera bota,
- * który ją dostaje). Admin akceptuje albo odrzuca.
+ * Propozycja nazwy bota od gracza (stopka i strona główna). Admin akceptuje ją, nadając nazwę wybranemu botowi,
+ * albo odrzuca z powodem (dashboard/bot-name-proposals).
  *
  * @property int $user_id
- * @property string $kind question / bot_name
  * @property string $text
  * @property int|null $bot_id
  * @property string $status
  * @property string|null $reject_reason
- * @property int|null $question_id
  * @property int|null $reviewed_by
  * @property CarbonInterface|null $reviewed_at
  */
-class QuestionProposal extends Model
+class BotNameProposal extends Model
 {
-    public const QUESTION = 'question';
-
-    public const BOT_NAME = 'bot_name';
-
     public const PENDING = 'pending';
 
     public const ACCEPTED = 'accepted';
@@ -36,9 +30,9 @@ class QuestionProposal extends Model
     /** Ile propozycji jeden gracz może mieć jednocześnie w kolejce. */
     public const MAX_PENDING = 5;
 
-    protected $fillable = ['user_id', 'kind', 'bot_id', 'text', 'status', 'reject_reason', 'question_id', 'reviewed_by', 'reviewed_at'];
+    protected $fillable = ['user_id', 'bot_id', 'text', 'status', 'reject_reason', 'reviewed_by', 'reviewed_at'];
 
-    protected $attributes = ['status' => self::PENDING, 'kind' => self::QUESTION];
+    protected $attributes = ['status' => self::PENDING];
 
     protected function casts(): array
     {
@@ -47,19 +41,16 @@ class QuestionProposal extends Model
         ];
     }
 
+    /** @return BelongsTo<User, $this> */
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
     }
 
+    /** @return BelongsTo<User, $this> */
     public function reviewer(): BelongsTo
     {
         return $this->belongsTo(User::class, 'reviewed_by');
-    }
-
-    public function question(): BelongsTo
-    {
-        return $this->belongsTo(Question::class);
     }
 
     /** @return BelongsTo<Bot, $this> */
@@ -68,11 +59,10 @@ class QuestionProposal extends Model
         return $this->belongsTo(Bot::class);
     }
 
-    public function isBotName(): bool
-    {
-        return $this->kind === self::BOT_NAME;
-    }
-
+    /**
+     * @param  Builder<BotNameProposal>  $query
+     * @return Builder<BotNameProposal>
+     */
     public function scopePending(Builder $query): Builder
     {
         return $query->where('status', self::PENDING);

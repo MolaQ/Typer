@@ -79,15 +79,9 @@ class Audit
             'competition.drawn' => __('Round drawn'),
             'competition.deleted' => __('Competition deleted'),
 
-            // Bank pytań i pytania kolejek
-            'question.created' => __('Question added'),
-            'question.updated' => __('Question changed'),
-            'question.deleted' => __('Question deleted'),
-            'matchday_questions.updated' => __('Matchday questions changed'),
-            'matchday_questions.drawn' => __('Matchday questions drawn'),
-
             // Boty
             'bot.renamed' => __('Bot renamed'),
+            'bot.proposal_rejected' => __('Bot name proposal rejected'),
         ];
     }
 

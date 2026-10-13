@@ -173,7 +173,7 @@ new #[Layout('layouts::public')] class extends Component {
 }; ?>
 
 <div class="mx-auto flex w-full max-w-6xl flex-col gap-6">
-    <x-page-banner :eyebrow="__('Bot')" :title="$bot->name" :subtitle="__('Bots always play: they tip a random score and do not answer questions.')">
+    <x-page-banner :eyebrow="__('Bot')" :title="$bot->name" :subtitle="__('Bots always play: they tip a random score.')">
         <a href="{{ route('hall-of-fame') }}" wire:navigate class="inline-flex items-center gap-1 text-sm font-semibold text-lech-100 hover:text-white hover:underline">
             <flux:icon.arrow-left variant="micro" /> {{ __('Full ranking') }}
         </a>

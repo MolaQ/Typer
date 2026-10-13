@@ -336,7 +336,7 @@ new class extends Component {
             return;
         }
 
-        // „Utwórz sezon” jednym kliknięciem: lista, zatwierdzenie ze wszystkimi rozgrywkami i pytania (SetUpSeason).
+        // „Utwórz sezon” jednym kliknięciem: lista, zatwierdzenie ze wszystkimi rozgrywkami (SetUpSeason).
         // Rywali i terminy „meczów bez nazwy” admin uzupełnia potem w kolejkach. Przy błędzie sezon zostaje szkicem.
         try {
             $result = app(\App\Actions\Seasons\SetUpSeason::class)->handle($season);
@@ -348,7 +348,7 @@ new class extends Component {
 
         $this->clearCaches();
         Flux::toast(
-            text: __('Season created and approved: :players players, :leagues leagues, :fixtures fixtures, :questions questions. Fill in the unnamed Lech matches of the matchdays.', $result),
+            text: __('Season created and approved: :players players, :leagues leagues, :fixtures fixtures. Fill in the unnamed Lech matches of the matchdays.', $result),
             variant: 'success',
         );
     }

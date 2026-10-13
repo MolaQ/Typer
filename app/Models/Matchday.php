@@ -7,7 +7,6 @@ use App\Enums\MatchdayStatus;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Carbon;
 
 /**
@@ -131,22 +130,6 @@ class Matchday extends Model
         return $this->status === MatchdayStatus::Planned
             && $this->kickoff_at !== null
             && now()->lt($this->kickoff_at);
-    }
-
-    /** Zestawy pytań bonusowych tej kolejki (wszystkie typy rozgrywek). */
-    public function questions(): HasMany
-    {
-        return $this->hasMany(MatchdayQuestion::class)->orderBy('competition_type')->orderBy('side')->orderBy('position');
-    }
-
-    /**
-     * Czy pytania tej kolejki można jeszcze zmieniać?
-     * Tak, dopóki mecz się nie zaczął (potem użytkownicy mają już odpowiedzi) i kolejka jest zaplanowana.
-     */
-    public function questionsEditable(): bool
-    {
-        return $this->status === MatchdayStatus::Planned
-            && ($this->kickoff_at === null || now()->lt($this->kickoff_at));
     }
 
     /**

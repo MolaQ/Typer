@@ -1,7 +1,6 @@
 <?php
 
 use App\Actions\Competitions\DrawSwissRound;
-use App\Actions\Questions\DrawQuestions;
 use App\Enums\MatchdayStatus;
 use App\Enums\Permission;
 use App\Enums\SeasonStatus;
@@ -106,23 +105,6 @@ new class extends Component {
             'premium' => User::where('premium_until', '>', now())->count(),
             'users' => User::count(),
         ];
-    }
-
-    /** Losuje brakujące pytania kolejki (wszystkie zestawy; Liga Legend najpierw, z najtrudniejszych). */
-    public function drawQuestions(int $matchdayId): void
-    {
-        abort_unless(auth()->user()->can(Permission::SeasonEdit->value), 403);
-
-        try {
-            $filled = app(DrawQuestions::class)->handle(Matchday::findOrFail($matchdayId));
-        } catch (DomainException $e) {
-            Flux::toast(text: $e->getMessage(), variant: 'danger');
-
-            return;
-        }
-
-        unset($this->alerts, $this->nextStep, $this->seasonProgress);
-        Flux::toast(text: __(':count questions drawn.', ['count' => $filled]), variant: 'success');
     }
 
     /** Gracze z rolą bez miejsca na liście sezonu trafiają do Ligi podwórkowej (jak przy zmianie roli, Roster::place). */

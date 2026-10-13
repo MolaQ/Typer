@@ -85,11 +85,11 @@ enum CompetitionType: string
     }
 
     /**
-     * Typ, którego zestaw pytań bonusowych obowiązuje w tych rozgrywkach.
-     * 10 lig i Liga podwórkowa mają jeden wspólny zestaw (zapisany jako League),
+     * Pod jakim typem rozgrywek liczy się dorobek zespołu w kolejce (team_scores.score_set).
+     * 10 lig i Liga podwórkowa mają jeden wspólny dorobek (zapisany jako League),
      * trzy puchary europejskie też jeden (zapisany jako Champions; zespół gra tylko w jednym z nich).
      */
-    public function questionSet(): self
+    public function scoreSet(): self
     {
         return match ($this) {
             self::Swiss => self::League,
@@ -98,10 +98,10 @@ enum CompetitionType: string
         };
     }
 
-    /** Nazwa zestawu pytań, np. "Ligi i Liga podwórkowa", "Puchary europejskie". */
-    public function questionSetLabel(): string
+    /** Nazwa grupy rozgrywek, np. "Ligi i Liga podwórkowa", "Puchary europejskie". */
+    public function scoreSetLabel(): string
     {
-        return match ($this->questionSet()) {
+        return match ($this->scoreSet()) {
             self::League => __('Leagues and Liga podwórkowa'),
             self::Champions => __('European cups'),
             default => $this->label(),

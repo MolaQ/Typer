@@ -3,8 +3,7 @@
 namespace App\Enums;
 
 /**
- * Status zawodnika z kadry Lecha (bank pytań 2.0). Pytania z szablonów tworzą się i włączają same tylko dla grających
- * regularnie; dla pozostałych admin dodaje je ręcznie. Zawodnik wyłączony z losowania: żadne jego pytanie się nie losuje.
+ * Status zawodnika z kadry Lecha. Wyłączony (kontuzja, odejście) nie będzie do wyboru przy desygnowaniu.
  */
 enum PlayerStatus: string
 {
@@ -19,7 +18,7 @@ enum PlayerStatus: string
             self::Regular => __('Plays regularly'),
             self::Rotation => __('Rotation player'),
             self::Reserve => __('Reserve'),
-            self::Excluded => __('Excluded from the draw'),
+            self::Excluded => __('Unavailable'),
         };
     }
 

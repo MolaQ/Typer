@@ -77,7 +77,7 @@
                 @endif
 
                 @if (!$team->user)
-                    <flux:text size="sm">{{ __('Bot: random tips and no bonus questions.') }}</flux:text>
+                    <flux:text size="sm">{{ __('Bot: random tips.') }}</flux:text>
                 @endif
             </div>
 
@@ -92,8 +92,6 @@
                     @php
                         $extra = [];
                         if ($team->user) {
-                            $extra[] = [__('Offensive questions'), $stats['q_offense'] !== null ? $stats['q_offense'] . '%' : '—', __('Correct answers')];
-                            $extra[] = [__('Defensive questions'), $stats['q_defense'] !== null ? $stats['q_defense'] . '%' : '—', __('Correct answers')];
                             $extra[] = [__('Optimist or pessimist'), $stats['optimism'] === null ? '—' : ($stats['optimism'] > 0 ? '+' : '') . $fmt($stats['optimism'], 2), __('Lech goals: tips compared with the real matches')];
                             $extra[] = [__('Tipping ahead'), \App\Support\PlayerStats::formatLead($stats['lead_minutes']), __('Average time before kick-off')];
                             $extra[] = [__('Best matchday'), $stats['best_matchday'] ? __(':points pts', ['points' => $stats['best_matchday']['points']]) : '—', $stats['best_matchday'] ? __('Matchday :number', ['number' => $stats['best_matchday']['number']]) : ''];
@@ -140,7 +138,7 @@
                             @endforeach
                         </div>
                         <div class="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-white/60 p-4 text-center dark:bg-zinc-900/60">
-                            <flux:text size="sm">{{ __('Question accuracy, favourite tip, head to head and more with premium.') }}</flux:text>
+                            <flux:text size="sm">{{ __('Favourite tip, head to head and more with premium.') }}</flux:text>
                             <flux:button size="sm" variant="primary" :href="route('support')" wire:navigate>{{ __('From 5 zł a week') }}</flux:button>
                         </div>
                     </div>

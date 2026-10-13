@@ -1,15 +1,11 @@
 <?php
 
 use App\Actions\Tips\SaveTip;
-use App\Enums\QuestionSide;
 use App\Models\Matchday;
-use App\Models\MatchdayQuestion;
 use App\Models\Season;
 use App\Models\SeasonTeam;
 use App\Models\TeamScore;
 use App\Models\Tip;
-use App\Models\TipAnswer;
-use App\Support\PlayerCompetitions;
 use App\Support\Players;
 use App\Support\TipRules;
 use Flux\Flux;
@@ -19,8 +15,7 @@ use Livewire\Attributes\Layout;
 use Livewire\Component;
 
 /**
- * Typowanie gracza: wynik meczu Lecha + odpowiedzi tak/nie na pytania bonusowe (po jednym zestawie
- * 5+5 na każdy typ rozgrywek, w którym gracz gra). Zapis możliwy do godziny pierwszego gwizdka.
+ * Typowanie gracza: wynik meczu Lecha (jeden typ na wszystkie rozgrywki). Zapis możliwy do godziny pierwszego gwizdka.
  * Uwaga: nie nazywaj własności "slots" ani "rows" – Livewire rezerwuje część nazw.
  */
 new #[Layout('layouts::public')] class extends Component {
@@ -38,9 +33,6 @@ new #[Layout('layouts::public')] class extends Component {
     /** Wpisany wynik (teksty, bo pole formularza może być puste). */
     public string $lech = '';
     public string $opponent = '';
-
-    /** matchday_question_id => '1' | '0' | '' */
-    public array $answers = [];
 
     /** Godzina ostatniego automatycznego zapisu (do napisu „Zapisano” w pasku na dole). */
     public string $savedTime = '';
@@ -92,7 +84,7 @@ new #[Layout('layouts::public')] class extends Component {
     }
 
     /**
-     * Pierwsze otwarcie zakładki Typowanie dla otwartej kolejki zapisuje typ 0:0 (bez odpowiedzi).
+     * Pierwsze otwarcie zakładki Typowanie dla otwartej kolejki zapisuje typ 0:0.
      * Gracz zmienia go przyciskami, a numer zapisu (remisy w pucharach) liczy się od ostatniej zmiany.
      */
     private function ensureTip(): void
@@ -110,7 +102,7 @@ new #[Layout('layouts::public')] class extends Component {
     {
         $this->syncUrl();
 
-        unset($this->matchday, $this->tip, $this->isOpen, $this->sets, $this->scores, $this->crowd, $this->crowdAnswers);
+        unset($this->matchday, $this->tip, $this->isOpen, $this->scores, $this->crowd);
         $this->loadTip();
         $this->ensureTip();
 
@@ -118,12 +110,11 @@ new #[Layout('layouts::public')] class extends Component {
         $this->dispatch('matchday-selected', number: $this->number);
     }
 
-    /** Wczytuje zapisany typ i odpowiedzi gracza do pól formularza. */
+    /** Wczytuje zapisany typ gracza do pól formularza. */
     private function loadTip(): void
     {
         $this->lech = '';
         $this->opponent = '';
-        $this->answers = [];
         $this->savedTime = '';
 
         $matchday = $this->matchday;
@@ -137,20 +128,6 @@ new #[Layout('layouts::public')] class extends Component {
         if ($tip) {
             $this->lech = (string) $tip->lech_goals;
             $this->opponent = (string) $tip->opponent_goals;
-        }
-
-        $saved = TipAnswer::where('matchday_id', $matchday->id)->where('user_id', auth()->id())
-            ->pluck('answer', 'matchday_question_id')
-            ->map(fn($a) => $a ? '1' : '0')
-            ->all();
-
-        // Domyślnie „brak odpowiedzi” ('') na każde pytanie z zestawów gracza.
-        foreach ($this->sets as $set) {
-            foreach ($set['sides'] as $items) {
-                foreach ($items as $item) {
-                    $this->answers[$item->id] = $saved[$item->id] ?? '';
-                }
-            }
         }
     }
 
@@ -245,43 +222,6 @@ new #[Layout('layouts::public')] class extends Component {
             : null;
     }
 
-    /**
-     * Zestawy pytań gracza: lista [typ, [strona => miejsca]] tylko dla typów, w których gra
-     * (bez pucharu i Ligi Legend po odpadnięciu).
-     *
-     * @return array<int, array{type: \App\Enums\CompetitionType, sides: array<string, \Illuminate\Support\Collection>}>
-     */
-    #[Computed]
-    public function sets(): array
-    {
-        if (!$this->matchday || !$this->canPlay) {
-            return [];
-        }
-
-        $types = PlayerCompetitions::types(auth()->id(), $this->season->id, $this->matchday->number);
-        $all = MatchdayQuestion::with('question:id,text')
-            ->where('matchday_id', $this->matchday->id)
-            ->orderBy('position')
-            ->get();
-
-        $sets = [];
-        foreach ($types as $type) {
-            $own = $all->where('competition_type', $type);
-            if ($own->isEmpty()) {
-                continue;
-            }
-            $sets[] = [
-                'type' => $type,
-                'sides' => [
-                    QuestionSide::Offensive->value => $own->where('side', QuestionSide::Offensive)->values(),
-                    QuestionSide::Defensive->value => $own->where('side', QuestionSide::Defensive)->values(),
-                ],
-            ];
-        }
-
-        return $sets;
-    }
-
     /* Zakładki ze statystykami (App\Support\PlayerStats). */
 
     #[Computed]
@@ -296,7 +236,7 @@ new #[Layout('layouts::public')] class extends Component {
         return \App\Support\PlayerStats::season(auth()->user(), $this->season);
     }
 
-    /** Ciekawostki: ulubione typy, najlepszy sezon, a dla premium typy w rozgrywkach, najtrudniejsze i najłatwiejsze pytania. */
+    /** Ciekawostki: ulubione typy, najlepszy sezon, a dla premium typy w rozgrywkach. */
     #[Computed]
     public function myExtras(): array
     {
@@ -306,8 +246,6 @@ new #[Layout('layouts::public')] class extends Component {
             'favourites' => \App\Support\PlayerStats::favourites(auth()->user()),
             'best_season' => \App\Support\PlayerStats::bestSeason(auth()->user()),
             'competitions' => $premium && $this->season ? \App\Support\PlayerStats::competitionFavourites($this->season) : [],
-            'hardest' => $premium ? \App\Support\QuestionDifficulty::hardest(5) : collect(),
-            'easiest' => $premium ? \App\Support\QuestionDifficulty::easiest(5) : collect(),
         ];
     }
 
@@ -392,45 +330,7 @@ new #[Layout('layouts::public')] class extends Component {
         return $this->premium && $this->matchday ? \App\Support\MatchdayInsights::tips($this->matchday) : null;
     }
 
-    /**
-     * Premium: odpowiedzi innych graczy na pytania kolejki (id pytania => [odpowiedzi, „tak”]).
-     *
-     * @return array<int, array{answers: int, yes: int}>
-     */
-    #[Computed]
-    public function crowdAnswers(): array
-    {
-        return $this->premium && $this->matchday ? \App\Support\MatchdayInsights::answerShares($this->matchday) : [];
-    }
-
-    /**
-     * Barwy kart zestawów pytań (klucz CompetitionColors): liga gracza, Puchar Polski, jego puchar europejski, Liga Legend.
-     *
-     * @return array<string, string> wartość typu zestawu => klucz barw
-     */
-    #[Computed]
-    public function setColors(): array
-    {
-        $colors = [
-            \App\Enums\CompetitionType::League->value => 'league_1',
-            \App\Enums\CompetitionType::Cup->value => 'cup',
-            \App\Enums\CompetitionType::Champions->value => 'champions',
-            \App\Enums\CompetitionType::Legends->value => 'legends',
-        ];
-        $teamId = $this->season ? SeasonTeam::where('season_id', $this->season->id)->where('user_id', auth()->id())->value('id') : null;
-
-        if ($teamId) {
-            foreach (\App\Models\CompetitionEntry::with('competition')->where('season_team_id', $teamId)->get() as $entry) {
-                if ($entry->competition) {
-                    $colors[$entry->competition->type->questionSet()->value] = $entry->competition->trophyKey();
-                }
-            }
-        }
-
-        return $colors;
-    }
-
-    /** Rozliczenie kolejki po wpisaniu wyniku: zestaw pytań (wartość typu) => TeamScore. */
+    /** Rozliczenie kolejki po wpisaniu wyniku: typ rozgrywek (score_set) => TeamScore. */
     #[Computed]
     public function scores()
     {
@@ -440,7 +340,7 @@ new #[Layout('layouts::public')] class extends Component {
 
         // Rozliczenie gracza z tej kolejki (gdy wtedy grał za niego bot, nic nie pokazujemy, Ownership).
         return TeamScore::where('matchday_id', $this->matchday->id)->where('user_id', auth()->id())->get()
-            ->keyBy(fn($score) => $score->question_set->value);
+            ->keyBy(fn($score) => $score->score_set->value);
     }
 
     /* ==================================================================
@@ -449,7 +349,7 @@ new #[Layout('layouts::public')] class extends Component {
 
     /*
      * Zapis automatyczny (bez przycisku): Livewire woła metody updated<Własność>() po każdej zmianie pola
-     * powiązanego przez wire:model albo $set (przyciski Tak / Brak odpowiedzi / Nie w x-answer-toggle).
+     * powiązanego przez wire:model albo $set.
      */
 
     /** Zmiana liczby goli Lecha: poprawiamy wartość i zapisujemy typ. */
@@ -487,14 +387,8 @@ new #[Layout('layouts::public')] class extends Component {
         $this->autosave();
     }
 
-    /** Odpowiedź na pytanie bonusowe: zapis od razu (bez wpisanego wyniku typ dostaje 0:0). */
-    public function updatedAnswers(): void
-    {
-        $this->autosave();
-    }
-
     /**
-     * Gole z formularza do zapisu: puste pole -> 0 (typ 0:0, gdy gracz odpowiada bez wyniku),
+     * Gole z formularza do zapisu: puste pole -> 0,
      * liczba ujemna -> wartość bezwzględna (abs), wszystko, co dalej nie spełnia TipRules::goals()
      * (tekst, ułamek, więcej niż TipRules::MAX_GOALS), -> 0.
      */
@@ -513,7 +407,7 @@ new #[Layout('layouts::public')] class extends Component {
         return (string) (\App\Support\TipRules::goals($value) ?? 0);
     }
 
-    /** Zapisuje typ i odpowiedzi przez SaveTip (te same zasady co wcześniej przycisk „Zapisz typ”). */
+    /** Zapisuje typ przez SaveTip (te same zasady co wcześniej przycisk „Zapisz typ”). */
     private function autosave(): void
     {
         $matchday = $this->matchday;
@@ -526,22 +420,22 @@ new #[Layout('layouts::public')] class extends Component {
         $this->opponent = self::normalizeGoals($this->opponent);
 
         try {
-            app(SaveTip::class)->handle(auth()->user(), $matchday, $this->lech, $this->opponent, $this->answers);
+            app(SaveTip::class)->handle(auth()->user(), $matchday, $this->lech, $this->opponent);
         } catch (DomainException $e) {
             Flux::toast(variant: 'danger', text: $e->getMessage());
 
             return;
         }
 
-        // Odświeżamy wyliczone dane (typ, zestawy, statystyki premium), ale nie pola formularza.
-        unset($this->tip, $this->sets, $this->crowd, $this->crowdAnswers);
+        // Odświeżamy wyliczone dane (typ, statystyki premium), ale nie pola formularza.
+        unset($this->tip, $this->crowd);
         $this->savedTime = now()->format('H:i:s');
     }
 }; ?>
 <div class="mx-auto flex w-full max-w-6xl flex-col gap-6">
     {{-- Baner jak na stronie głównej --}}
     <x-page-banner :eyebrow="$this->season?->title ?? 'LechTYPER'" title="LechTYPER"
-        :subtitle="__('Tip the score of the Lech match and answer the bonus questions. You can change your tip until kickoff.')" />
+        :subtitle="__('Tip the score of the Lech match. You can change your tip until kickoff.')" />
 
     @if (!$this->season)
         <flux:card>
@@ -774,95 +668,11 @@ new #[Layout('layouts::public')] class extends Component {
                     </div>
                 @elseif (!$this->premium)
                     <x-premium-lock :title="__('How the others tip')"
-                        :text="__('With premium you see live how the other players tip this match and how they answer each question.')" />
+                        :text="__('With premium you see live how the other players tip this match.')" />
                 @endif
             @endif
         </div>
     </div>
-
-    @if ($this->matchday->isFilled())
-    @if (count($this->sets) === 0)
-        <flux:card>
-            <flux:text>{{ __('The bonus questions for this matchday are not ready yet.') }}</flux:text>
-        </flux:card>
-    @else
-
-    {{--
-        Zestawy pytań: najwyżej cztery, po dwa w wierszu (na telefonie jeden pod drugim). Karta w barwach rozgrywek,
-        w niej zakładki Atak / Obrona z licznikami, pytanie w jednym wierszu i trzy przyciski ✓ / – / ✗.
-        Premium widzi pod pytaniem odsetek odpowiedzi „tak” innych graczy.
-    --}}
-    <div class="grid gap-4 lg:grid-cols-2">
-    @foreach ($this->sets as $set)
-        @php
-            $setKey = $this->setColors[$set['type']->value] ?? 'league_1';
-            $setIds = collect($set['sides'])->flatten(1)->pluck('id');
-            $setDone = $setIds->filter(fn ($id) => in_array($answers[$id] ?? '', ['0', '1'], true))->count();
-            $setScore = $this->scores->get($set['type']->value);
-        @endphp
-        <section class="overflow-hidden rounded-2xl p-1 shadow-md" wire:key="set-{{ $set['type']->value }}" x-data="{ side: 'offensive' }"
-            style="{{ \App\Support\CompetitionColors::style($setKey) }} background-image: linear-gradient(140deg, var(--c-bg1), var(--c-bg2)); color: var(--c-ink); border: 2px solid var(--c-accent);">
-            <header class="flex flex-wrap items-center justify-between gap-2 px-3 pb-2 pt-2">
-                <h2 class="text-sm font-black uppercase tracking-[0.15em]">{{ $set['type']->questionSetLabel() }}</h2>
-                @if ($setScore)
-                    <span class="flex gap-1.5 text-xs font-bold">
-                        <span class="comp-badge rounded-md px-2 py-0.5">{{ __('Offence: :points', ['points' => $setScore->offense]) }}</span>
-                        <span class="comp-badge rounded-md px-2 py-0.5">{{ __('Defence: :points', ['points' => $setScore->defense_bonus]) }}</span>
-                    </span>
-                @else
-                    <span class="comp-accent text-xs font-bold tabular-nums">{{ $setDone }}/{{ $setIds->count() }}</span>
-                @endif
-            </header>
-
-            {{-- Zakładki Atak / Obrona z licznikiem odpowiedzi --}}
-            <div class="flex gap-1 px-2 pb-2">
-                @foreach ($set['sides'] as $sideValue => $items)
-                    @php
-                        $sideDone = $items->filter(fn ($item) => in_array($answers[$item->id] ?? '', ['0', '1'], true))->count();
-                    @endphp
-                    <button type="button" x-on:click="side = '{{ $sideValue }}'"
-                        x-bind:class="side === '{{ $sideValue }}' ? 'comp-badge shadow' : 'bg-black/20 hover:bg-black/30'"
-                        class="flex-1 rounded-full px-3 py-1 text-xs font-bold uppercase tracking-wide transition">
-                        {{ \App\Enums\QuestionSide::from($sideValue)->label() }} <span class="tabular-nums">{{ $sideDone }}/{{ $items->count() }}</span>
-                    </button>
-                @endforeach
-            </div>
-
-            @foreach ($set['sides'] as $sideValue => $items)
-                <ul x-show="side === '{{ $sideValue }}'" @if ($sideValue !== 'offensive') x-cloak @endif
-                    class="divide-y divide-zinc-100 rounded-xl bg-white text-zinc-800 dark:divide-zinc-800 dark:bg-zinc-900 dark:text-zinc-100">
-                    @foreach ($items as $item)
-                        @php
-                            $value = (string) ($answers[$item->id] ?? '');
-                            $result = $played ? $item->correct_answer : null;
-                            $share = $this->crowdAnswers[$item->id] ?? null;
-                            $yesPct = $share && $share['answers'] > 0 ? (int) round($share['yes'] / $share['answers'] * 100) : null;
-                        @endphp
-                        <li class="flex items-center gap-2 px-3 py-2" wire:key="q-{{ $item->id }}">
-                            <span class="flex size-5 shrink-0 items-center justify-center rounded-full bg-zinc-100 text-[11px] font-bold text-zinc-500 dark:bg-zinc-800">{{ $item->position }}</span>
-                            <div class="min-w-0 flex-1">
-                                <div class="text-sm leading-snug">{{ $item->question->text }}</div>
-                                @if ($item->correct_answer === null && $played)
-                                    <div class="text-xs text-amber-600 dark:text-amber-400">{{ __('Question cancelled: answers do not count.') }}</div>
-                                @endif
-                                @if ($this->premium && $yesPct !== null)
-                                    <div class="mt-1 flex items-center gap-1.5 text-[11px] text-purple-700 dark:text-purple-300" title="{{ __('Answers of the other players') }}">
-                                        <span class="h-1.5 w-16 overflow-hidden rounded-full bg-purple-100 dark:bg-purple-500/20"><span class="block h-full bg-purple-500" style="width: {{ $yesPct }}%"></span></span>
-                                        {{ __('yes :percent%', ['percent' => $yesPct]) }}
-                                    </div>
-                                @endif
-                            </div>
-                            <x-answer-icons :model="'answers.' . $item->id" :value="$value" :disabled="!$this->isOpen" :result="$result" />
-                        </li>
-                    @endforeach
-                </ul>
-            @endforeach
-        </section>
-    @endforeach
-    </div>
-
-    @endif
-    @endif
 
     @else
         @include('partials.tips-tabs')

@@ -11,7 +11,7 @@ return new class extends Migration
 {
     public function up(): void
     {
-        // Dorobek miejsca z listy w kolejce dla jednego zestawu pytań (ScoreMatchday). Z niego liczymy wyniki meczów
+        // Dorobek miejsca z listy w kolejce dla jednego typu rozgrywek (ScoreMatchday). Z niego liczymy wyniki meczów
         // i kryteria tabel. Przeliczenie kolejki nadpisuje wiersze. Wiersz powstaje tylko dla zestawów, w których zespół gra.
         Schema::create('team_scores', function (Blueprint $table) {
             $table->id();
@@ -21,8 +21,8 @@ return new class extends Migration
             // Przy ponownym przeliczeniu zostaje pierwszy właściciel.
             $table->foreignId('user_id')->nullable()->constrained()->nullOnDelete();
             $table->foreignId('bot_id')->nullable()->constrained('bots')->nullOnDelete();
-            // Zestaw pytań: CompetitionType::questionSet() (league, cup, champions, legends).
-            $table->string('question_set', 20);
+            // Typ rozgrywek: CompetitionType::scoreSet() (league, cup, champions, legends).
+            $table->string('score_set', 20);
             $table->boolean('has_tip')->default(false);
             $table->unsignedTinyInteger('tip_lech')->nullable();
             $table->unsignedTinyInteger('tip_opponent')->nullable();
@@ -35,16 +35,14 @@ return new class extends Migration
             $table->boolean('outcome_hit')->default(false);
             $table->boolean('diff_hit')->default(false);
             $table->boolean('exact_hit')->default(false);
-            // Zestawy pytań po zerowaniu (jedna zła odpowiedź zeruje zestaw danej strony).
+            // Bonus ataku i obrony (punkty desygnowanych zawodników; na razie 0, pytania usunięto).
             $table->unsignedTinyInteger('offense_bonus')->default(0);
             $table->unsignedTinyInteger('defense_bonus')->default(0);
-            $table->boolean('offense_zeroed')->default(false);
-            $table->boolean('defense_zeroed')->default(false);
             // Wynik ofensywny = punkty za typ + bonus ofensywny; gole w meczu = max(0, offense - defense_bonus rywala).
             $table->unsignedTinyInteger('offense')->default(0);
             $table->timestamps();
-            $table->unique(['matchday_id', 'season_team_id', 'question_set'], 'team_scores_unique');
-            $table->index(['season_team_id', 'question_set']);
+            $table->unique(['matchday_id', 'season_team_id', 'score_set'], 'team_scores_unique');
+            $table->index(['season_team_id', 'score_set']);
             $table->index(['user_id', 'matchday_id']);
             $table->index(['bot_id', 'matchday_id']);
         });

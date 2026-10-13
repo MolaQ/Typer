@@ -3,8 +3,7 @@
 namespace App\Enums;
 
 /**
- * Pozycja zawodnika z kadry Lecha. Szablon pytania może dotyczyć tylko wybranych pozycji (np. czyste konto: bramkarz),
- * a w typie zawodnika (etap 5) od pozycji zależy punktacja za gola i czyste konto.
+ * Pozycja zawodnika z kadry Lecha. Przy desygnowaniu od pozycji zależy punktacja za gola i czyste konto.
  */
 enum PlayerPosition: string
 {

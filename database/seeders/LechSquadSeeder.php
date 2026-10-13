@@ -8,7 +8,7 @@ use App\Models\LechPlayer;
 use Illuminate\Database\Seeder;
 
 /**
- * Kadra Lecha na start (bank pytań 2.0, etap 2). Lista z wiedzy o składzie z sezonu 2025/26, bez numerów:
+ * Kadra Lecha na start (do desygnowania zawodników). Lista z wiedzy o składzie z sezonu 2025/26, bez numerów:
  * do sprawdzenia i poprawy w panelu `dashboard/lech-squad` (statusy, wychowankowie, narodowości, odejścia).
  * Można uruchamiać wielokrotnie: istniejący zawodnicy (po nazwisku) nie są zmieniani.
  *

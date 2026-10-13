@@ -74,7 +74,7 @@ new class extends Component {
             <div class="flex items-center justify-between gap-2 text-xs text-lech-100">
                 <span>{{ $matchday->kickoff_at?->translatedFormat('j M Y, H:i') }}</span>
                 <span class="inline-flex items-center gap-1 font-semibold text-white">
-                    {{ __('Questions and details') }}
+                    {{ __('Match details') }}
                     <flux:icon.chevron-right variant="micro" />
                 </span>
             </div>

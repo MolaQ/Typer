@@ -4,25 +4,21 @@ namespace App\Actions\Tips;
 
 use App\Enums\SeasonStatus;
 use App\Models\Matchday;
-use App\Models\MatchdayQuestion;
 use App\Models\SeasonTeam;
 use App\Models\Tip;
-use App\Models\TipAnswer;
 use App\Models\User;
-use App\Support\PlayerCompetitions;
 use App\Support\Players;
 use App\Support\TipRules;
 use DomainException;
 use Illuminate\Support\Facades\DB;
 
 /**
- * Zapisuje typ gracza i jego odpowiedzi na pytania bonusowe.
+ * Zapisuje typ gracza (wynik meczu Lecha).
  *
  * Zasady:
  *  - typować może tylko gracz (rola, bez bana), będący na liście zespołów aktywnego sezonu,
  *  - tylko do godziny pierwszego gwizdka (Matchday::isOpenForTips),
- *  - gracz odpowiada tylko na zestawy typów rozgrywek, w których gra,
- *  - saved_at zmienia się wyłącznie, gdy typ lub odpowiedzi faktycznie się zmieniły
+ *  - saved_at zmienia się wyłącznie, gdy typ faktycznie się zmienił
  *    (ponowne zapisanie tych samych danych nie psuje pierwszeństwa w remisie pucharu),
  *  - każdy zapis zmiany dostaje kolejny numer z dziennika tip_saves (save_order): liczy się ostatni zapis,
  *    a mniejszy numer wygrywa remisy tam, gdzie rozstrzyga czas typu (puchary, Liga Legend).
@@ -30,11 +26,9 @@ use Illuminate\Support\Facades\DB;
 class SaveTip
 {
     /**
-     * @param  array<int|string, mixed>  $answers  matchday_question_id => '1' | '0' | ''
-     *
      * @throws DomainException gdy typowanie jest niedozwolone lub dane są błędne
      */
-    public function handle(User $user, Matchday $matchday, mixed $lechGoals, mixed $opponentGoals, array $answers): Tip
+    public function handle(User $user, Matchday $matchday, mixed $lechGoals, mixed $opponentGoals): Tip
     {
         if (! Players::canPlay($user)) {
             throw new DomainException(__('Your account cannot take part in the game.'));
@@ -63,35 +57,12 @@ class SaveTip
             throw new DomainException(__('Enter the score as numbers from 0 to :max.', ['max' => TipRules::MAX_GOALS]));
         }
 
-        // Miejsca, na które ten gracz może odpowiadać (zestawy jego typów rozgrywek).
-        $types = array_map(fn ($t) => $t->value, PlayerCompetitions::types($user->id, $season->id, $matchday->number));
-        $allowedIds = MatchdayQuestion::where('matchday_id', $matchday->id)
-            ->whereIn('competition_type', $types)
-            ->pluck('id')
-            ->all();
-
-        $new = [];
-        foreach ($allowedIds as $id) {
-            $answer = TipRules::answer($answers[$id] ?? null);
-            if ($answer !== null) {
-                $new[$id] = $answer;
-            }
-        }
-
-        return DB::transaction(function () use ($user, $matchday, $lech, $opponent, $new, $allowedIds) {
+        return DB::transaction(function () use ($user, $matchday, $lech, $opponent) {
             $tip = Tip::where('matchday_id', $matchday->id)->where('user_id', $user->id)->lockForUpdate()->first();
-
-            // Porównujemy tylko odpowiedzi z zestawów, na które gracz może teraz odpowiadać.
-            $old = TipAnswer::where('matchday_id', $matchday->id)->where('user_id', $user->id)
-                ->whereIn('matchday_question_id', $allowedIds)
-                ->pluck('answer', 'matchday_question_id')
-                ->map(fn ($a) => (bool) $a)
-                ->all();
 
             $changed = ! $tip
                 || $tip->lech_goals !== $lech
-                || $tip->opponent_goals !== $opponent
-                || $old != $new;
+                || $tip->opponent_goals !== $opponent;
 
             if (! $changed) {
                 return $tip;
@@ -106,20 +77,6 @@ class SaveTip
             ]);
 
             $tip->fill(['lech_goals' => $lech, 'opponent_goals' => $opponent, 'saved_at' => $savedAt, 'save_order' => $order])->save();
-
-            // Usuń odpowiedzi wyczyszczone przez gracza i zapisz pozostałe. Odpowiedzi z rozgrywek, z których odpadł,
-            // zostają (nie liczą się, ale służą statystyce pytań i wracają do gry, gdy przeliczenie zmieni awans).
-            TipAnswer::where('matchday_id', $matchday->id)->where('user_id', $user->id)
-                ->whereIn('matchday_question_id', $allowedIds)
-                ->whereNotIn('matchday_question_id', array_keys($new))
-                ->delete();
-
-            foreach ($new as $questionSlotId => $answer) {
-                TipAnswer::updateOrCreate(
-                    ['user_id' => $user->id, 'matchday_question_id' => $questionSlotId],
-                    ['matchday_id' => $matchday->id, 'answer' => $answer],
-                );
-            }
 
             return $tip;
         });

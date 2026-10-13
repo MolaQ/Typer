@@ -16,7 +16,7 @@ use Illuminate\Support\Facades\DB;
  *    (po lewej zespół wyżej). Kolejka 1 z listy przedsezonowej (rozstawienie), kolejne według aktualnej tabeli.
  *    Przy 2 zespołach para 1-2 i 1-N to ten sam mecz, więc gramy jeden.
  *  - Dwie porażki w jednej kolejce: zespół odpada (eliminated_round = kolejka). Jego wyniki zostają w tabeli,
- *    ale dalej już nie gra i nie odpowiada na pytania Ligi Legend. Remis to nie porażka.
+ *    ale dalej już nie gra. Remis to nie porażka.
  *  - Po 9. kolejce wygrywa zespół z 1. miejsca całej tabeli, także jeśli wcześniej odpadł.
  * Mecze nie mają miejsc (seats): zespół 1 jest gospodarzem dwa razy, a unikalne indeksy miejsc dopuszczają null.
  */

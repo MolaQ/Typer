@@ -35,7 +35,7 @@ use Illuminate\Support\Facades\DB;
  *  - Liga Legend: wygrane i remisy, przetrwane kolejki (na bieżąco), miejsca 1-3 tabeli końcowej,
  *  - nagrody indywidualne (po zakończeniu sezonu, gracze i boty): MVP sezonu (najwięcej trafionych rozstrzygnięć,
  *    potem dokładne wyniki, potem różnice), Złota Piłka (najwięcej goli w sezonie ze wszystkich rozgrywek: ofensywa,
- *    czyli punkty za typ + bonus ofensywny, z każdego zestawu pytań zespołu) i Złote Rękawice (najwięcej punktów
+ *    czyli punkty za typ + bonus ofensywny, ze wszystkich rozgrywek zespołu) i Złote Rękawice (najwięcej punktów
  *    z bonusów defensywnych); przy remisie wyższe miejsce w lidze (poziom, potem miejsce w tabeli końcowej).
  * Punkty za mecze i etapy dostaje ten, kto w danej kolejce naprawdę grał miejscem (Ownership): gracz, który wskoczył
  * za bota, nie przejmuje punktów bota. Miejsca, tytuły i trofea z tabel końcowych idą do właściciela na koniec sezonu.
@@ -311,9 +311,9 @@ class AwardHallOfFame
     }
 
     /**
-     * Nagrody indywidualne sezonu. MVP i Złote Rękawice z zestawu pytań lig (wspólny dla lig 1-10 i podwórkowej),
+     * Nagrody indywidualne sezonu. MVP i Złote Rękawice z dorobku lig (wspólny dla lig 1-10 i podwórkowej),
      * więc każdy ma te same szanse niezależnie od ligi. Złota Piłka: suma ofensywy (typ + bonus ofensywny)
-     * ze wszystkich zestawów pytań zespołu w sezonie, czyli ze wszystkich rozgrywek, w których grał.
+     * ze wszystkich rozgrywek, w których zespół grał w sezonie.
      *
      * @param  array<array-key, iterable<FinalStanding>>  $standings  tabele końcowe: id rozgrywek => wiersze FinalStanding
      */
@@ -357,10 +357,10 @@ class AwardHallOfFame
             ->groupBy('team_scores.season_team_id', 'team_scores.user_id', 'team_scores.bot_id')
             ->selectRaw('team_scores.season_team_id as team_id, team_scores.user_id as owner_user, team_scores.bot_id as owner_bot,
                 sum(team_scores.offense) as goals,
-                sum(case when team_scores.question_set = ? then team_scores.defense_bonus else 0 end) as league_gloves,
-                sum(case when team_scores.question_set = ? and team_scores.outcome_hit then 1 else 0 end) as outcomes,
-                sum(case when team_scores.question_set = ? and team_scores.exact_hit then 1 else 0 end) as exact,
-                sum(case when team_scores.question_set = ? and team_scores.diff_hit then 1 else 0 end) as diffs', array_fill(0, 4, CompetitionType::League->value))
+                sum(case when team_scores.score_set = ? then team_scores.defense_bonus else 0 end) as league_gloves,
+                sum(case when team_scores.score_set = ? and team_scores.outcome_hit then 1 else 0 end) as outcomes,
+                sum(case when team_scores.score_set = ? and team_scores.exact_hit then 1 else 0 end) as exact,
+                sum(case when team_scores.score_set = ? and team_scores.diff_hit then 1 else 0 end) as diffs', array_fill(0, 4, CompetitionType::League->value))
             ->toBase()
             ->get();
 

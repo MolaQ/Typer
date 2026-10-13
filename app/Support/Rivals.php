@@ -3,26 +3,20 @@
 namespace App\Support;
 
 use App\Enums\MatchdayStatus;
-use App\Enums\QuestionSide;
 use App\Models\Competition;
 use App\Models\CompetitionEntry;
 use App\Models\Fixture;
 use App\Models\Matchday;
-use App\Models\MatchdayQuestion;
 use App\Models\SeasonTeam;
 use App\Models\TeamScore;
 use App\Models\Tip;
-use App\Models\TipAnswer;
 use App\Models\User;
 
 /**
  * Podgląd rywali gracza w kolejce (mecze z terminarza z rundą = numer kolejki), z widocznością zależną od etapu:
- *  - typowanie otwarte: każdy widzi, czy rywal typował, i ile odpowiedzi dał (niebieskie gwiazdki);
- *    premium widzi rozstrzygnięcie typu (Lech / remis / rywal) i na które pytania odpowiedział,
- *  - typowanie zamknięte, bez wyników: każdy widzi rozstrzygnięcie typu i na które pytania odpowiedział;
- *    premium widzi dokładny typ z czasem zapisu i odpowiedzi tak (zielona) / nie (czerwona),
- *  - po wpisaniu wyników: pełne szczegóły dla wszystkich, gwiazdki: zielona = trafiona, czerwona = błędna.
- * Gwiazdki: po jednej na pytanie 1-5 strony ofensywnej i defensywnej zestawu tych rozgrywek, szara = bez odpowiedzi.
+ *  - typowanie otwarte: każdy widzi, czy rywal typował; premium widzi rozstrzygnięcie typu (Lech / remis / rywal),
+ *  - typowanie zamknięte, bez wyników: każdy widzi rozstrzygnięcie typu; premium widzi dokładny typ z czasem zapisu,
+ *  - po wpisaniu wyników: pełne szczegóły dla wszystkich (typ, bonusy, wynik).
  * Boty typują dopiero przy przeliczeniu kolejki, więc przed wynikami nie mają typu.
  */
 final class Rivals
@@ -32,75 +26,6 @@ final class Rivals
     public const CLOSED = 'closed';
 
     public const PLAYED = 'played';
-
-    /** Tryby gwiazdek odpowiedzi (komponent x-answer-stars). */
-    public const STARS_COUNT = 'count';
-
-    public const STARS_GIVEN = 'given';
-
-    public const STARS_ANSWERS = 'answers';
-
-    public const STARS_RESULT = 'result';
-
-    /** Co oglądający widzi w gwiazdkach: samą liczbę odpowiedzi, które pytania, odpowiedzi tak/nie albo trafienia. */
-    public static function starsMode(string $phase, bool $premium): string
-    {
-        return match (true) {
-            $phase === self::PLAYED => self::STARS_RESULT,
-            $phase === self::CLOSED && $premium => self::STARS_ANSWERS,
-            $phase === self::OPEN && ! $premium => self::STARS_COUNT,
-            default => self::STARS_GIVEN,
-        };
-    }
-
-    /**
-     * Gwiazdki odpowiedzi graczy: user_id => zestaw => strona => [pytanie 1-5 => stan].
-     * Stany: none (bez odpowiedzi), given (odpowiedział), yes / no (jego odpowiedź), correct / wrong (po wynikach).
-     *
-     * @param  array<int, int>  $userIds
-     * @return array<int, array<string, array<string, array<int, string>>>>
-     */
-    public static function answerStars(Matchday $matchday, array $userIds, string $mode): array
-    {
-        if ($userIds === []) {
-            return [];
-        }
-
-        $slots = MatchdayQuestion::where('matchday_id', $matchday->id)->get(['id', 'competition_type', 'side', 'position', 'correct_answer'])->keyBy('id');
-        $out = [];
-
-        foreach ($userIds as $userId) {
-            foreach ($slots as $slot) {
-                $out[$userId][$slot->competition_type->value][$slot->side->value][$slot->position] = 'none';
-            }
-        }
-
-        foreach (TipAnswer::where('matchday_id', $matchday->id)->whereIn('user_id', $userIds)->get(['user_id', 'matchday_question_id', 'answer']) as $answer) {
-            $slot = $slots->get($answer->matchday_question_id);
-            if (! $slot) {
-                continue;
-            }
-
-            $given = (bool) $answer->answer;
-            $out[$answer->user_id][$slot->competition_type->value][$slot->side->value][$slot->position] = match ($mode) {
-                self::STARS_ANSWERS => $given ? 'yes' : 'no',
-                self::STARS_RESULT => $slot->correct_answer === null ? 'given' : ($given === $slot->correct_answer ? 'correct' : 'wrong'),
-                default => 'given',
-            };
-        }
-
-        // Gwiazdki w kolejności pytań 1-5.
-        foreach ($out as $userId => $sets) {
-            foreach ($sets as $set => $sides) {
-                foreach ($sides as $side => $positions) {
-                    ksort($positions);
-                    $out[$userId][$set][$side] = $positions;
-                }
-            }
-        }
-
-        return $out;
-    }
 
     public static function phase(Matchday $matchday): string
     {
@@ -113,7 +38,7 @@ final class Rivals
 
     /**
      * @return array<int, array{competition: string, rival: string, bot: bool, virtual: bool, tipped: ?bool,
-     *   outcome: ?string, tip: ?string, offense: ?int, defense: ?int, bonus: ?string, score: ?string}>
+     *   outcome: ?string, tip: ?string, bonus: ?string, score: ?string}>
      */
     public static function forUser(User $viewer, Matchday $matchday): array
     {
@@ -143,20 +68,8 @@ final class Rivals
             return [];
         }
 
-        // Liczba odpowiedzi rywali: user_id => zestaw => strona => liczba.
         $rivalUsers = $fixtures->map(fn ($f) => ($mine->contains($f->home_entry_id) ? $f->away : $f->home)?->seasonTeam?->user_id)->filter()->unique();
-        $slots = MatchdayQuestion::where('matchday_id', $matchday->id)->get(['id', 'competition_type', 'side'])->keyBy('id');
-        $counts = [];
-        foreach (TipAnswer::where('matchday_id', $matchday->id)->whereIn('user_id', $rivalUsers)->get(['user_id', 'matchday_question_id']) as $answer) {
-            $slot = $slots->get($answer->matchday_question_id);
-            if ($slot) {
-                $counts[$answer->user_id][$slot->competition_type->value][$slot->side->value] = ($counts[$answer->user_id][$slot->competition_type->value][$slot->side->value] ?? 0) + 1;
-            }
-        }
-
         $tips = Tip::where('matchday_id', $matchday->id)->whereIn('user_id', $rivalUsers)->get()->keyBy('user_id');
-        $starsMode = self::starsMode($phase, $premium);
-        $stars = self::answerStars($matchday, $rivalUsers->map(fn ($id) => (int) $id)->values()->all(), $starsMode);
         $scores = $phase === self::PLAYED
             ? TeamScore::where('matchday_id', $matchday->id)->get()->groupBy('season_team_id')
             : collect();
@@ -166,7 +79,7 @@ final class Rivals
             $competition = $competitions[$fixture->competition_id];
             $rivalEntry = $mine->contains($fixture->home_entry_id) ? $fixture->away : $fixture->home;
             $rival = $rivalEntry?->seasonTeam;
-            $set = $competition->type->questionSet()->value;
+            $set = $competition->type->scoreSet()->value;
 
             $row = [
                 'competition' => $competition->name ?: $competition->type->label(),
@@ -176,8 +89,7 @@ final class Rivals
                 'rival' => $rival?->name ?? Fixture::VIRTUAL_OPPONENT,
                 'bot' => (bool) $rival?->is_bot,
                 'virtual' => $rival === null,
-                'tipped' => null, 'outcome' => null, 'tip' => null, 'offense' => null, 'defense' => null,
-                'stars' => null, 'stars_mode' => $starsMode,
+                'tipped' => null, 'outcome' => null, 'tip' => null,
                 'bonus' => null, 'score' => $fixture->isPlayed() ? $fixture->score() : null,
                 // Bilans bezpośredni to dodatek premium.
                 'h2h' => $rival && $premium ? self::headToHead($viewer, $rival) : null,
@@ -185,8 +97,6 @@ final class Rivals
 
             if ($rival && ! $rival->is_bot) {
                 $tip = $tips->get($rival->user_id);
-                $offense = $counts[$rival->user_id][$set][QuestionSide::Offensive->value] ?? 0;
-                $defense = $counts[$rival->user_id][$set][QuestionSide::Defensive->value] ?? 0;
 
                 $row['tipped'] = $tip !== null;
 
@@ -195,15 +105,11 @@ final class Rivals
                 } elseif ($tip && ($phase === self::CLOSED || $premium)) {
                     $row['outcome'] = self::outcome($tip, $matchday);
                 }
-
-                $row['offense'] = $offense;
-                $row['defense'] = $defense;
-                $row['stars'] = $stars[$rival->user_id][$set] ?? null;
             }
 
             // Po wynikach: typ i bonusy z rozliczenia (także boty).
             if ($rival && $phase === self::PLAYED) {
-                $score = $scores->get($rival->id)?->first(fn ($s) => $s->question_set->value === $set);
+                $score = $scores->get($rival->id)?->first(fn ($s) => $s->score_set->value === $set);
                 if ($score) {
                     $row['tipped'] = $score->has_tip;
                     $row['tip'] = $score->has_tip ? $score->tip_lech.':'.$score->tip_opponent : null;
@@ -230,24 +136,14 @@ final class Rivals
 
         $phase = $matchday ? self::phase($matchday) : self::OPEN;
         $premium = $viewer !== null && Premium::isActive($viewer);
-        $set = $fixture->competition->type->questionSet();
+        $set = $fixture->competition->type->scoreSet();
         $teams = [$fixture->home?->seasonTeam, $fixture->away?->seasonTeam];
         $users = collect($teams)->filter()->pluck('user_id')->filter();
 
         $tips = $matchday ? Tip::where('matchday_id', $matchday->id)->whereIn('user_id', $users)->get()->keyBy('user_id') : collect();
-        $starsMode = self::starsMode($phase, $premium);
-        $stars = $matchday ? self::answerStars($matchday, $users->map(fn ($id) => (int) $id)->values()->all(), $starsMode) : [];
-        $counts = [];
-        if ($matchday && $users->isNotEmpty()) {
-            $slots = MatchdayQuestion::where('matchday_id', $matchday->id)->where('competition_type', $set->value)->get(['id', 'side'])->keyBy('id');
-            foreach (TipAnswer::where('matchday_id', $matchday->id)->whereIn('user_id', $users)->whereIn('matchday_question_id', $slots->keys())->get(['user_id', 'matchday_question_id']) as $answer) {
-                $side = $slots[$answer->matchday_question_id]->side->value;
-                $counts[$answer->user_id][$side] = ($counts[$answer->user_id][$side] ?? 0) + 1;
-            }
-        }
 
         $scores = $matchday && $phase === self::PLAYED
-            ? TeamScore::where('matchday_id', $matchday->id)->where('question_set', $set->value)
+            ? TeamScore::where('matchday_id', $matchday->id)->where('score_set', $set->value)
                 ->whereIn('season_team_id', collect($teams)->filter()->pluck('id'))->get()->keyBy('season_team_id')
             : collect();
 
@@ -267,8 +163,7 @@ final class Rivals
                 'virtual' => $index === 1 && $fixture->isBye(),
                 'goals' => $goals,
                 'winner' => $fixture->winner_entry_id !== null && (int) $fixture->winner_entry_id === (int) ($index === 0 ? $fixture->home_entry_id : $fixture->away_entry_id),
-                'tipped' => null, 'outcome' => null, 'tip' => null, 'tipped_at' => null, 'tip_order' => null, 'offense' => null, 'defense' => null, 'score' => null,
-                'stars' => null, 'stars_mode' => $starsMode,
+                'tipped' => null, 'outcome' => null, 'tip' => null, 'tipped_at' => null, 'tip_order' => null, 'score' => null,
             ];
 
             if ($team && ! $team->is_bot) {
@@ -282,10 +177,6 @@ final class Rivals
                 } elseif ($tip && $matchday && ($phase === self::CLOSED || $premium)) {
                     $side['outcome'] = self::outcome($tip, $matchday);
                 }
-
-                $side['offense'] = $counts[$team->user_id][QuestionSide::Offensive->value] ?? 0;
-                $side['defense'] = $counts[$team->user_id][QuestionSide::Defensive->value] ?? 0;
-                $side['stars'] = $stars[$team->user_id][$set->value] ?? null;
             }
 
             // Po wynikach pełne rozliczenie (także boty).

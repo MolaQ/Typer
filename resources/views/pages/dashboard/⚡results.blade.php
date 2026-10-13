@@ -1,12 +1,9 @@
 <?php
 
-use App\Actions\Questions\DrawQuestions;
 use App\Actions\Results\SaveMatchdayResult;
 use App\Enums\MatchdayStatus;
 use App\Enums\Permission;
-use App\Enums\QuestionSide;
 use App\Models\Matchday;
-use App\Models\MatchdayQuestion;
 use App\Models\Season;
 use Flux\Flux;
 use Illuminate\Contracts\View\View;
@@ -15,8 +12,8 @@ use Livewire\Attributes\Url;
 use Livewire\Component;
 
 /**
- * Wyniki kolejek (regulamin, punkt 11): admin wpisuje wynik meczu Lecha po 90 minutach i poprawne
- * odpowiedzi na pytania kolejki. Wynik i każda odpowiedź zapisują się od razu. Po wpisaniu wyniku pojawia się
+ * Wyniki kolejek (regulamin, punkt 11): admin wpisuje wynik meczu Lecha po 90 minutach.
+ * Wynik zapisuje się od razu. Po jego wpisaniu pojawia się
  * przycisk „Przelicz wyniki” (status „rozegrana”, punkty, mecze, awanse w pucharze), a kolejka już przeliczona
  * przelicza się od nowa po każdej zmianie, z informacją w toście. Podgląd: season-list, zapis: season-edit.
  * Uwaga: nie nazywaj własności "slots" ani "rows" – Livewire rezerwuje część nazw.
@@ -30,9 +27,6 @@ new class extends Component {
 
     public string $lech = '';
     public string $opponent = '';
-
-    /** matchday_question_id => '1' | '0' | '' */
-    public array $correct = [];
 
     public function mount(): void
     {
@@ -59,7 +53,7 @@ new class extends Component {
 
     public function updatedNumber(): void
     {
-        unset($this->matchday, $this->assigned);
+        unset($this->matchday);
         $this->loadResult();
     }
 
@@ -80,11 +74,6 @@ new class extends Component {
 
         $this->lech = $matchday?->lech_goals !== null ? (string) $matchday->lech_goals : '';
         $this->opponent = $matchday?->opponent_goals !== null ? (string) $matchday->opponent_goals : '';
-        $this->correct = $matchday
-            ? MatchdayQuestion::where('matchday_id', $matchday->id)->get()
-                ->mapWithKeys(fn($slot) => [$slot->id => $slot->correct_answer === null ? '' : ($slot->correct_answer ? '1' : '0')])
-                ->all()
-            : [];
     }
 
     /* ==================================================================
@@ -115,35 +104,6 @@ new class extends Component {
         return $this->matchdays->firstWhere('number', $this->number);
     }
 
-    /** Zestawy pytań kolejki: typ => [strona => miejsca]. */
-    #[Computed]
-    public function assigned(): array
-    {
-        if (!$this->matchday) {
-            return [];
-        }
-
-        $all = MatchdayQuestion::with('question:id,text')->where('matchday_id', $this->matchday->id)->orderBy('position')->get();
-        $sets = [];
-
-        foreach (DrawQuestions::typesOfSeason($this->seasonId) as $type) {
-            $own = $all->where('competition_type', $type);
-
-            if ($own->isNotEmpty()) {
-                $sets[] = [
-                    'type' => $type,
-                    'sides' => [
-                        QuestionSide::Offensive->value => $own->where('side', QuestionSide::Offensive)->values(),
-                        QuestionSide::Defensive->value => $own->where('side', QuestionSide::Defensive)->values(),
-                    ],
-                ];
-            }
-        }
-
-        return $sets;
-    }
-
-    /** Powód, dla którego nie można teraz wpisać wyniku (null = można). */
     #[Computed]
     public function blocker(): ?string
     {
@@ -184,18 +144,6 @@ new class extends Component {
         $this->attempt(function (SaveMatchdayResult $action): void {
             $action->saveScore($this->matchday, $this->lech, $this->opponent);
         }, __('Result saved.'));
-    }
-
-    /** Kliknięcie odpowiedzi zapisuje ją od razu. */
-    public function updatedCorrect(mixed $value, string $key): void
-    {
-        if (!$this->authorizedMatchday()) {
-            return;
-        }
-
-        $this->attempt(function (SaveMatchdayResult $action) use ($value, $key): void {
-            $action->saveAnswer($this->matchday, (int) $key, $value);
-        });
     }
 
     /** Przycisk „Przelicz wyniki”. */
@@ -265,11 +213,6 @@ new class extends Component {
         unset($this->matchdays, $this->matchday, $this->blocker);
     }
 
-    /** Ile pytań nie ma jeszcze poprawnej odpowiedzi (przy przeliczeniu zostaną anulowane). */
-    public function unanswered(): int
-    {
-        return count(array_filter($this->correct, fn($value) => $value === '' || $value === null));
-    }
 }; ?>
 
 <div class="flex h-full w-full flex-1 flex-col gap-6">
@@ -278,8 +221,7 @@ new class extends Component {
         <div>
             <flux:heading size="xl" level="1">{{ __('Results') }}</flux:heading>
             <flux:subheading>
-                {{ __('Enter the Lech score after 90 minutes and the correct answers. Every change is saved at once, then recalculate the matchday.') }}
-                {{ __('A question left without a correct answer is cancelled at the recalculation and all answers to it are deleted.') }}
+                {{ __('Enter the Lech score after 90 minutes. Every change is saved at once, then recalculate the matchday.') }}
             </flux:subheading>
         </div>
 
@@ -352,43 +294,9 @@ new class extends Component {
             </div>
         </flux:card>
 
-        @if (count($this->assigned) === 0)
-            <flux:card>
-                <flux:text>{{ __('This matchday has no questions assigned.') }}</flux:text>
-            </flux:card>
-        @endif
-
-        @foreach ($this->assigned as $set)
-            <flux:card class="space-y-4" wire:key="set-{{ $set['type']->value }}">
-                <flux:heading size="lg">{{ $set['type']->questionSetLabel() }}</flux:heading>
-
-                <div class="grid gap-6 md:grid-cols-2">
-                    @foreach ($set['sides'] as $sideValue => $items)
-                        @php
-                            $side = \App\Enums\QuestionSide::from($sideValue);
-                        @endphp
-                        <div class="space-y-3">
-                            <flux:badge :color="$side->color()">{{ $side->label() }}</flux:badge>
-
-                            @foreach ($items as $item)
-                                <div class="space-y-1 rounded-lg border border-zinc-200 p-3 dark:border-zinc-700"
-                                    wire:key="c-{{ $item->id }}">
-                                    <flux:text class="font-medium text-zinc-800 dark:text-zinc-100">{{ $item->position }}.
-                                        {{ $item->question->text }}</flux:text>
-                                    <x-answer-toggle :model="'correct.' . $item->id" :value="$correct[$item->id] ?? ''"
-                                        :disabled="! $canSave" />
-                                </div>
-                            @endforeach
-                        </div>
-                    @endforeach
-                </div>
-            </flux:card>
-        @endforeach
-
         @if ($canSave)
             @php
                 $played = $this->matchday->status === \App\Enums\MatchdayStatus::Played;
-                $unanswered = $this->unanswered();
                 $hasScore = $this->matchday->lech_goals !== null;
             @endphp
 
@@ -399,9 +307,6 @@ new class extends Component {
                     <flux:callout.heading>{{ __('The result is saved, but the matchday is not recalculated yet.') }}</flux:callout.heading>
                     <flux:callout.text>
                         {{ __('Recalculate the matchday to settle the points and matches.') }}
-                        @if ($unanswered > 0)
-                            {{ __('Questions without a correct answer (:count) will be cancelled.', ['count' => $unanswered]) }}
-                        @endif
                     </flux:callout.text>
                 </flux:callout>
             @else

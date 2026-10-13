@@ -14,7 +14,6 @@ use App\Models\Matchday;
 use App\Models\Season;
 use App\Models\SeasonTeam;
 use App\Models\Tip;
-use App\Models\TipAnswer;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 
@@ -199,7 +198,7 @@ class Roster
         return false;
     }
 
-    /** Kasuje typy i odpowiedzi gracza w nierozegranych kolejkach sezonu (rozliczone zostają w historii). */
+    /** Kasuje typy gracza w nierozegranych kolejkach sezonu (rozliczone zostają w historii). */
     public static function dropOpenTips(int $seasonId, int $userId): int
     {
         $open = Matchday::where('season_id', $seasonId)->where('status', '!=', MatchdayStatus::Played->value)->pluck('id');
@@ -207,8 +206,6 @@ class Roster
         if ($open->isEmpty()) {
             return 0;
         }
-
-        TipAnswer::whereIn('matchday_id', $open)->where('user_id', $userId)->delete();
 
         return Tip::whereIn('matchday_id', $open)->where('user_id', $userId)->delete();
     }

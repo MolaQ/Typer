@@ -2,11 +2,9 @@
 
 namespace App\Actions\Seasons;
 
-use App\Actions\Questions\DrawQuestions;
 use App\Enums\League;
 use App\Enums\SeasonStatus;
 use App\Models\Bot;
-use App\Models\Matchday;
 use App\Models\Season;
 use App\Models\SeasonTeam;
 use App\Support\Audit;
@@ -20,8 +18,7 @@ use Illuminate\Support\Facades\DB;
  *  1. lista zespołów: z tabel końcowych poprzedniego sezonu (BuildListFromPrevious), a w sezonie 1 z graczy
  *     w kolejności rejestracji i botów do 100 miejsc; nowi gracze trafiają do Ligi podwórkowej (Roster::place),
  *  2. zatwierdzenie (ApproveSeason): boty do 512, 10 lig, Puchar Polski, Liga podwórkowa, Liga Legend
- *     i puchary europejskie (EuropeanQualification) z terminarzami,
- *  3. losowanie pytań do kolejek (brak pytań w banku nie blokuje, admin losuje je później).
+ *     i puchary europejskie (EuropeanQualification) z terminarzami.
  * Mecze Lecha admin wybiera później z kalendarza. Przy błędzie nic się nie zapisuje, sezon zostaje szkicem.
  */
 class SetUpSeason
@@ -29,11 +26,10 @@ class SetUpSeason
     public function __construct(
         private BuildListFromPrevious $fromPrevious,
         private ApproveSeason $approve,
-        private DrawQuestions $drawQuestions,
     ) {}
 
     /**
-     * @return array{players: int, leagues: int, fixtures: int, questions: int}
+     * @return array{players: int, leagues: int, fixtures: int}
      *
      * @throws DomainException
      */
@@ -68,22 +64,12 @@ class SetUpSeason
 
             $approved = $this->approve->handle($season);
 
-            $questions = 0;
-            foreach (Matchday::where('season_id', $season->id)->orderBy('number')->get() as $matchday) {
-                try {
-                    $questions += $this->drawQuestions->handle($matchday);
-                } catch (DomainException) {
-                    // Za mało pytań w banku: admin wylosuje je później (strona „Pytania kolejki”).
-                }
-            }
-
-            Audit::log('season.set_up', null, [], ['leagues' => $approved['leagues'], 'fixtures' => $approved['fixtures'], 'questions' => $questions], $season->title);
+            Audit::log('season.set_up', null, [], ['leagues' => $approved['leagues'], 'fixtures' => $approved['fixtures']], $season->title);
 
             return [
                 'players' => SeasonTeam::where('season_id', $season->id)->whereNotNull('user_id')->count(),
                 'leagues' => $approved['leagues'],
                 'fixtures' => $approved['fixtures'],
-                'questions' => $questions,
             ];
         });
     }

@@ -8,14 +8,14 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Carbon;
 
 /**
- * Dorobek zespołu w kolejce dla jednego zestawu pytań (wynik ofensywny i defensywa).
+ * Dorobek zespołu w kolejce dla jednego typu rozgrywek (CompetitionType::scoreSet): wynik ofensywny i defensywa.
  * Wynik zespołu w meczu = max(0, offense − defense_bonus rywala).
  *
  * @property int $matchday_id
  * @property int $season_team_id
  * @property int|null $user_id kto grał miejscem w tej kolejce (App\Support\Ownership)
  * @property int|null $bot_id
- * @property CompetitionType $question_set
+ * @property CompetitionType $score_set
  * @property bool $has_tip
  * @property int|null $tip_lech
  * @property int|null $tip_opponent
@@ -27,24 +27,22 @@ use Illuminate\Support\Carbon;
  * @property bool $exact_hit
  * @property int $offense_bonus
  * @property int $defense_bonus
- * @property bool $offense_zeroed
- * @property bool $defense_zeroed
  * @property int $offense
  */
 class TeamScore extends Model
 {
     protected $fillable = [
         'user_id', 'bot_id',
-        'matchday_id', 'season_team_id', 'question_set',
+        'matchday_id', 'season_team_id', 'score_set',
         'has_tip', 'tip_lech', 'tip_opponent', 'tipped_at', 'tip_order',
         'tip_points', 'outcome_hit', 'diff_hit', 'exact_hit',
-        'offense_bonus', 'defense_bonus', 'offense_zeroed', 'defense_zeroed', 'offense',
+        'offense_bonus', 'defense_bonus', 'offense',
     ];
 
     protected function casts(): array
     {
         return [
-            'question_set' => CompetitionType::class,
+            'score_set' => CompetitionType::class,
             'has_tip' => 'boolean',
             'tip_lech' => 'integer',
             'tip_opponent' => 'integer',
@@ -56,8 +54,6 @@ class TeamScore extends Model
             'exact_hit' => 'boolean',
             'offense_bonus' => 'integer',
             'defense_bonus' => 'integer',
-            'offense_zeroed' => 'boolean',
-            'defense_zeroed' => 'boolean',
             'offense' => 'integer',
         ];
     }

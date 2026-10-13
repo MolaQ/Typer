@@ -209,55 +209,6 @@
             @endif
         </flux:card>
     </div>
-
-    {{-- Premium na dole: najtrudniejsze i najłatwiejsze pytania (po 5, QuestionDifficulty) --}}
-    <div class="grid gap-4 md:grid-cols-2">
-        <flux:card class="space-y-3">
-            <div class="flex items-center gap-2">
-                <flux:heading>{{ __('The hardest questions') }}</flux:heading>
-                <x-premium-badge />
-            </div>
-            @if (!$isPremium)
-                <flux:text size="sm">
-                    {{ __('Premium shows the questions with the fewest correct answers. They go to Liga Legend first.') }}
-                    <flux:link :href="route('support')" wire:navigate>{{ __('See premium') }}</flux:link>
-                </flux:text>
-            @else
-                @forelse ($extras['hardest'] as $row)
-                    <div class="flex items-start gap-3 text-sm" wire:key="hard-{{ $row['question']->id }}">
-                        <span class="min-w-0 flex-1">{{ $row['question']->text }}</span>
-                        <span class="shrink-0 font-semibold tabular-nums text-red-600 dark:text-red-400">{{ $fmt($row['rate'], 1) }}%</span>
-                    </div>
-                @empty
-                    <flux:text>{{ __('Not enough answers yet.') }}</flux:text>
-                @endforelse
-                <flux:text size="sm" class="text-xs text-zinc-500">{{ __('Share of correct answers. These questions go to Liga Legend first.') }}</flux:text>
-            @endif
-        </flux:card>
-
-        <flux:card class="space-y-3">
-            <div class="flex items-center gap-2">
-                <flux:heading>{{ __('The easiest questions') }}</flux:heading>
-                <x-premium-badge />
-            </div>
-            @if (!$isPremium)
-                <flux:text size="sm">
-                    {{ __('Premium shows the questions with the most correct answers.') }}
-                    <flux:link :href="route('support')" wire:navigate>{{ __('See premium') }}</flux:link>
-                </flux:text>
-            @else
-                @forelse ($extras['easiest'] as $row)
-                    <div class="flex items-start gap-3 text-sm" wire:key="easy-{{ $row['question']->id }}">
-                        <span class="min-w-0 flex-1">{{ $row['question']->text }}</span>
-                        <span class="shrink-0 font-semibold tabular-nums text-green-600 dark:text-green-400">{{ $fmt($row['rate'], 1) }}%</span>
-                    </div>
-                @empty
-                    <flux:text>{{ __('Not enough answers yet.') }}</flux:text>
-                @endforelse
-                <flux:text size="sm" class="text-xs text-zinc-500">{{ __('Share of correct answers.') }}</flux:text>
-            @endif
-        </flux:card>
-    </div>
 @elseif ($tab === 'history')
     @php
         $history = $this->myHistory;

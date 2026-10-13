@@ -47,7 +47,7 @@
 
     {{-- Uniwersalne okno pojedynku (zdarzenie „show-duel”) dostępne na każdej stronie publicznej --}}
     <livewire:pages::home.duel-modal />
-    {{-- Okno meczu Lecha (zdarzenie „show-lech-match”): pytania z odpowiedziami i szczegóły typów --}}
+    {{-- Okno meczu Lecha (zdarzenie „show-lech-match”): szczegóły typów --}}
     <livewire:pages::home.lech-match-modal />
 
     @fluxScripts

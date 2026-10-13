@@ -15,7 +15,6 @@ use App\Models\Competition;
 use App\Models\HallOfFameAward;
 use App\Models\LechMatch;
 use App\Models\Matchday;
-use App\Models\MatchdayQuestion;
 use App\Models\Season;
 use App\Models\SeasonTeam;
 use App\Models\User;
@@ -42,9 +41,9 @@ use Illuminate\Support\Str;
  *     1 Puchar Polski, 2 z jednych losowych pucharów europejskich), u siebie albo na wyjeździe losowo;
  *     pierwszy gwizdek w chwili uruchomienia, każdy następny minutę później,
  *  2. SetUpSeason (lista z poprzedniego sezonu z awansami, spadkami i czyszczeniem z botów, nowi gracze do podwórkowej,
- *     zatwierdzenie, pytania), potem aktywacja,
+ *     zatwierdzenie), potem aktywacja,
  *  3. w każdej kolejce: typy 90-100% graczy (SaveTip), wynik Lecha (w pucharach europejskich remis albo porażka,
- *     w pozostałych wygrana), losowe poprawne odpowiedzi i przeliczenie (SaveMatchdayResult), nowi gracze (1-5% kont),
+ *     w pozostałych wygrana) i przeliczenie (SaveMatchdayResult), nowi gracze (1-5% kont),
  *     raz na sezon ban jednego gracza (bez admina),
  *  4. zakończenie sezonu (FinishSeason: tabele końcowe, Hall of Fame, nieaktywni) i 10-15% nowych kont na następny sezon.
  *
@@ -139,7 +138,7 @@ class SimulateSeason extends Command
         $start = now()->startOfMinute();
 
         try {
-            // Przygotowanie sezonu „godzinę wcześniej”, żeby pytania dało się losować przed pierwszym gwizdkiem.
+            // Przygotowanie sezonu „godzinę wcześniej”, przed pierwszym gwizdkiem.
             Date::setTestNow($start->copy()->subHour());
             $season = $this->createSeason($start);
             $this->section('Sezon '.$season->title.': „'.$season->slogan.'”');
@@ -147,8 +146,8 @@ class SimulateSeason extends Command
 
             $setUpStats = $setUp->handle($season);
             $this->activate($season->refresh());
-            $this->line(sprintf('Lista: %d graczy, %d lig, %d meczów w terminarzach, %d pytań w kolejkach.',
-                $setUpStats['players'], $setUpStats['leagues'], $setUpStats['fixtures'], $setUpStats['questions']));
+            $this->line(sprintf('Lista: %d graczy, %d lig, %d meczów w terminarzach.',
+                $setUpStats['players'], $setUpStats['leagues'], $setUpStats['fixtures']));
             $this->printLeagueHumans($season);
 
             $banRound = mt_rand(1, 9);
@@ -247,12 +246,6 @@ class SimulateSeason extends Command
         $kickoff = $matchday->kickoff_at?->copy() ?? now();
         $europe = in_array($matchday->competition, [MatchCompetition::ChampionsLeague->value, MatchCompetition::EuropaLeague->value, MatchCompetition::ConferenceLeague->value], true);
 
-        // Pytania kolejki pogrupowane na zestawy: typ rozgrywek + strona.
-        $sets = MatchdayQuestion::where('matchday_id', $matchday->id)->get()
-            ->groupBy(fn (MatchdayQuestion $q) => $q->competition_type->value.'-'.$q->side->value)
-            ->map(fn ($questions) => $questions->pluck('id')->all())
-            ->all();
-
         // Typy: 90-100% graczy z listy sezonu, w kolejności zapisu (wcześniejszy zapis = mniejszy numer).
         $players = User::whereIn('id', SeasonTeam::where('season_id', $matchday->season_id)->whereNotNull('user_id')->pluck('user_id'))->with('roles')->get();
         $share = mt_rand(98, 100) / 100;
@@ -267,7 +260,7 @@ class SimulateSeason extends Command
             $isAdmin = $user->hasRole(RoleName::Admin->value);
 
             if ($isAdmin) {
-                // Admin: zawsze zwycięstwo Lecha, a w pucharach europejskich remis albo porażka; jedna odpowiedź w każdym zestawie.
+                // Admin: zawsze zwycięstwo Lecha, a w pucharach europejskich remis albo porażka.
                 if ($europe) {
                     $rival = mt_rand(0, 2);
                     [$lech, $opponent] = [mt_rand(0, $rival), $rival];
@@ -275,14 +268,12 @@ class SimulateSeason extends Command
                     $lech = mt_rand(1, 3);
                     $opponent = mt_rand(0, $lech - 1);
                 }
-                $answers = $this->answers($sets, 1, 1);
             } else {
                 [$lech, $opponent] = $this->fanTip();
-                $answers = $this->answers($sets, 0, 2);
             }
 
             try {
-                $saveTip->handle($user, $matchday, $lech, $opponent, $answers);
+                $saveTip->handle($user, $matchday, $lech, $opponent);
                 $saved++;
             } catch (DomainException) {
                 $failed++;
@@ -297,10 +288,9 @@ class SimulateSeason extends Command
             $lechGoals = mt_rand(1, 4);
             $opponentGoals = mt_rand(0, $lechGoals - 1);
         }
-        $correct = collect($sets)->flatten()->mapWithKeys(fn ($id) => [$id => (string) mt_rand(0, 1)])->all();
 
         Date::setTestNow($kickoff->copy()->addSeconds(30));
-        $stats = $results->handle($matchday->fresh() ?? $matchday, $lechGoals, $opponentGoals, $correct);
+        $stats = $results->handle($matchday->fresh() ?? $matchday, $lechGoals, $opponentGoals);
 
         $line = sprintf('Kolejka %d: %s %d:%d (%s) | typy %d/%d%s | mecze %d, odpadli %d',
             $matchday->number,
@@ -350,25 +340,6 @@ class SimulateSeason extends Command
         $opponent = mt_rand(1, 3);
 
         return [mt_rand(0, $opponent - 1), $opponent];
-    }
-
-    /**
-     * Losowe odpowiedzi: w każdym zestawie (typ rozgrywek + strona) od $min do $max pytań, tak albo nie.
-     *
-     * @param  array<string, array<int, int>>  $sets
-     * @return array<int, string>
-     */
-    private function answers(array $sets, int $min, int $max): array
-    {
-        $answers = [];
-        foreach ($sets as $ids) {
-            shuffle($ids);
-            foreach (array_slice($ids, 0, mt_rand($min, min($max, count($ids)))) as $id) {
-                $answers[$id] = (string) mt_rand(0, 1);
-            }
-        }
-
-        return $answers;
     }
 
     /* ==================================================================

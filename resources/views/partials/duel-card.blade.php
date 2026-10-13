@@ -13,9 +13,9 @@
         default => ['blue', __('Settled')],
     };
     $phaseInfo = match ($phase) {
-        \App\Support\Rivals::OPEN => __('Everyone sees whether a tip is in and how many questions were answered (blue stars). Premium also sees the outcome of the tip and which questions were answered.'),
-        \App\Support\Rivals::CLOSED => __('Everyone sees the outcome of the tip and which questions were answered. Premium also sees the exact tip, when it was saved and the answers: green yes, red no.'),
-        default => __('Full settlement: tip, points for the tip and bonuses. Stars: green correct, red wrong, grey no answer.'),
+        \App\Support\Rivals::OPEN => __('Everyone sees whether a tip is in. Premium also sees the outcome of the tip.'),
+        \App\Support\Rivals::CLOSED => __('Everyone sees the outcome of the tip. Premium also sees the exact tip and when it was saved.'),
+        default => __('Full settlement: tip, points for the tip and bonuses.'),
     };
     // Etykiety wierszy rozliczenia: jednolite tło.
     $labelClass = 'rounded-md bg-lech-50 px-2 py-0.5 text-xs font-medium text-lech-800 dark:bg-lech-900/40 dark:text-lech-200';
@@ -100,7 +100,6 @@
     {{--
         Obie strony w lustrzanym układzie: etykiety przy zewnętrznych krawędziach, kafelki stałej szerokości w jednej
         pionowej linii przy środku okna. Kolor kafelka mówi wszystko (App\Support\Tone), bez znaków +/−.
-        Gwiazdki (x-answer-stars): jedna na pytanie 1-5, kolory zależne od etapu i premium (App\Support\Rivals::starsMode).
     --}}
     <div class="grid gap-3 sm:grid-cols-2">
         @foreach ([[$home, $away], [$away, $home]] as [$side, $other])
@@ -109,12 +108,7 @@
                 $mirror = $left ? '' : 'flex-row-reverse';
                 $inner = $left ? 'justify-end' : 'justify-start';
                 $tileWidth = 'w-14';
-                // Bot nie odpowiada na pytania (regulamin: boty bez pytań), więc dostaje po 5 szarych gwiazdek.
-                $noAnswers = array_fill(1, 5, 'none');
-                $starSides = [
-                    [__('Offensive bonus'), ($side['stars'][\App\Enums\QuestionSide::Offensive->value] ?? []) ?: $noAnswers, 'offense_bonus'],
-                    [__('Defensive bonus'), ($side['stars'][\App\Enums\QuestionSide::Defensive->value] ?? []) ?: $noAnswers, 'defense_bonus'],
-                ];
+                $bonusSides = [[__('Offensive bonus'), 'offense_bonus'], [__('Defensive bonus'), 'defense_bonus']];
             @endphp
             <div class="space-y-3 rounded-xl border border-lech-200 bg-lech-50/60 p-3 text-sm dark:border-lech-800 dark:bg-lech-950/40" wire:key="side-{{ $loop->index }}">
                 <div class="flex {{ $inner }}">
@@ -160,16 +154,13 @@
                         @endforeach
                     </div>
 
-                    {{-- Bonusy z pytań (premium): gwiazdka na pytanie (szara = bez odpowiedzi, zielona = trafiona, czerwona = błędna) i kafelek z punktami --}}
+                    {{-- Bonusy ataku i obrony (premium): kafelek z punktami --}}
                     @if ($card['premium'])
                         <div class="space-y-2 border-t border-lech-200/70 pt-3 dark:border-lech-800">
-                            @foreach ($starSides as [$bonusLabel, $bonusStars, $bonusField])
+                            @foreach ($bonusSides as [$bonusLabel, $bonusField])
                                 <div class="{{ $mirror }} flex items-center justify-between gap-2">
                                     <span class="{{ $labelClass }}">{{ $bonusLabel }}</span>
-                                    <div class="{{ $mirror }} flex items-center gap-2">
-                                        <x-answer-stars :states="$bonusStars" :mode="$side['stars_mode']" />
-                                        <span class="{{ $tileWidth }} {{ (int) $score->{$bonusField} > 0 ? $siteTile : $mutedTile }}">{{ $score->{$bonusField} }}</span>
-                                    </div>
+                                    <span class="{{ $tileWidth }} {{ (int) $score->{$bonusField} > 0 ? $siteTile : $mutedTile }}">{{ $score->{$bonusField} }}</span>
                                 </div>
                             @endforeach
                         </div>
@@ -246,18 +237,6 @@
                             </div>
                         @endif
                     </dl>
-
-                    {{-- Ryzyko w pytaniach: gwiazdki według etapu i premium --}}
-                    @if ($side['stars'] !== null)
-                        <div class="space-y-2 border-t border-lech-200/70 pt-3 dark:border-lech-800">
-                            @foreach ($starSides as [$bonusLabel, $bonusStars])
-                                <div class="{{ $mirror }} flex items-center justify-between gap-2">
-                                    <span class="{{ $labelClass }}">{{ $bonusLabel }}</span>
-                                    <x-answer-stars :states="$bonusStars" :mode="$side['stars_mode']" />
-                                </div>
-                            @endforeach
-                        </div>
-                    @endif
                 @endif
             </div>
         @endforeach
@@ -265,7 +244,7 @@
 
     @if (!$card['premium'] && $phase !== \App\Support\Rivals::PLAYED)
         <div class="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-purple-50 px-3 py-2 text-sm dark:bg-purple-500/10">
-            <span class="flex items-center gap-2"><x-premium-badge /> {{ __('Premium shows the rival\'s tip and risk before the results.') }}</span>
+            <span class="flex items-center gap-2"><x-premium-badge /> {{ __('Premium shows the rival\'s tip before the results.') }}</span>
             <flux:link :href="route('support')" wire:navigate>{{ __('From 5 zł a week') }}</flux:link>
         </div>
     @endif

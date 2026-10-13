@@ -7,8 +7,6 @@ use App\Actions\Seasons\AwardHallOfFame;
 use App\Enums\MatchdayStatus;
 use App\Enums\SeasonStatus;
 use App\Models\Matchday;
-use App\Models\MatchdayQuestion;
-use App\Models\TipAnswer;
 use App\Support\Audit;
 use App\Support\LegendsLeague;
 use App\Support\SystemFeed;
@@ -17,37 +15,30 @@ use DomainException;
 use Illuminate\Support\Facades\DB;
 
 /**
- * Admin wpisuje wynik meczu Lecha (po 90 minutach, Lech : rywal) i poprawne odpowiedzi na pytania kolejki
- * (regulamin, punkt 11). Wynik i każda odpowiedź zapisują się od razu (saveScore, saveAnswer), a przeliczenie
+ * Admin wpisuje wynik meczu Lecha (po 90 minutach, Lech : rywal, regulamin, punkt 11). Wynik zapisuje się
+ * od razu (saveScore), a przeliczenie
  * (recalculate) ustawia kolejkę na „rozegrana” i liczy punkty. Kolejka już przeliczona przelicza się
  * od nowa po każdej zmianie (robi to strona wyników).
  *
  * Zasady:
  *  - tylko w aktywnym sezonie, po godzinie meczu, dla kolejki nieprzełożonej,
  *  - kolejki po kolei: poprzednia musi mieć wynik (puchar potrzebuje zwycięzców poprzedniej rundy),
- *  - poprawka jest możliwa, dopóki następna kolejka nie ma wyniku,
- *  - pytanie bez poprawnej odpowiedzi w chwili przeliczenia jest anulowane: odpowiedzi wszystkich graczy
- *    na nie są usuwane, jakby nigdy nie padły.
+ *  - poprawka jest możliwa, dopóki następna kolejka nie ma wyniku.
  */
 class SaveMatchdayResult
 {
     public function __construct(private ScoreMatchday $score) {}
 
     /**
-     * Zapis wyniku i odpowiedzi naraz, z przeliczeniem.
+     * Zapis wyniku z przeliczeniem.
      *
-     * @param  array<int|string, mixed>  $correct  matchday_question_id => '1' | '0' | '' (pytanie anulowane)
      * @return array{teams: int, fixtures: int, eliminated: int}
      *
      * @throws DomainException
      */
-    public function handle(Matchday $matchday, mixed $lechGoals, mixed $opponentGoals, array $correct): array
+    public function handle(Matchday $matchday, mixed $lechGoals, mixed $opponentGoals): array
     {
         $this->saveScore($matchday, $lechGoals, $opponentGoals);
-
-        foreach (MatchdayQuestion::where('matchday_id', $matchday->id)->pluck('id') as $slotId) {
-            $this->saveAnswer($matchday, $slotId, $correct[$slotId] ?? null);
-        }
 
         return $this->recalculate($matchday->fresh());
     }
@@ -79,24 +70,7 @@ class SaveMatchdayResult
     }
 
     /**
-     * Poprawna odpowiedź na jedno pytanie (null albo '' = brak, czyli pytanie anulowane przy przeliczeniu).
-     *
-     * @throws DomainException
-     */
-    public function saveAnswer(Matchday $matchday, int $slotId, mixed $value): void
-    {
-        self::ensureEditable($matchday);
-
-        $slot = MatchdayQuestion::where('matchday_id', $matchday->id)->findOrFail($slotId);
-        $answer = TipRules::answer($value);
-
-        if ($slot->correct_answer !== $answer) {
-            $slot->update(['correct_answer' => $answer]);
-        }
-    }
-
-    /**
-     * Przeliczenie kolejki: status „rozegrana”, usunięcie odpowiedzi na pytania anulowane, punkty i mecze.
+     * Przeliczenie kolejki: status „rozegrana”, punkty i mecze.
      *
      * @return array{teams: int, fixtures: int, eliminated: int, swiss: int}
      *
@@ -113,12 +87,6 @@ class SaveMatchdayResult
         return DB::transaction(function () use ($matchday): array {
             $wasPlayed = $matchday->status === MatchdayStatus::Played;
             $matchday->update(['status' => MatchdayStatus::Played]);
-
-            // Pytania anulowane: usuwamy odpowiedzi graczy, nie liczą się do niczego.
-            $cancelled = MatchdayQuestion::where('matchday_id', $matchday->id)->whereNull('correct_answer')->pluck('id');
-            if ($cancelled->isNotEmpty()) {
-                TipAnswer::whereIn('matchday_question_id', $cancelled)->delete();
-            }
 
             $stats = $this->score->handle($matchday->fresh());
 
@@ -149,7 +117,7 @@ class SaveMatchdayResult
                 'matchday.scored',
                 null,
                 ['status' => $wasPlayed ? MatchdayStatus::Played->value : 'pending'],
-                ['result' => $matchday->lech_goals.':'.$matchday->opponent_goals, 'matches' => $stats['fixtures'], 'cancelled_questions' => $cancelled->count()],
+                ['result' => $matchday->lech_goals.':'.$matchday->opponent_goals, 'matches' => $stats['fixtures']],
                 $this->label($matchday),
             );
 

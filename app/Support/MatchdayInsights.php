@@ -2,17 +2,12 @@
 
 namespace App\Support;
 
-use App\Enums\CompetitionType;
-use App\Enums\QuestionSide;
 use App\Models\Matchday;
-use App\Models\MatchdayQuestion;
 use App\Models\Tip;
-use Illuminate\Support\Facades\DB;
 
 /**
- * Okno meczu Lecha na stronie wyników: pytania kolejki z poprawnymi odpowiedziami i ciekawostki o typach graczy.
- * Liczymy tylko typy graczy (bez botów).
- * Przed pierwszym gwizdkiem pytania są ukryte (żeby nie podpowiadać), a statystyki typów pokazujemy tylko premium.
+ * Okno meczu Lecha na stronie wyników i typowanie premium: ciekawostki o typach graczy.
+ * Liczymy tylko typy graczy (bez botów). Statystyki typów pokazujemy tylko premium.
  */
 final class MatchdayInsights
 {
@@ -54,65 +49,6 @@ final class MatchdayInsights
         }
 
         return $out;
-    }
-
-    /**
-     * Pytania kolejki w zestawach (ligi i podwórkowa, puchar, puchary europejskie, Liga Legend), z poprawną odpowiedzią
-     * (null: przed wynikiem albo pytanie anulowane), liczbą odpowiedzi i odsetkiem poprawnych.
-     *
-     * @return array<string, array{label: string, sides: array<string, list<array{text: string, correct: ?bool, answers: int, yes: int, right: ?int}>>}>
-     */
-    public static function questions(Matchday $matchday): array
-    {
-        $slots = MatchdayQuestion::with('question:id,text')->where('matchday_id', $matchday->id)
-            ->orderBy('competition_type')->orderBy('side')->orderBy('position')->get();
-
-        // id miejsca => [liczba odpowiedzi, liczba „tak”].
-        $counts = DB::table('tip_answers')->where('matchday_id', $matchday->id)
-            ->selectRaw('matchday_question_id, count(*) as answers, sum(case when answer then 1 else 0 end) as yes')
-            ->groupBy('matchday_question_id')
-            ->get()
-            ->keyBy('matchday_question_id');
-
-        $out = [];
-        foreach ($slots as $slot) {
-            $type = $slot->competition_type;
-            $row = $counts->get($slot->id);
-            $answers = (int) ($row->answers ?? 0);
-            $yes = (int) ($row->yes ?? 0);
-            $right = $slot->correct_answer === null ? null : ($slot->correct_answer ? $yes : $answers - $yes);
-
-            $out[$type->value] ??= ['label' => $type->questionSetLabel(), 'sides' => [QuestionSide::Offensive->value => [], QuestionSide::Defensive->value => []]];
-            $out[$type->value]['sides'][$slot->side->value][] = [
-                'text' => (string) $slot->question?->getAttribute('text'),
-                'correct' => $slot->correct_answer,
-                'answers' => $answers,
-                'yes' => $yes,
-                'right' => $right === null ? null : self::percent($right, $answers),
-            ];
-        }
-
-        // Kolejność zestawów jak na stronie wyników: ligi, puchar, puchary europejskie, Liga Legend.
-        $order = [CompetitionType::League->value, CompetitionType::Cup->value, CompetitionType::Champions->value, CompetitionType::Legends->value];
-        $rank = fn (string $key): int => ($index = array_search($key, $order, true)) === false ? 99 : (int) $index;
-        uksort($out, fn (string $a, string $b) => $rank($a) <=> $rank($b));
-
-        return $out;
-    }
-
-    /**
-     * Odpowiedzi graczy na pytania kolejki (premium na stronie typowania, także przed pierwszym gwizdkiem).
-     *
-     * @return array<int, array{answers: int, yes: int}> id pytania kolejki => liczba odpowiedzi i „tak”
-     */
-    public static function answerShares(Matchday $matchday): array
-    {
-        return DB::table('tip_answers')->where('matchday_id', $matchday->id)
-            ->selectRaw('matchday_question_id, count(*) as answers, sum(case when answer then 1 else 0 end) as yes')
-            ->groupBy('matchday_question_id')
-            ->get()
-            ->mapWithKeys(fn ($row) => [(int) $row->matchday_question_id => ['answers' => (int) $row->answers, 'yes' => (int) $row->yes]])
-            ->all();
     }
 
     /** Procent zaokrąglony do całości, null przy braku danych. */

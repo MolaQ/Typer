@@ -60,7 +60,7 @@ final class Standings
 
         $scores = TeamScore::whereIn('matchday_id', $matchdayIds->values())
             ->whereIn('season_team_id', $teamOfEntry->values())
-            ->where('question_set', $competition->type->questionSet()->value)
+            ->where('score_set', $competition->type->scoreSet()->value)
             ->get()
             ->groupBy(fn ($s) => $s->matchday_id.'-'.$s->season_team_id);
 

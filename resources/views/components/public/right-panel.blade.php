@@ -1,5 +1,5 @@
 <div class="space-y-4">
-    {{-- Strona wyników: mecz Lecha wybranej kolejki na samej górze (okno z pytaniami i szczegółami). --}}
+    {{-- Strona wyników: mecz Lecha wybranej kolejki na samej górze (okno ze szczegółami typów). --}}
     @if (request()->routeIs('results'))
         <livewire:pages::home.lech-match-panel />
     @endif

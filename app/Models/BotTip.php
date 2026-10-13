@@ -6,7 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**
- * Losowy typ bota na kolejkę (0-3 : 0-3, z perspektywy Lecha). Boty nie odpowiadają na pytania.
+ * Losowy typ bota na kolejkę (0-3 : 0-3, z perspektywy Lecha).
  *
  * @property int $matchday_id
  * @property int $season_team_id

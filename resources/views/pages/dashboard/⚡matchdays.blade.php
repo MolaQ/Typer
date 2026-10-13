@@ -103,10 +103,9 @@ new class extends Component {
     }
 
     /**
-     * Postęp kolejek do kart (mecz, pytania, typy, wynik): liczba pytań i typów każdej kolejki
-     * oraz liczba pytań potrzebnych na komplet zestawów (typy rozgrywek sezonu x 2 strony x 5).
+     * Postęp kolejek do kart (mecz, typy, wynik): liczba typów każdej kolejki.
      *
-     * @return array{needed: int, questions: array<int, int>, tips: array<int, int>}
+     * @return array{tips: array<int, int>}
      */
     #[Computed]
     public function progress(): array
@@ -114,35 +113,8 @@ new class extends Component {
         $ids = $this->matchdays->pluck('id');
 
         return [
-            'needed' => $this->season ? count(\App\Actions\Questions\DrawQuestions::typesOfSeason($this->season->id)) * \App\Models\MatchdayQuestion::PER_SIDE * 2 : 0,
-            'questions' => \App\Models\MatchdayQuestion::whereIn('matchday_id', $ids)->selectRaw('matchday_id, count(*) as total')->groupBy('matchday_id')->pluck('total', 'matchday_id')->map(fn($n) => (int) $n)->all(),
             'tips' => \App\Models\Tip::whereIn('matchday_id', $ids)->selectRaw('matchday_id, count(*) as total')->groupBy('matchday_id')->pluck('total', 'matchday_id')->map(fn($n) => (int) $n)->all(),
         ];
-    }
-
-    /** Losuje brakujące pytania kolejki prosto z karty (jak na pulpicie). */
-    public function drawQuestions(int $id): void
-    {
-        $this->authorizeAbility(Permission::SeasonEdit);
-
-        $matchday = $this->findMatchday($id);
-
-        if (!$matchday->questionsEditable()) {
-            Flux::toast(text: __('The questions of this matchday can no longer be changed.'), variant: 'warning');
-
-            return;
-        }
-
-        try {
-            $filled = app(\App\Actions\Questions\DrawQuestions::class)->handle($matchday);
-        } catch (\DomainException $e) {
-            Flux::toast(text: $e->getMessage(), variant: 'danger');
-
-            return;
-        }
-
-        unset($this->progress);
-        Flux::toast(text: __(':count questions drawn.', ['count' => $filled]), variant: 'success');
     }
 
     /** Liczba uzupełnionych kolejek i najbliższy mecz. */
@@ -518,7 +490,7 @@ new class extends Component {
                 @endif
             </flux:card>
         @else
-            {{-- Karty kolejek: każda prowadzi przez kroki kolejki (mecz, pytania, typowanie, wynik) z szybkimi akcjami --}}
+            {{-- Karty kolejek: każda prowadzi przez kroki kolejki (mecz, typowanie, wynik) z szybkimi akcjami --}}
             @php
                 $progress = $this->progress;
                 $canEdit = auth()->user()->can(\App\Enums\Permission::SeasonEdit->value) && !$this->isLocked;
@@ -529,7 +501,6 @@ new class extends Component {
                         $played = $matchday->status === \App\Enums\MatchdayStatus::Played;
                         $started = $matchday->kickoff_at && now()->gte($matchday->kickoff_at);
                         $hasScore = $matchday->lech_goals !== null && $matchday->opponent_goals !== null;
-                        $questions = $progress['questions'][$matchday->id] ?? 0;
                         $tips = $progress['tips'][$matchday->id] ?? 0;
                         $routeParams = ['season' => $this->season->id, 'matchday' => $matchday->number];
 
@@ -541,11 +512,6 @@ new class extends Component {
                             $matchday->isFilled()
                                 ? $matchday->fixture . ' · ' . $matchday->kickoff_at->format('d.m.Y H:i')
                                 : ($matchday->lech_match_id ? __('Unnamed match: add the opponent and the kickoff.') : __('No match yet.')),
-                        ];
-                        $steps[] = [
-                            $progress['needed'] > 0 && $questions >= $progress['needed'] ? 'done' : ($matchday->isFilled() && !$started ? 'urgent' : 'todo'),
-                            __('Bonus questions'),
-                            __('Questions: :have of :needed', ['have' => $questions, 'needed' => $progress['needed']]),
                         ];
                         $steps[] = [
                             $started || $played ? 'done' : ($matchday->isOpenForTips() ? 'wait' : 'todo'),
@@ -591,14 +557,6 @@ new class extends Component {
                                     {{ $matchday->isFilled() ? __('Edit match') : __('Fill in') }}
                                 </flux:button>
                             @endif
-                            @if ($canEdit && $matchday->isFilled() && $matchday->questionsEditable() && $questions < $progress['needed'])
-                                <flux:button size="sm" variant="primary" icon="sparkles" wire:click="drawQuestions({{ $matchday->id }})">
-                                    {{ __('Draw questions') }}
-                                </flux:button>
-                            @endif
-                            <flux:button size="sm" variant="ghost" icon="clipboard-document-list" :href="route('dashboard.matchday-questions', $routeParams)" wire:navigate>
-                                {{ __('Questions') }}
-                            </flux:button>
                             <flux:button size="sm" variant="ghost" icon="check-badge" :href="route('dashboard.tips', $routeParams)" wire:navigate>
                                 {{ __('Tips') }}
                             </flux:button>

@@ -2,7 +2,6 @@
 
 namespace App\Support;
 
-use App\Actions\Questions\DrawQuestions;
 use App\Enums\CompetitionType;
 use App\Enums\RoleName;
 use App\Enums\SeasonStatus;
@@ -11,8 +10,6 @@ use App\Models\Competition;
 use App\Models\CompetitionEntry;
 use App\Models\Fixture;
 use App\Models\Matchday;
-use App\Models\MatchdayQuestion;
-use App\Models\Question;
 use App\Models\Season;
 use App\Models\SeasonTeam;
 use Spatie\Permission\Models\Role;
@@ -20,7 +17,7 @@ use Spatie\Permission\Models\Role;
 /**
  * Lista "Konieczne do zrobienia": wszystko, co musi być ustawione, żeby sezon działał poprawnie.
  * Każdy punkt to: klucz, tytuł, czy zrobione, szczegół (np. 7/9), trasa do poprawienia
- * i wskazówka. W kolejnych etapach (pytania, typowanie, wyniki...) dopisujemy tu nowe punkty.
+ * i wskazówka. W kolejnych etapach dopisujemy tu nowe punkty.
  */
 class SeasonChecklist
 {
@@ -123,34 +120,6 @@ class SeasonChecklist
             $total >= SeasonTeam::CUP_SIZE,
             $total.' / '.SeasonTeam::CUP_SIZE,
             'dashboard.season-teams',
-            null
-        );
-
-        // --- Pytania ---
-        $perSide = MatchdayQuestion::PER_SIDE;
-        $types = DrawQuestions::typesOfSeason($season->id);
-        // Jeden worek pytań na atak i obronę: w kolejce potrzeba pytań na obie strony wszystkich zestawów.
-        $need = $perSide * 2 * max(1, count($types));
-        $have = Question::query()->drawable()->count();
-        $items[] = self::item(
-            __('Questions'),
-            __('The bank has enough active questions'),
-            $have >= $need,
-            $have.' / '.$need,
-            'dashboard.questions',
-            'php artisan db:seed --class=QuestionsSeeder'
-        );
-
-        $slotsPerMatchday = $perSide * 2 * count($types);
-        $counts = MatchdayQuestion::whereIn('matchday_id', $matchdays->pluck('id'))
-            ->selectRaw('matchday_id, count(*) as c')->groupBy('matchday_id')->pluck('c', 'matchday_id');
-        $full = $matchdays->filter(fn ($m) => (int) ($counts[$m->id] ?? 0) >= $slotsPerMatchday && $slotsPerMatchday > 0)->count();
-        $items[] = self::item(
-            __('Questions'),
-            __('Every matchday has full question sets'),
-            $full >= Matchday::PER_SEASON,
-            $full.' / '.Matchday::PER_SEASON,
-            'dashboard.matchday-questions',
             null
         );
 

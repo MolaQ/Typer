@@ -4,17 +4,15 @@ namespace App\Support;
 
 use App\Actions\Competitions\BuildCompetitions;
 use App\Actions\Competitions\DrawSwissRound;
-use App\Actions\Questions\DrawQuestions;
 use App\Actions\Seasons\BuildListFromPrevious;
 use App\Enums\CompetitionType;
 use App\Enums\MatchdayStatus;
 use App\Enums\RoleName;
 use App\Enums\SeasonStatus;
+use App\Models\BotNameProposal;
 use App\Models\Competition;
 use App\Models\Fixture;
 use App\Models\Matchday;
-use App\Models\MatchdayQuestion;
-use App\Models\QuestionProposal;
 use App\Models\Season;
 use App\Models\SeasonTeam;
 use App\Models\TeamNameChangeRequest;
@@ -22,9 +20,9 @@ use App\Models\User;
 
 /**
  * Powiadomienia admina: wszystko, czego brakuje do prawidłowego działania rozgrywek w tej chwili
- * (pytania kolejki, wynik meczu, przeliczenie, pary Ligi podwórkowej, koniec sezonu), plus sprawy graczy.
+ * (mecz kolejki, wynik meczu, przeliczenie, pary Ligi podwórkowej, koniec sezonu), plus sprawy graczy.
  * Liczone na bieżąco z bazy, więc znikają same, gdy admin coś uzupełni.
- * Część ma akcję wykonywaną od razu z panelu (np. losowanie pytań).
+ * Część ma akcję wykonywaną od razu z panelu (np. miejsce na liście dla nowych graczy).
  */
 final class AdminAlerts
 {
@@ -60,9 +58,9 @@ final class AdminAlerts
             $alerts[] = self::alert(self::INFO, 'identification', trans_choice(':count team name request|:count team name requests', $requests, ['count' => $requests]), __('Approve or reject the new names.'), 'dashboard.team-requests');
         }
 
-        $proposals = QuestionProposal::pending()->count();
+        $proposals = BotNameProposal::pending()->count();
         if ($proposals > 0) {
-            $alerts[] = self::alert(self::INFO, 'light-bulb', trans_choice(':count question proposal waits for review|:count question proposals wait for review', $proposals, ['count' => $proposals]), __('Accept them into the question bank or reject them.'), 'dashboard.question-proposals');
+            $alerts[] = self::alert(self::INFO, 'cpu-chip', trans_choice(':count bot name proposal waits for review|:count bot name proposals wait for review', $proposals, ['count' => $proposals]), __('Give the names to bots or reject them.'), 'dashboard.bot-name-proposals');
         }
 
         $unverified = User::whereNull('email_verified_at')->where('created_at', '<', now()->subDay())->count();
@@ -83,14 +81,11 @@ final class AdminAlerts
         return count(array_filter(self::all(), fn ($a) => $a['level'] !== self::INFO));
     }
 
-    /** Kolejki aktywnego sezonu: mecz, pytania, wynik, przeliczenie, koniec sezonu. */
+    /** Kolejki aktywnego sezonu: mecz, wynik, przeliczenie, koniec sezonu. */
     private static function matchdays(Season $season): array
     {
         $alerts = [];
         $matchdays = Matchday::where('season_id', $season->id)->orderBy('number')->get();
-        $types = DrawQuestions::typesOfSeason($season->id);
-        $needed = count($types) * MatchdayQuestion::PER_SIDE * 2;
-        $slots = MatchdayQuestion::whereIn('matchday_id', $matchdays->pluck('id'))->selectRaw('matchday_id, count(*) as total')->groupBy('matchday_id')->pluck('total', 'matchday_id');
 
         foreach ($matchdays as $matchday) {
             $label = __('Matchday :number', ['number' => $matchday->number]);
@@ -106,20 +101,6 @@ final class AdminAlerts
                 continue;
             }
 
-            // Mecz dodany, a zestawy pytań niepełne: trzeba je dodać przed pierwszym gwizdkiem.
-            $have = (int) ($slots[$matchday->id] ?? 0);
-            if ($matchday->questionsEditable() && $have < $needed) {
-                $alerts[] = self::alert(
-                    self::DANGER,
-                    'question-mark-circle',
-                    __(':matchday (:fixture): add the bonus questions', ['matchday' => $label, 'fixture' => $matchday->fixture]),
-                    __('Questions: :have of :needed. Drawing gives Liga Legend the questions with the fewest correct answers.', ['have' => $have, 'needed' => $needed]),
-                    'dashboard.matchday-questions',
-                    ['season' => $season->id, 'matchday' => $matchday->number],
-                    ['method' => 'drawQuestions', 'arg' => $matchday->id, 'label' => __('Draw questions')],
-                );
-            }
-
             if ($started && ! $played && $matchday->status !== MatchdayStatus::Postponed) {
                 $hasScore = $matchday->lech_goals !== null && $matchday->opponent_goals !== null;
                 $alerts[] = self::alert(
@@ -127,7 +108,7 @@ final class AdminAlerts
                     'flag',
                     $hasScore
                         ? __(':matchday: recalculate the results', ['matchday' => $label])
-                        : __(':matchday: enter the result and the correct answers', ['matchday' => $label]),
+                        : __(':matchday: enter the result', ['matchday' => $label]),
                     $hasScore ? __('The score is saved, but the points are not counted yet.') : __('The match has started, the players are waiting for points.'),
                     'dashboard.results',
                     ['season' => $season->id, 'matchday' => $matchday->number],
@@ -211,7 +192,7 @@ final class AdminAlerts
                 self::WARNING,
                 'play',
                 __(':season: activate the season', ['season' => $upcoming->title]),
-                __('Draw the questions of the first matchday, then activate the season so players can tip.'),
+                __('Activate the season so players can tip.'),
                 'dashboard.seasons',
             );
         }

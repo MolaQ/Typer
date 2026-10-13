@@ -3,17 +3,14 @@
 namespace App\Actions\Results;
 
 use App\Enums\CompetitionType;
-use App\Enums\QuestionSide;
 use App\Models\BotTip;
 use App\Models\Competition;
 use App\Models\CompetitionEntry;
 use App\Models\Fixture;
 use App\Models\Matchday;
-use App\Models\MatchdayQuestion;
 use App\Models\SeasonTeam;
 use App\Models\TeamScore;
 use App\Models\Tip;
-use App\Models\TipAnswer;
 use App\Support\EuropeanCup;
 use App\Support\LegendsLeague;
 use App\Support\Scoring;
@@ -21,18 +18,19 @@ use DomainException;
 use Illuminate\Support\Facades\DB;
 
 /**
- * Przelicza kolejkę po wpisaniu wyniku meczu Lecha i poprawnych odpowiedzi (regulamin, punkty 3, 6, 7, 8):
+ * Przelicza kolejkę po wpisaniu wyniku meczu Lecha (regulamin, punkty 3, 6, 7, 8):
  *  1. boty dostają losowy typ 0-3 : 0-3 (raz, potem zostaje zapisany),
- *  2. każdy zespół dostaje dorobek (team_scores) dla każdego zestawu pytań swoich rozgrywek,
+ *  2. każdy zespół dostaje dorobek (team_scores) dla każdego typu swoich rozgrywek (score_set),
  *  3. mecze tej kolejki we wszystkich rozgrywkach dostają wynik,
  *  4. w pucharze (i w fazie pucharowej pucharów europejskich) zwycięzca wchodzi na lepsze miejsce pary
  *     w meczu następnej rundy, a remis rozstrzyga wcześniej zapisany typ (mniejszy numer zapisu),
  *  5. w Lidze Legend odpadają zespoły z dwiema porażkami w tej kolejce (LegendsLeague),
  *  6. po ostatniej kolejce grupowej pucharów europejskich powstaje drabinka 1/8 finału (EuropeanCup::drawKnockout),
  *  7. kto odpadł z pucharu, pucharu europejskiego albo Ligi Legend, nie dostaje dorobku w zestawie tych rozgrywek
- *     w kolejnych kolejkach. Jego odpowiedzi zostają w bazie (statystyka pytań), ale nie liczą się do niczego:
- *     czy się liczą, wynika zawsze z eliminated_round, więc przeliczenie kolejki, które zmieni awans, zmienia też to.
- *     Złota Piłka i Złote Rękawice liczą się z team_scores, więc też ich nie widzą.
+ *     w kolejnych kolejkach. Czy gra, wynika zawsze z eliminated_round, więc przeliczenie kolejki,
+ *     które zmieni awans, zmienia też to. Złota Piłka i Złote Rękawice liczą się z team_scores, więc też tego nie widzą.
+ * Bonusy ataku i obrony (offense_bonus, defense_bonus) na razie są zerowe: pytania usunięto, punkty
+ * desygnowanych zawodników (gole, asysty, czyste konto) dojdą w tym miejscu.
  * Można wywołać wielokrotnie: przeliczenie nadpisuje poprzednie wyniki tej kolejki.
  * Runda rozgrywek = numer kolejki.
  */
@@ -56,7 +54,7 @@ class ScoreMatchday
 
             // Kto grał miejscem w tej kolejce. Przy ponownym przeliczeniu zostaje właściciel z pierwszego rozliczenia
             // (gracz, który wskoczył za bota później, nie przejmuje tej kolejki), App\Support\Ownership.
-            // Typ i odpowiedzi też bierzemy od tamtego właściciela (tylko w pamięci, bez zapisu miejsca).
+            // Typ też bierzemy od tamtego właściciela (tylko w pamięci, bez zapisu miejsca).
             $owners = TeamScore::where('matchday_id', $matchday->id)->get(['season_team_id', 'user_id', 'bot_id'])->keyBy('season_team_id');
             foreach ($teams as $team) {
                 if ($owner = $owners->get($team->id)) {
@@ -65,7 +63,7 @@ class ScoreMatchday
                 }
             }
 
-            // Rozgrywki sezonu i to, w których zestawach pytań gra każdy zespół.
+            // Rozgrywki sezonu i to, w których typach rozgrywek (score_set) gra każdy zespół.
             $competitions = Competition::where('season_id', $matchday->season_id)->get()->keyBy('id');
             // Puchary i Liga Legend: przeliczenie kolejki cofa odpadnięcia z tej kolejki (liczymy je od nowa niżej).
             $legends = $competitions->first(fn ($c) => $c->type === CompetitionType::Legends);
@@ -84,24 +82,12 @@ class ScoreMatchday
                     continue; // odpadł z Ligi Legend we wcześniejszej kolejce
                 }
 
-                $set = $competitions[$entry->competition_id]->type->questionSet()->value;
+                $set = $competitions[$entry->competition_id]->type->scoreSet()->value;
                 $setsOfTeam[$entry->season_team_id][$set] = true;
             }
 
             $botTips = $this->botTips($matchday, $teams->whereNull('user_id')->pluck('id')->all());
             $humanTips = Tip::where('matchday_id', $matchday->id)->get()->keyBy('user_id');
-
-            // Odpowiedzi graczy: user_id => [id miejsca => odpowiedź].
-            $answers = [];
-            foreach (TipAnswer::where('matchday_id', $matchday->id)->get(['user_id', 'matchday_question_id', 'answer']) as $row) {
-                $answers[$row->user_id][$row->matchday_question_id] = (bool) $row->answer;
-            }
-
-            // Poprawne odpowiedzi: zestaw => strona => [id miejsca => odpowiedź].
-            $correct = [];
-            foreach (MatchdayQuestion::where('matchday_id', $matchday->id)->get() as $slot) {
-                $correct[$slot->competition_type->value][$slot->side->value][$slot->id] = $slot->correct_answer;
-            }
 
             // --- Dorobek zespołów ---
             $scores = [];
@@ -119,17 +105,16 @@ class ScoreMatchday
                 $tipOrder = $tip instanceof Tip ? $tip->save_order : null;
 
                 foreach (array_keys($setsOfTeam[$team->id] ?? []) as $set) {
-                    // Boty i gracze bez typu nie dostają punktów z pytań.
-                    $playerAnswers = $tip instanceof Tip ? ($answers[$team->user_id] ?? []) : [];
-                    $offense = Scoring::set($playerAnswers, $correct[$set][QuestionSide::Offensive->value] ?? []);
-                    $defense = Scoring::set($playerAnswers, $correct[$set][QuestionSide::Defensive->value] ?? []);
+                    // Atak i obrona zawodników: na razie 0 (desygnowanie zawodników w przygotowaniu).
+                    $offense = 0;
+                    $defense = 0;
 
                     $row = [
                         'matchday_id' => $matchday->id,
                         'season_team_id' => $team->id,
                         'user_id' => $team->user_id,
                         'bot_id' => $team->bot_id,
-                        'question_set' => $set,
+                        'score_set' => $set,
                         'has_tip' => $tip !== null,
                         'tip_lech' => $tip?->lech_goals,
                         'tip_opponent' => $tip?->opponent_goals,
@@ -139,11 +124,9 @@ class ScoreMatchday
                         'outcome_hit' => $tipResult['outcome'],
                         'diff_hit' => $tipResult['diff'],
                         'exact_hit' => $tipResult['exact'],
-                        'offense_bonus' => $offense['points'],
-                        'defense_bonus' => $defense['points'],
-                        'offense_zeroed' => $offense['zeroed'],
-                        'defense_zeroed' => $defense['zeroed'],
-                        'offense' => $tipResult['points'] + $offense['points'],
+                        'offense_bonus' => $offense,
+                        'defense_bonus' => $defense,
+                        'offense' => $tipResult['points'] + $offense,
                         'created_at' => $now,
                         'updated_at' => $now,
                     ];
@@ -168,7 +151,7 @@ class ScoreMatchday
 
             foreach ($fixtures as $fixture) {
                 $competition = $competitions[$fixture->competition_id];
-                $set = $competition->type->questionSet()->value;
+                $set = $competition->type->scoreSet()->value;
                 $home = $scores[$entries[$fixture->home_entry_id]->season_team_id][$set] ?? null;
 
                 if ($fixture->isBye()) {
