@@ -35,7 +35,7 @@ class QuestionTemplatesSeeder extends Seeder
         }
 
         $result = QuestionTemplates::sync();
-        $this->command?->info("Szablony pytań: {$result['created']} pytań o zawodników.");
+        $this->command->info("Szablony pytań: {$result['created']} pytań o zawodników.");
     }
 
     /** @return array<int, array{0: string, 1: string, 2: array<int, PlayerPosition>}> treść, klucz kategorii, pozycje (puste = wszystkie) */

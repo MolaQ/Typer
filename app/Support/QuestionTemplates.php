@@ -3,6 +3,7 @@
 namespace App\Support;
 
 use App\Enums\PlayerStatus;
+use App\Enums\QuestionData;
 use App\Enums\QuestionSubject;
 use App\Models\LechPlayer;
 use App\Models\Question;
@@ -43,7 +44,7 @@ final class QuestionTemplates
 
                     if (! $question) {
                         if ($auto) {
-                            self::create($template, $player, true, $result);
+                            self::count($result, self::create($template, $player, true));
                         }
 
                         continue;
@@ -88,7 +89,7 @@ final class QuestionTemplates
                     $question->update(['is_active' => true, 'is_auto' => false]);
                     $result['updated']++;
                 } else {
-                    self::create($template, $player, false, $result);
+                    self::count($result, self::create($template, $player, false));
                 }
             }
         });
@@ -123,15 +124,29 @@ final class QuestionTemplates
         });
     }
 
-    /** @param array{created: int, updated: int, skipped: array<int, string>} $result */
-    private static function create(QuestionTemplate $template, LechPlayer $player, bool $auto, array &$result): void
+    /**
+     * Dolicza nowe pytanie albo pominiętą treść.
+     *
+     * @param  array{created: int, updated: int, skipped: array<int, string>}  $result
+     *
+     * @param-out array{created: int, updated: int, skipped: array<int, string>} $result
+     */
+    private static function count(array &$result, ?string $skipped): void
+    {
+        if ($skipped === null) {
+            $result['created']++;
+        } else {
+            $result['skipped'][] = $skipped;
+        }
+    }
+
+    /** Tworzy pytanie z szablonu dla zawodnika. Zwraca treść, gdy jest już zajęta przez inne pytanie (wtedy nic nie tworzy). */
+    private static function create(QuestionTemplate $template, LechPlayer $player, bool $auto): ?string
     {
         $attributes = self::attributes($template, $player);
 
         if (self::textTaken($attributes['text'])) {
-            $result['skipped'][] = $attributes['text'];
-
-            return;
+            return $attributes['text'];
         }
 
         Question::create($attributes + [
@@ -140,10 +155,11 @@ final class QuestionTemplates
             'is_auto' => $auto,
             'is_active' => true,
         ]);
-        $result['created']++;
+
+        return null;
     }
 
-    /** @return array<string, mixed> pola pytania przepisywane z szablonu */
+    /** @return array{text: string, category_id: int|null, subject: QuestionSubject, match_types: array<int, string>|null, weights: array<int, string>|null, data_level: QuestionData} pola pytania przepisywane z szablonu */
     private static function attributes(QuestionTemplate $template, LechPlayer $player): array
     {
         return [
