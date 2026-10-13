@@ -113,7 +113,7 @@
 
             @if ($canSeasons || $canNews)
                 <flux:sidebar.group expandable
-                    :expanded="request()->routeIs('dashboard.news', 'dashboard.questions', 'dashboard.question-proposals')"
+                    :expanded="request()->routeIs('dashboard.news', 'dashboard.questions', 'dashboard.question-proposals', 'dashboard.lech-squad', 'dashboard.question-templates')"
                     :heading="__('Site content')" class="grid">
                     @if ($canNews)
                         <flux:sidebar.item icon="newspaper" :href="route('dashboard.news')"
@@ -125,6 +125,14 @@
                         <flux:sidebar.item icon="question-mark-circle" :href="route('dashboard.questions')"
                             :current="request()->routeIs('dashboard.questions')" wire:navigate>
                             {{ __('Question bank') }}
+                        </flux:sidebar.item>
+                        <flux:sidebar.item icon="users" :href="route('dashboard.lech-squad')"
+                            :current="request()->routeIs('dashboard.lech-squad')" wire:navigate>
+                            {{ __('Lech squad') }}
+                        </flux:sidebar.item>
+                        <flux:sidebar.item icon="document-duplicate" :href="route('dashboard.question-templates')"
+                            :current="request()->routeIs('dashboard.question-templates')" wire:navigate>
+                            {{ __('Question templates') }}
                         </flux:sidebar.item>
                         <flux:sidebar.item icon="light-bulb" :href="route('dashboard.question-proposals')"
                             :current="request()->routeIs('dashboard.question-proposals')"

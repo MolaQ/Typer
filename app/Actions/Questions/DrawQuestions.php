@@ -27,6 +27,9 @@ class DrawQuestions
     /** Zestawy z najtrudniejszymi pytaniami: Liga Legend i puchary europejskie (na równi). */
     private const HARD = [CompetitionType::Legends, CompetitionType::Champions];
 
+    /** Najwięcej pytań o zawodników na stronę zestawu (atak, obrona). */
+    public const PLAYERS_PER_SIDE = 1;
+
     /**
      * @param  CompetitionType|null  $type  jeden typ rozgrywek albo null = wszystkie typy sezonu
      * @return int liczba uzupełnionych miejsc
@@ -68,7 +71,17 @@ class DrawQuestions
                     }
 
                     // Jeden worek: pytanie nie ma strony, trafia do ataku albo obrony zależnie od wolnego miejsca.
-                    $pool = Question::where('is_active', true)->pluck('id')->all();
+                    // Pytania o zawodników wyłączonych z losowania odpadają (Question::scopeDrawable).
+                    $pool = Question::query()->drawable()->pluck('lech_player_id', 'id');
+                    $playerQuestions = array_keys(array_filter($pool->all(), fn ($playerId) => $playerId !== null));
+                    $pool = $pool->keys()->all();
+
+                    // Najwyżej jedno pytanie o zawodnika na stronę zestawu (ustalenie P9), licząc miejsca ustawione ręcznie.
+                    $playerLimit = self::PLAYERS_PER_SIDE - MatchdayQuestion::where('matchday_id', $matchday->id)
+                        ->where('competition_type', $competitionType->value)
+                        ->where('side', $side->value)
+                        ->whereIn('question_id', $playerQuestions)
+                        ->count();
                     $picked = [];
 
                     // Liga Legend i puchary europejskie: najpierw losujemy spośród najtrudniejszych pytań (najmniej
@@ -77,10 +90,11 @@ class DrawQuestions
                     if (in_array($competitionType, self::HARD, true)) {
                         $hard = QuestionDifficulty::hardest(MatchdayQuestion::PER_SIDE * 2 * count(self::HARD) * 2)
                             ->map(fn ($row) => $row['question']->id)->all();
-                        $picked = QuestionPicker::pick($hard, $used, count($missing));
+                        $picked = QuestionPicker::pick(array_intersect($hard, $pool), $used, count($missing), $playerQuestions, $playerLimit);
+                        $playerLimit -= count(array_intersect($picked, $playerQuestions));
                     }
 
-                    $picked = array_merge($picked, QuestionPicker::pick($pool, array_merge($used, $picked), count($missing) - count($picked)));
+                    $picked = array_merge($picked, QuestionPicker::pick($pool, array_merge($used, $picked), count($missing) - count($picked), $playerQuestions, $playerLimit));
 
                     if (count($picked) < count($missing)) {
                         throw new DomainException(__('Not enough questions in the bank. Add more active questions.'));

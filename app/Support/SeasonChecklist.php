@@ -131,7 +131,7 @@ class SeasonChecklist
         $types = DrawQuestions::typesOfSeason($season->id);
         // Jeden worek pytań na atak i obronę: w kolejce potrzeba pytań na obie strony wszystkich zestawów.
         $need = $perSide * 2 * max(1, count($types));
-        $have = Question::where('is_active', true)->count();
+        $have = Question::query()->drawable()->count();
         $items[] = self::item(
             __('Questions'),
             __('The bank has enough active questions'),

@@ -17,3 +17,9 @@ it('returns fewer ids when the pool is too small', function () {
     expect(QuestionPicker::pick([1, 2], [1, 2], 5))->toBe([]);
     expect(QuestionPicker::pick([1, 2], [], 0))->toBe([]);
 });
+
+it('picks at most the limit of limited ids', function () {
+    $r = QuestionPicker::pick(range(1, 20), [], 10, range(1, 15), 1);
+    expect($r)->toHaveCount(6)->and(array_intersect($r, range(1, 15)))->toHaveCount(1);
+    expect(QuestionPicker::pick([1, 2, 3], [], 3, [1, 2, 3], 0))->toBe([]);
+});

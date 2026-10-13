@@ -65,6 +65,12 @@ Route::middleware(['auth', 'verified', 'permission:'.Permission::DashboardAccess
     Route::livewire('dashboard/questions', 'pages::dashboard.questions')
         ->middleware('permission:season-list')
         ->name('dashboard.questions');
+    Route::livewire('dashboard/lech-squad', 'pages::dashboard.lech-squad')
+        ->middleware('permission:season-list')
+        ->name('dashboard.lech-squad');
+    Route::livewire('dashboard/question-templates', 'pages::dashboard.question-templates')
+        ->middleware('permission:season-list')
+        ->name('dashboard.question-templates');
     Route::livewire('dashboard/question-proposals', 'pages::dashboard.question-proposals')
         ->middleware('permission:season-list')
         ->name('dashboard.question-proposals');

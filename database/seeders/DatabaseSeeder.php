@@ -21,6 +21,8 @@ class DatabaseSeeder extends Seeder
             CreateAdminUserSeeder::class,
             BotsSeeder::class,
             QuestionsSeeder::class,
+            LechSquadSeeder::class, // kadra Lecha (do sprawdzenia w panelu)
+            QuestionTemplatesSeeder::class, // szablony pytań o zawodników i pytania dla grających regularnie
             TrophyIconsSeeder::class,
             // PlayersSeeder::class,
             // DemoSeasonSeeder::class, // sezon testowy: kolejka 1 za 10 minut, rozgrywki i terminarze

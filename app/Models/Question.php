@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\MatchWeight;
+use App\Enums\PlayerStatus;
 use App\Enums\QuestionData;
 use App\Enums\QuestionMatchType;
 use App\Enums\QuestionSubject;
@@ -15,11 +16,15 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 /**
  * Pytanie z banku (odpowiedź tak/nie). Bank pytań 2.0: kategoria (w zestawie najwyżej jedno pytanie z kategorii),
  * czego dotyczy, rodzaje meczów Lecha i wagi meczów, do których pasuje, oraz wymagane dane (podstawowe albo statystyki).
- * Losowanie bierze tylko aktywne pytania.
+ * Losowanie bierze tylko aktywne pytania i pomija pytania o zawodników wyłączonych z losowania.
+ * Pytanie o zawodnika może pochodzić z szablonu (QuestionTemplate): is_auto = utworzone automatycznie dla grającego regularnie.
  *
  * @property int $id
  * @property string $text
  * @property int|null $category_id
+ * @property int|null $question_template_id
+ * @property int|null $lech_player_id
+ * @property bool $is_auto
  * @property QuestionSubject $subject
  * @property array<int, string>|null $match_types wartości QuestionMatchType
  * @property array<int, string>|null $weights wartości MatchWeight
@@ -28,7 +33,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  */
 class Question extends Model
 {
-    protected $fillable = ['text', 'category_id', 'subject', 'match_types', 'weights', 'data_level', 'is_active'];
+    protected $fillable = ['text', 'category_id', 'question_template_id', 'lech_player_id', 'is_auto', 'subject', 'match_types', 'weights', 'data_level', 'is_active'];
 
     protected $attributes = ['is_active' => true, 'subject' => 'lech', 'data_level' => 'basic'];
 
@@ -40,6 +45,7 @@ class Question extends Model
             'match_types' => 'array',
             'weights' => 'array',
             'is_active' => 'boolean',
+            'is_auto' => 'boolean',
         ];
     }
 
@@ -80,6 +86,30 @@ class Question extends Model
     public function category(): BelongsTo
     {
         return $this->belongsTo(QuestionCategory::class, 'category_id');
+    }
+
+    /** @return BelongsTo<QuestionTemplate, $this> */
+    public function template(): BelongsTo
+    {
+        return $this->belongsTo(QuestionTemplate::class, 'question_template_id');
+    }
+
+    /** @return BelongsTo<LechPlayer, $this> */
+    public function lechPlayer(): BelongsTo
+    {
+        return $this->belongsTo(LechPlayer::class);
+    }
+
+    /**
+     * Pytania do losowania: aktywne i bez zawodników wyłączonych z losowania.
+     *
+     * @param  Builder<Question>  $query
+     */
+    public function scopeDrawable(Builder $query): void
+    {
+        $query->where('is_active', true)
+            ->where(fn ($q) => $q->whereNull('lech_player_id')
+                ->orWhereIn('lech_player_id', LechPlayer::where('status', '!=', PlayerStatus::Excluded->value)->select('id')));
     }
 
     /**
