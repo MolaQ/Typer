@@ -733,9 +733,7 @@ new #[Layout('layouts::public')] class extends Component {
                 @endif
 
                 <div class="text-center">
-                    @if ($this->tip && $this->tip->is_default)
-                        <flux:text size="sm">{{ __('Your premium default tip was used: :score.', ['score' => $this->tip->score()]) }}</flux:text>
-                    @elseif ($this->tip)
+                    @if ($this->tip)
                         <flux:text size="sm">
                             {{ __('Saved tip: :score, last change :time.', ['score' => $this->tip->score(), 'time' => $this->tip->saved_at->translatedFormat('j F, H:i:s')]) }}
                         </flux:text>

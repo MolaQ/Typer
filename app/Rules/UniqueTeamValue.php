@@ -7,6 +7,9 @@ use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
 
+/**
+ * Reguła walidacji: nazwa zespołu wolna wśród graczy i botów (bez względu na wielkość liter).
+ */
 class UniqueTeamValue implements ValidationRule
 {
     private const COLUMNS = ['team_name'];

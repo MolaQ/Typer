@@ -5,6 +5,9 @@ namespace App\Http\Responses;
 use Illuminate\Http\JsonResponse;
 use Laravel\Fortify\Contracts\LoginResponse as LoginResponseContract;
 
+/**
+ * Odpowiedź po zalogowaniu: zawsze strona główna, bez powrotu do adresu sprzed logowania.
+ */
 class LoginResponse implements LoginResponseContract
 {
     public function toResponse($request)

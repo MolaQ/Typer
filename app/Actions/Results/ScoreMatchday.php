@@ -16,14 +16,13 @@ use App\Models\Tip;
 use App\Models\TipAnswer;
 use App\Support\EuropeanCup;
 use App\Support\LegendsLeague;
-use App\Support\Premium;
 use App\Support\Scoring;
 use DomainException;
 use Illuminate\Support\Facades\DB;
 
 /**
  * Przelicza kolejkę po wpisaniu wyniku meczu Lecha i poprawnych odpowiedzi (regulamin, punkty 3, 6, 7, 8):
- *  1. boty dostają losowy typ 0-3 : 0-3 (raz, potem zostaje zapisany), a gracze premium bez typu swój domyślny typ,
+ *  1. boty dostają losowy typ 0-3 : 0-3 (raz, potem zostaje zapisany),
  *  2. każdy zespół dostaje dorobek (team_scores) dla każdego zestawu pytań swoich rozgrywek,
  *  3. mecze tej kolejki we wszystkich rozgrywkach dostają wynik,
  *  4. w pucharze (i w fazie pucharowej pucharów europejskich) zwycięzca wchodzi na lepsze miejsce pary
@@ -117,7 +116,7 @@ class ScoreMatchday
 
                 // Bot i brak typu: czas typu = godzina meczu, bez numeru zapisu (za wszystkimi typami ludzi).
                 $tippedAt = $tip instanceof Tip ? $tip->saved_at->format('Y-m-d H:i:s.u') : $kickoff;
-                $tipOrder = $tip instanceof Tip && ! $tip->is_default ? $tip->save_order : null;
+                $tipOrder = $tip instanceof Tip ? $tip->save_order : null;
 
                 foreach (array_keys($setsOfTeam[$team->id] ?? []) as $set) {
                     // Boty i gracze bez typu nie dostają punktów z pytań.

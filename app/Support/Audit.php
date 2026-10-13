@@ -5,6 +5,9 @@ namespace App\Support;
 use App\Models\AuditLog;
 use App\Models\User;
 
+/**
+ * Dziennik zmian w panelu admina: zapis zdarzeń (log) oraz etykiety i kolory rodzajów zdarzeń do widoku.
+ */
 class Audit
 {
     /**

@@ -4,12 +4,15 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
+/**
+ * Informacje systemowe (publiczny dziennik zdarzeń gry, strona /system) oraz newsy z ocenami.
+ */
 return new class extends Migration
 {
     public function up(): void
     {
-        // Informacje systemowe (publiczny dziennik zdarzeń gry): treść jako klucz tłumaczenia + parametry,
-        // link jako nazwa trasy + parametry (adres liczy się przy wyświetlaniu, więc działa też w podkatalogu XAMPP).
+        // Wpis zapisuje App\Support\SystemFeed::record(). Treść jako klucz tłumaczenia + parametry, link jako nazwa
+        // trasy + parametry (adres liczy się przy wyświetlaniu, więc działa też w podkatalogu XAMPP).
         Schema::create('system_events', function (Blueprint $table) {
             $table->id();
             $table->string('category', 30)->index();
@@ -17,17 +20,20 @@ return new class extends Migration
             $table->json('params')->nullable();
             $table->string('route', 100)->nullable();
             $table->json('route_params')->nullable();
-            $table->foreignId('user_id')->nullable()->constrained()->nullOnDelete(); // gracz, którego dotyczy wpis
+            // Gracz, którego dotyczy wpis.
+            $table->foreignId('user_id')->nullable()->constrained()->nullOnDelete();
             $table->timestamp('created_at')->nullable()->index();
         });
 
         // Newsy pisane w panelu (uprawnienie news-create).
         Schema::create('news', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('user_id')->nullable()->constrained()->nullOnDelete(); // autor
+            // Autor.
+            $table->foreignId('user_id')->nullable()->constrained()->nullOnDelete();
             $table->string('title', 150);
             $table->text('body');
-            $table->timestamp('published_at')->nullable()->index(); // null = szkic
+            // null = szkic.
+            $table->timestamp('published_at')->nullable()->index();
             $table->timestamps();
         });
 

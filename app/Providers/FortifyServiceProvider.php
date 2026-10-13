@@ -13,6 +13,9 @@ use Illuminate\Support\Str;
 use Laravel\Fortify\Contracts\LoginResponse as LoginResponseContract;
 use Laravel\Fortify\Fortify;
 
+/**
+ * Logowanie i rejestracja (Laravel Fortify): akcje, widoki stron logowania i limity prób.
+ */
 class FortifyServiceProvider extends ServiceProvider
 {
     /**

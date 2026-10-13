@@ -11,7 +11,7 @@ use Illuminate\Support\Facades\DB;
 
 /**
  * Okno meczu Lecha na stronie wyników: pytania kolejki z poprawnymi odpowiedziami i ciekawostki o typach graczy.
- * Liczymy tylko typy wpisane przez graczy (bez domyślnych typów premium i bez botów).
+ * Liczymy tylko typy graczy (bez botów).
  * Przed pierwszym gwizdkiem pytania są ukryte (żeby nie podpowiadać), a statystyki typów pokazujemy tylko premium.
  */
 final class MatchdayInsights
@@ -24,7 +24,7 @@ final class MatchdayInsights
      */
     public static function tips(Matchday $matchday): array
     {
-        $tips = Tip::where('matchday_id', $matchday->id)->where('is_default', false)->get(['lech_goals', 'opponent_goals']);
+        $tips = Tip::where('matchday_id', $matchday->id)->get(['lech_goals', 'opponent_goals']);
         $count = $tips->count();
         $played = $matchday->lech_goals !== null && $matchday->opponent_goals !== null;
 

@@ -64,7 +64,7 @@ class TestTipSeeder extends Seeder
 
                     Tip::updateOrCreate(
                         ['matchday_id' => $matchday->id, 'user_id' => $user->id],
-                        ['lech_goals' => random_int(0, 3), 'opponent_goals' => random_int(0, 3), 'is_default' => false, 'saved_at' => $savedAt],
+                        ['lech_goals' => random_int(0, 3), 'opponent_goals' => random_int(0, 3), 'saved_at' => $savedAt],
                     );
 
                     TipAnswer::where('matchday_id', $matchday->id)->where('user_id', $user->id)->delete();

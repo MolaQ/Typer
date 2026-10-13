@@ -10,6 +10,9 @@ use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Password;
 use Laravel\Fortify\Contracts\CreatesNewUsers;
 
+/**
+ * Rejestracja nowego konta (Fortify): walidacja, nazwa zespołu i zapis użytkownika.
+ */
 class CreateNewUser implements CreatesNewUsers
 {
     /**

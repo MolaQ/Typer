@@ -7,6 +7,9 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
+/**
+ * Wniosek gracza o zmianę nazwy zespołu, zatwierdzany przez admina w panelu (dashboard/team-requests).
+ */
 class TeamNameChangeRequest extends Model
 {
     protected $fillable = [

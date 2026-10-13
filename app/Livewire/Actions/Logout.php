@@ -7,6 +7,9 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Session;
 use Livewire\Features\SupportRedirects\Redirector;
 
+/**
+ * Wylogowanie: kończy sesję i unieważnia token.
+ */
 class Logout
 {
     /**

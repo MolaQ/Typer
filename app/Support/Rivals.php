@@ -278,7 +278,7 @@ final class Rivals
                 if ($tip && ($phase === self::PLAYED || ($phase === self::CLOSED && $premium))) {
                     $side['tip'] = $tip->score();
                     $side['tipped_at'] = $tip->saved_at;
-                    $side['tip_order'] = $tip->is_default ? null : $tip->save_order;
+                    $side['tip_order'] = $tip->save_order;
                 } elseif ($tip && $matchday && ($phase === self::CLOSED || $premium)) {
                     $side['outcome'] = self::outcome($tip, $matchday);
                 }

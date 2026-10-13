@@ -4,6 +4,9 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
+/**
+ * Kolejka zadań Laravela w bazie (QUEUE_CONNECTION=database) i nieudane zadania.
+ */
 return new class extends Migration
 {
     /**

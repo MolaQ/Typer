@@ -47,7 +47,6 @@ final class PlayerStats
             return [
                 'matchday' => $matchday,
                 'tip' => $tip?->score(),
-                'default' => (bool) $tip?->is_default,
                 'points' => $played && $score ? (int) $score->tip_points : null,
                 'exact' => (bool) $score?->exact_hit,
                 // Brak typu: kolejka rozegrana bez typu albo jeszcze otwarta i nie wytypowana.
@@ -627,7 +626,7 @@ final class PlayerStats
     }
 
     /**
-     * Średni czas zapisu typu przed pierwszym gwizdkiem w pełnych minutach: id gracza => minuty (bez typów domyślnych).
+     * Średni czas zapisu typu przed pierwszym gwizdkiem w pełnych minutach: id gracza => minuty.
      *
      * @return array<int, int>
      */
@@ -636,7 +635,6 @@ final class PlayerStats
         $tips = Tip::query()
             ->join('matchdays', 'matchdays.id', '=', 'tips.matchday_id')
             ->where('matchdays.season_id', $season->id)
-            ->where('tips.is_default', false)
             ->whereNotNull('matchdays.kickoff_at')
             ->get(['tips.user_id', 'tips.saved_at', 'matchdays.kickoff_at']);
 

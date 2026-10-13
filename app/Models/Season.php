@@ -33,8 +33,6 @@ class Season extends Model
         'sponsor_logo_path',
         'sponsor_url',
         'status',
-        'starts_on',
-        'ends_on',
     ];
 
     /** Nowy sezon domyślnie jest szkicem (także zanim zapisze się do bazy). */
@@ -47,8 +45,6 @@ class Season extends Model
         return [
             'number' => 'integer',
             'status' => SeasonStatus::class,
-            'starts_on' => 'date',
-            'ends_on' => 'date',
         ];
     }
 

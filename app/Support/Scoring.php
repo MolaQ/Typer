@@ -80,7 +80,7 @@ final class Scoring
 
     /**
      * Kto awansuje przy remisie w meczu pucharowym? Wcześniej zapisany typ, czyli mniejszy numer zapisu
-     * (Tip::save_order, każdy zapis ma inny). Bot, brak typu i domyślny typ premium (null) są za wszystkimi
+     * (Tip::save_order, każdy zapis ma inny). Bot i brak typu (null) są za wszystkimi
      * typami ludzi; gdy obaj go nie mają, wygrywa gospodarz (wyższe rozstawienie).
      */
     public static function homeWinsOnTime(?int $homeOrder, ?int $awayOrder): bool

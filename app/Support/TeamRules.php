@@ -5,6 +5,9 @@ namespace App\Support;
 use App\Rules\UniqueTeamValue;
 use Illuminate\Support\Str;
 
+/**
+ * Wspólne reguły nazwy zespołu (rejestracja, ustawienia konta, panel admina).
+ */
 class TeamRules
 {
     /** Pełna nazwa: 3-40 znaków, unikalna bez względu na wielkość liter. */

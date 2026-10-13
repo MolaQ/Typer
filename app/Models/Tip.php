@@ -13,13 +13,12 @@ use Illuminate\Support\Carbon;
  * @property int $user_id
  * @property int $lech_goals
  * @property int $opponent_goals
- * @property bool $is_default domyślny typ premium wpisany przy przeliczeniu kolejki
  * @property Carbon $saved_at
  * @property int|null $save_order numer ostatniego zapisu (tip_saves.id): mniejszy = wcześniejszy, rozstrzyga remisy
  */
 class Tip extends Model
 {
-    protected $fillable = ['matchday_id', 'user_id', 'lech_goals', 'opponent_goals', 'is_default', 'saved_at', 'save_order'];
+    protected $fillable = ['matchday_id', 'user_id', 'lech_goals', 'opponent_goals', 'saved_at', 'save_order'];
 
     /**
      * Zapis dat z mikrosekundami: bez tego Eloquent obcina saved_at do pełnych sekund, a w pucharze remis
@@ -32,7 +31,6 @@ class Tip extends Model
         return [
             'lech_goals' => 'integer',
             'opponent_goals' => 'integer',
-            'is_default' => 'boolean',
             'save_order' => 'integer',
             'saved_at' => 'datetime:Y-m-d H:i:s.u',
         ];

@@ -16,8 +16,11 @@ use Illuminate\Support\Str;
 use Spatie\Permission\Traits\HasRoles;
 
 /**
+ * Konto gracza albo admina. Zespół gracza to nazwa (team_name) i miejsca na listach sezonów (season_teams).
+ *
  * @property int $id
  * @property string $name
+ * @property string|null $team_name
  * @property string $email
  * @property Carbon|null $email_verified_at
  * @property string $password

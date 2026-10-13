@@ -20,7 +20,7 @@ use Illuminate\Support\Carbon;
  * @property int|null $tip_lech
  * @property int|null $tip_opponent
  * @property Carbon|null $tipped_at
- * @property int|null $tip_order numer zapisu typu (Tip::save_order), null = bot, brak typu albo domyślny typ premium
+ * @property int|null $tip_order numer zapisu typu (Tip::save_order), null = bot albo brak typu
  * @property int $tip_points
  * @property bool $outcome_hit
  * @property bool $diff_hit

@@ -4,6 +4,10 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
+/**
+ * Role i uprawnienia (spatie/laravel-permission): Admin, User, Premium, Banned, Inactive i uprawnienia panelu.
+ * Plik z pakietu, bez zmian.
+ */
 return new class extends Migration
 {
     /**

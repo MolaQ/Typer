@@ -105,7 +105,7 @@ class SaveTip
                 'created_at' => $savedAt->format('Y-m-d H:i:s.u'),
             ]);
 
-            $tip->fill(['lech_goals' => $lech, 'opponent_goals' => $opponent, 'saved_at' => $savedAt, 'save_order' => $order, 'is_default' => false])->save();
+            $tip->fill(['lech_goals' => $lech, 'opponent_goals' => $opponent, 'saved_at' => $savedAt, 'save_order' => $order])->save();
 
             // Usuń odpowiedzi wyczyszczone przez gracza i zapisz pozostałe. Odpowiedzi z rozgrywek, z których odpadł,
             // zostają (nie liczą się, ale służą statystyce pytań i wracają do gry, gdy przeliczenie zmieni awans).

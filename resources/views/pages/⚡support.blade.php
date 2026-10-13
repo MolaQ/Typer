@@ -14,7 +14,7 @@ use Livewire\Component;
 
 /**
  * Premium i wsparcie (etap 15, regulamin, punkty 10 i 11): cennik premium, cegiełka dowolną kwotą, płatność
- * przez Przelewy24, stan premium gracza, jego domyślny typ i historia wpłat. Typowanie jest zawsze darmowe.
+ * przez Przelewy24, stan premium gracza i historia wpłat. Typowanie jest zawsze darmowe.
  * Po powrocie z P24 adres ma ?payment=… i pokazujemy stan tej wpłaty (potwierdzenie przychodzi osobno).
  */
 new #[Layout('layouts::public')] class extends Component {
