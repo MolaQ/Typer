@@ -13,7 +13,7 @@ use Livewire\Attributes\Url;
 use Livewire\Component;
 
 /**
- * Kadra Lecha: zawodnicy z pozycją, numerem, narodowością, wychowankiem i statusem (zmiana statusu od razu z listy).
+ * Kadra Lecha: zawodnicy z pozycją, numerem, wychowankiem i statusem (zmiana statusu od razu z listy).
  * Z tej kadry gracze będą desygnować zawodników do gry. Podgląd: season-list, zmiany: season-edit.
  */
 new class extends Component {
@@ -34,7 +34,6 @@ new class extends Component {
     public string $name = '';
     public string $number = '';
     public string $position = 'midfielder';
-    public string $nationality = '';
     public bool $isAcademy = false;
     public string $status = 'regular';
 
@@ -117,7 +116,6 @@ new class extends Component {
         $this->name = $player->name;
         $this->number = (string) ($player->number ?? '');
         $this->position = $player->position->value;
-        $this->nationality = (string) $player->nationality;
         $this->isAcademy = $player->is_academy;
         $this->status = $player->status->value;
 
@@ -129,34 +127,30 @@ new class extends Component {
         $this->authorizeEdit();
 
         $this->name = trim($this->name);
-        $this->nationality = trim($this->nationality);
         $this->validate([
             'name' => ['required', 'string', 'min:3', 'max:80', Rule::unique('lech_players', 'name')->ignore($this->playerId)],
             'number' => ['nullable', 'integer', 'min:1', 'max:99'],
             'position' => ['required', Rule::enum(PlayerPosition::class)],
-            'nationality' => ['nullable', 'string', 'max:40'],
             'status' => ['required', Rule::enum(PlayerStatus::class)],
         ], [], [
             'name' => __('Name'),
             'number' => __('Number'),
             'position' => __('Position'),
-            'nationality' => __('Nationality'),
             'status' => __('Status'),
         ]);
 
         $player = $this->playerId ? LechPlayer::findOrFail($this->playerId) : new LechPlayer();
-        $before = $player->exists ? $player->only(['name', 'number', 'nationality']) : [];
+        $before = $player->exists ? $player->only(['name', 'number']) : [];
 
         $player->fill([
             'name' => $this->name,
             'number' => $this->number !== '' ? (int) $this->number : null,
             'position' => $this->position,
-            'nationality' => $this->nationality !== '' ? $this->nationality : null,
             'is_academy' => $this->isAcademy,
             'status' => $this->status,
         ])->save();
 
-        Audit::log($before === [] ? 'lech_player.created' : 'lech_player.updated', null, $before, $player->only(['name', 'number', 'nationality']), $player->name);
+        Audit::log($before === [] ? 'lech_player.created' : 'lech_player.updated', null, $before, $player->only(['name', 'number']), $player->name);
 
         Flux::modal('player-form')->close();
         $this->resetForm();
@@ -167,7 +161,7 @@ new class extends Component {
 
     public function resetForm(): void
     {
-        $this->reset('playerId', 'name', 'number', 'position', 'nationality', 'isAcademy', 'status');
+        $this->reset('playerId', 'name', 'number', 'position', 'isAcademy', 'status');
         $this->resetValidation();
     }
 
@@ -250,7 +244,6 @@ new class extends Component {
             <flux:table.column class="w-12">#</flux:table.column>
             <flux:table.column>{{ __('Player') }}</flux:table.column>
             <flux:table.column>{{ __('Position') }}</flux:table.column>
-            <flux:table.column>{{ __('Nationality') }}</flux:table.column>
             <flux:table.column>{{ __('Status') }}</flux:table.column>
             <flux:table.column />
         </flux:table.columns>
@@ -268,7 +261,6 @@ new class extends Component {
                         </div>
                     </flux:table.cell>
                     <flux:table.cell>{{ $player->position->label() }}</flux:table.cell>
-                    <flux:table.cell class="text-zinc-500">{{ $player->nationality ?? '–' }}</flux:table.cell>
                     <flux:table.cell>
                         <flux:select size="sm" wire:model.live="statuses.{{ $player->id }}" class="min-w-44"
                             :disabled="! auth()->user()->can(\App\Enums\Permission::SeasonEdit->value)">
@@ -288,7 +280,7 @@ new class extends Component {
                 </flux:table.row>
             @empty
                 <flux:table.row>
-                    <flux:table.cell colspan="6">
+                    <flux:table.cell colspan="5">
                         <flux:text>{{ __('No players. Add them here or run the squad seeder.') }}</flux:text>
                         <code class="mt-1 block text-xs">php artisan db:seed --class=LechSquadSeeder</code>
                     </flux:table.cell>
@@ -312,14 +304,13 @@ new class extends Component {
                         <flux:select.option :value="$case->value">{{ $case->label() }}</flux:select.option>
                     @endforeach
                 </flux:select>
-                <flux:input wire:model="nationality" :label="__('Nationality')" maxlength="40" :placeholder="__('e.g. Polska')" />
-            </div>
 
-            <flux:select wire:model="status" :label="__('Status')">
-                @foreach (\App\Enums\PlayerStatus::cases() as $case)
-                    <flux:select.option :value="$case->value">{{ $case->label() }}</flux:select.option>
-                @endforeach
-            </flux:select>
+                <flux:select wire:model="status" :label="__('Status')">
+                    @foreach (\App\Enums\PlayerStatus::cases() as $case)
+                        <flux:select.option :value="$case->value">{{ $case->label() }}</flux:select.option>
+                    @endforeach
+                </flux:select>
+            </div>
 
             <flux:switch wire:model="isAcademy" :label="__('Lech Academy graduate')" />
 

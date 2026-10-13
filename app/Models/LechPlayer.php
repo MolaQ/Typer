@@ -14,12 +14,11 @@ use Illuminate\Database\Eloquent\Model;
  * @property int|null $number
  * @property PlayerPosition $position
  * @property bool $is_academy
- * @property string|null $nationality
  * @property PlayerStatus $status
  */
 class LechPlayer extends Model
 {
-    protected $fillable = ['name', 'number', 'position', 'is_academy', 'nationality', 'status'];
+    protected $fillable = ['name', 'number', 'position', 'is_academy', 'status'];
 
     protected $attributes = ['status' => 'regular', 'is_academy' => false];
 

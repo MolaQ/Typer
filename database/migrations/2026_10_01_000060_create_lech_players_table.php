@@ -21,8 +21,6 @@ return new class extends Migration
             $table->string('position', 20);
             // Wychowanek Akademii Lecha.
             $table->boolean('is_academy')->default(false);
-            // Narodowość po polsku, np. „Polska”, „Szwecja”.
-            $table->string('nationality', 40)->nullable();
             // App\Enums\PlayerStatus: regular | rotation | reserve | excluded.
             $table->string('status', 20)->default('regular')->index();
             $table->timestamps();
