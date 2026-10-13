@@ -162,7 +162,7 @@ final class EuropeanCup
     /**
      * Tabele grup po meczach fazy grupowej: litera => wiersze Standings (od pierwszego miejsca).
      *
-     * @return array<string, Collection<int, array{entry_id: int, team: SeasonTeam, played: int, won: int, drawn: int, lost: int, for: int, against: int, diff: int, points: int, exact: int, diff_hits: int, outcome_hits: int, bonus: int, hof: int}>>
+     * @return array<string, Collection<int, array{entry_id: int, team: SeasonTeam, played: int, won: int, drawn: int, lost: int, for: int, against: int, diff: int, points: int, exact: int, diff_hits: int, outcome_hits: int, bonus: int, red: int, yellow: int, hof: int}>>
      */
     public static function groupTables(Competition $competition): array
     {

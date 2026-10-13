@@ -280,8 +280,8 @@ class Squad
             ];
             $pick->update($values);
 
-            $total = &$totals[$club][$pick->score_set->value];
-            $total ??= ['attack' => 0, 'defense' => 0, 'own_goals' => 0, 'experience' => 0, 'yellow' => 0, 'red' => 0];
+            $set = $pick->score_set->value;
+            $total = $totals[$club][$set] ?? ['attack' => 0, 'defense' => 0, 'own_goals' => 0, 'experience' => 0, 'yellow' => 0, 'red' => 0];
 
             if (! $locked) {
                 $total['attack'] += $values['attack'];
@@ -291,7 +291,7 @@ class Squad
                 $total['yellow'] += (int) $values['yellow'];
                 $total['red'] += (int) $values['red'];
             }
-            unset($total);
+            $totals[$club][$set] = $total;
         }
 
         return $totals;

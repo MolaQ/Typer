@@ -31,7 +31,7 @@ class ClubStats
             ->whereNotNull('counted')
             ->whereHas('matchday', fn ($q) => $q->where('status', MatchdayStatus::Played->value))
             ->get()
-            ->sortByDesc(fn (DesignatedPlayer $p) => $p->matchday?->kickoff_at?->timestamp ?? 0)
+            ->sortByDesc(fn (DesignatedPlayer $p) => (int) $p->matchday?->kickoff_at?->getTimestamp())
             ->groupBy('lech_player_id');
 
         // Blokady na najbliższą kolejkę bez wyniku w sezonie (do „wolny od kolejki N”).
