@@ -447,7 +447,9 @@ class SimulateSeason extends Command
             $scorers[] = Str::afterLast($scorer->name, ' ');
         }
 
-        if ($ownGoal && ($author = $played->reject(fn (LechPlayer $p) => $p->position === PlayerPosition::Goalkeeper)->random())) {
+        $fieldPlayers = $played->reject(fn (LechPlayer $p) => $p->position === PlayerPosition::Goalkeeper);
+        if ($ownGoal && $fieldPlayers->isNotEmpty()) {
+            $author = $fieldPlayers->random();
             $event(['type' => MatchReport::EVENT_OWN_GOAL, 'lech_player_id' => $author->id]);
             $scorers[] = Str::afterLast($author->name, ' ').' (sam.)';
         }
