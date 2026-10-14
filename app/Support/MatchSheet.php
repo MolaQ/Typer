@@ -55,7 +55,8 @@ class MatchSheet
             return [];
         }
 
-        $teamIds = $fixtures->flatMap(fn (Fixture $f) => [$f->home?->season_team_id, $f->away?->season_team_id])->filter()->unique();
+        $entryIds = $fixtures->pluck('home_entry_id')->merge($fixtures->pluck('away_entry_id'))->filter()->unique();
+        $teamIds = CompetitionEntry::whereIn('id', $entryIds)->pluck('season_team_id')->unique();
         $scores = TeamScore::where('matchday_id', $matchday->id)->whereIn('season_team_id', $teamIds)->get()
             ->groupBy('season_team_id');
 
@@ -77,6 +78,8 @@ class MatchSheet
             $sides = [];
 
             foreach ([[$fixture->home, $fixture->home_goals, $fixture->home_entry_id], [$fixture->away, $fixture->away_goals, $fixture->away_entry_id]] as $index => [$entry, $goals, $entryId]) {
+                /** @var CompetitionEntry|null $entry */
+                /** @var SeasonTeam|null $seasonTeam */
                 $seasonTeam = $entry?->seasonTeam;
                 $virtual = $index === 1 && $fixture->isBye();
                 $score = $seasonTeam ? $scores->get($seasonTeam->id)?->first(fn (TeamScore $s) => $s->score_set->value === $set) : null;
@@ -106,7 +109,7 @@ class MatchSheet
                 usort($rows, fn ($a, $b) => [$b['played'], $order[$a['position']->value]] <=> [$a['played'], $order[$b['position']->value]]);
 
                 $sides[] = [
-                    'name' => $seasonTeam?->name ?? Fixture::VIRTUAL_OPPONENT,
+                    'name' => $seasonTeam !== null ? $seasonTeam->name : Fixture::VIRTUAL_OPPONENT,
                     'profile' => $seasonTeam?->profileUrl(),
                     'bot' => (bool) $seasonTeam?->is_bot,
                     'virtual' => $virtual,

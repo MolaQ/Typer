@@ -24,6 +24,9 @@ use Random\Randomizer;
  */
 class Squad
 {
+    /** SQL: doświadczenie wyboru z mnożnikiem występów (Liga Legend × 2). */
+    private const EXPERIENCE_SQL = "SUM(designated_players.experience * CASE WHEN designated_players.score_set = 'legends' THEN 2 ELSE 1 END)";
+
     /** @var array<int, array<int, array<string, mixed>>> matchday_id => rozliczenie meczu (MatchReport) */
     private static array $reports = [];
 
@@ -340,12 +343,6 @@ class Squad
         return $value === CompetitionType::Legends->value ? 2 : 1;
     }
 
-    /** SQL: doświadczenie wyboru z mnożnikiem występów (Liga Legend × 2). */
-    private static function experienceSql(): string
-    {
-        return "SUM(designated_players.experience * CASE WHEN designated_players.score_set = '".CompetitionType::Legends->value."' THEN 2 ELSE 1 END)";
-    }
-
     /**
      * Doświadczenie zawodników w klubie (cała kariera, rozliczone kolejki): do kolejności i podglądu w wyborze składu.
      *
@@ -361,7 +358,7 @@ class Squad
             ->where('designated_players.counted', true)
             ->where($userId !== null ? 'user_id' : 'bot_id', $userId ?? $botId)
             ->groupBy('lech_player_id')
-            ->selectRaw('lech_player_id, '.self::experienceSql().' as total')
+            ->selectRaw('lech_player_id, '.self::EXPERIENCE_SQL.' as total')
             ->get()
             ->mapWithKeys(fn ($row) => [(int) $row->lech_player_id => round((float) $row->getAttribute('total'), 1)])
             ->all();
@@ -383,7 +380,7 @@ class Squad
             ->where('matchdays.kickoff_at', '<', $matchday->kickoff_at ?? now())
             ->where(fn ($q) => $q->whereIn('designated_players.user_id', $userIds)->orWhereIn('designated_players.bot_id', $botIds))
             ->groupBy('designated_players.user_id', 'designated_players.bot_id', 'designated_players.lech_player_id')
-            ->selectRaw('designated_players.user_id, designated_players.bot_id, designated_players.lech_player_id, '.self::experienceSql().' as total')
+            ->selectRaw('designated_players.user_id, designated_players.bot_id, designated_players.lech_player_id, '.self::EXPERIENCE_SQL.' as total')
             ->get();
 
         $out = [];
