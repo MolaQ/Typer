@@ -96,7 +96,7 @@ class ClubStats
         }
 
         usort($out, fn ($a, $b) => [$b['career']['experience'], $b['season']['experience'], $order[$a['player']->position->value], $a['player']->number ?? 999]
-            <=> [$a['season']['experience'], $a['career']['experience'], $order[$b['player']->position->value], $b['player']->number ?? 999]);
+            <=> [$a['career']['experience'], $a['season']['experience'], $order[$b['player']->position->value], $b['player']->number ?? 999]);
 
         return $out;
     }
