@@ -870,7 +870,7 @@ new #[Layout('layouts::public')] class extends Component {
             ])
         @endif
 
-        <div class="grid gap-6 {{ $this->hasTable ? 'lg:grid-cols-[1fr_20rem]' : '' }}">
+        <div class="grid grid-cols-[minmax(0,1fr)] gap-6 {{ $this->hasTable ? 'lg:grid-cols-[minmax(0,1fr)_20rem]' : '' }}">
             {{-- ============ Tabela ============ --}}
             {{--
                 Karta tabeli w barwach rozgrywek (jak grupy pucharów europejskich): kolorowa ramka obejmuje nagłówek
@@ -1123,7 +1123,7 @@ new #[Layout('layouts::public')] class extends Component {
                                 <span class="text-sm font-semibold text-lech-200">{{ $pathStatus }}</span>
                             </header>
                             <div class="overflow-x-auto p-4">
-                                <ol class="grid gap-2" style="grid-template-columns: repeat({{ $rounds }}, minmax(6.5rem, 1fr));">
+                                <ol class="grid gap-2" style="grid-template-columns: repeat({{ $rounds }}, minmax(4.5rem, 1fr));">
                                     @foreach (range(1, $rounds) as $stage)
                                         @php
                                             $fx = $path[$stage] ?? null;
