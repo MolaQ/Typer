@@ -1543,5 +1543,6 @@
     "own goal": "samobój",
     "Footballer": "Zawodnik",
     "Liga Legend: each duel that takes place counts as one appearance": "Liga Legend: każdy rozegrany pojedynek to osobny występ",
-    "Each club has its own Lech players: the numbers come only from matches that took place in matchdays in which this club fielded the player. Click a player to see all seasons, then a season to see its matches.": "Każdy klub ma swoich zawodników Lecha: liczby pochodzą tylko z meczów, które się odbyły, w kolejkach, w których ten klub wystawił zawodnika. Kliknij zawodnika, aby zobaczyć wszystkie sezony, a potem sezon, aby zobaczyć jego mecze."
+    "Each club has its own Lech players: the numbers come only from matches that took place in matchdays in which this club fielded the player. Click a player to see all seasons, then a season to see its matches.": "Każdy klub ma swoich zawodników Lecha: liczby pochodzą tylko z meczów, które się odbyły, w kolejkach, w których ten klub wystawił zawodnika. Kliknij zawodnika, aby zobaczyć wszystkie sezony, a potem sezon, aby zobaczyć jego mecze.",
+    "Tipping starts with the next season. Below: your numbers from :season.": "Typowanie ruszy z następnym sezonem. Poniżej Twoje liczby z sezonu :season."
 }

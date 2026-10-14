@@ -225,23 +225,30 @@ new #[Layout('layouts::public')] class extends Component {
 
     /* Zakładki ze statystykami (App\Support\PlayerStats). */
 
+    /** Sezon zakładek ze statystykami: aktywny, a bez niego ostatni zakończony (zakładki są widoczne także między sezonami). */
+    #[Computed]
+    public function statsSeason(): ?Season
+    {
+        return $this->season ?? Season::where('status', \App\Enums\SeasonStatus::Finished->value)->orderByDesc('number')->first();
+    }
+
     #[Computed]
     public function myCompetitions(): array
     {
-        return \App\Support\PlayerStats::competitions(auth()->user(), $this->season);
+        return $this->statsSeason ? \App\Support\PlayerStats::competitions(auth()->user(), $this->statsSeason) : [];
     }
 
     /** Zawodnicy klubu gracza z dorobkiem (zakładka „Mój klub”, Support\ClubStats). */
     #[Computed]
     public function myClub(): array
     {
-        return \App\Support\ClubStats::players(auth()->id(), null, $this->season?->id);
+        return \App\Support\ClubStats::players(auth()->id(), null, $this->statsSeason?->id);
     }
 
     #[Computed]
     public function myStats(): array
     {
-        return \App\Support\PlayerStats::season(auth()->user(), $this->season);
+        return $this->statsSeason ? \App\Support\PlayerStats::season(auth()->user(), $this->statsSeason) : [];
     }
 
     /** Ciekawostki: ulubione typy, najlepszy sezon, a dla premium typy w rozgrywkach. */
@@ -253,7 +260,7 @@ new #[Layout('layouts::public')] class extends Component {
         return [
             'favourites' => \App\Support\PlayerStats::favourites(auth()->user()),
             'best_season' => \App\Support\PlayerStats::bestSeason(auth()->user()),
-            'competitions' => $premium && $this->season ? \App\Support\PlayerStats::competitionFavourites($this->season) : [],
+            'competitions' => $premium && $this->statsSeason ? \App\Support\PlayerStats::competitionFavourites($this->statsSeason) : [],
         ];
     }
 
@@ -448,6 +455,9 @@ new #[Layout('layouts::public')] class extends Component {
     @if (!$this->season)
         <flux:card>
             <flux:text>{{ __('There is no active season right now.') }}</flux:text>
+            @if ($this->statsSeason)
+                <flux:text class="text-xs">{{ __('Tipping starts with the next season. Below: your numbers from :season.', ['season' => $this->statsSeason->title]) }}</flux:text>
+            @endif
         </flux:card>
     @elseif (!$this->canPlay)
         <flux:card class="space-y-1">
@@ -460,8 +470,12 @@ new #[Layout('layouts::public')] class extends Component {
         <flux:card>
             <flux:text>{{ __('No matchdays yet.') }}</flux:text>
         </flux:card>
-    @else
+    @endif
+
     @php
+        // Bez aktywnego sezonu (albo bez miejsca w nim) typowania nie ma, ale zakładki ze statystykami, kadrą i rekordami zostają
+        // (statystyki i rozgrywki z ostatniego zakończonego sezonu, statsSeason).
+        $tipping = $this->season && $this->canPlay && $this->matchday;
         $tabs = [
             'tip' => ['pencil-square', __('Tipping')],
             'competitions' => ['trophy', __('Competitions')],
@@ -471,7 +485,16 @@ new #[Layout('layouts::public')] class extends Component {
             'scalps' => ['fire', __('My scalps')],
             'blacklist' => ['no-symbol', __('Blacklist')],
         ];
-        $played = $this->matchday->status === \App\Enums\MatchdayStatus::Played;
+        if (!$tipping) {
+            unset($tabs['tip']);
+        }
+        if (!$this->statsSeason) {
+            unset($tabs['competitions'], $tabs['stats']);
+        }
+        if (!isset($tabs[$tab])) {
+            $tab = array_key_first($tabs);
+        }
+        $played = $this->matchday?->status === \App\Enums\MatchdayStatus::Played;
     @endphp
 
     {{-- Zakładki: segmentowy przełącznik --}}
@@ -729,6 +752,5 @@ new #[Layout('layouts::public')] class extends Component {
 
     @else
         @include('partials.tips-tabs')
-    @endif
     @endif
 </div>
