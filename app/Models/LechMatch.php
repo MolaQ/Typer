@@ -74,6 +74,16 @@ class LechMatch extends Model
         return $this->hasMany(MatchAppearance::class);
     }
 
+    /**
+     * Protokół meczu (zawodnicy Lecha) w kolejności wpisu.
+     *
+     * @return HasMany<MatchEvent, $this>
+     */
+    public function events(): HasMany
+    {
+        return $this->hasMany(MatchEvent::class)->orderBy('id');
+    }
+
     /** Gole stracone przez Lecha w całym meczu (z dogrywką): do czystego konta. */
     public function conceded(): int
     {

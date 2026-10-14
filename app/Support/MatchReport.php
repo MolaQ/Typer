@@ -5,10 +5,12 @@ namespace App\Support;
 use App\Enums\PlayerPosition;
 use App\Models\LechMatch;
 use App\Models\MatchAppearance;
+use App\Models\MatchEvent;
 
 /**
- * Rozliczenie meczu Lecha z raportu (dashboard/results, kalendarz Lecha). Admin klika fakty: skład, wejście i zejście,
- * gole, asysty, samobóje, kartki. Resztę liczymy tutaj: czas gry, godziny odpoczynku (R6), czyste konto (R4) i doświadczenie.
+ * Rozliczenie meczu Lecha z raportu (dashboard/results, kalendarz Lecha). Admin klika skład (jedenastka, ławka) i protokół
+ * (gol z asystą, samobój, kartka, zmiana; match_events). Resztę liczymy tutaj: wejścia i zejścia, gole, asysty, kartki,
+ * czas gry, godziny odpoczynku (R6), czyste konto (R4) i doświadczenie.
  *
  * Bez minut: wejście i zejście to punkty osi meczu (SLOTS). Parzyste punkty to granice połów (0, 45, 90, 105, 120),
  * nieparzyste to „w trakcie” połowy. Połowa k (0-3) zajmuje punkty 2k…2k+2: cała, gdy zawodnik był od 2k do 2k+2,
@@ -29,6 +31,92 @@ class MatchReport
 
     /** Przyciski zejścia (punkt osi => etykieta). */
     public const OFF_LABELS = [1 => '<45', 2 => '45', 3 => '<90', 4 => '90', 5 => '<105', 6 => '105', 7 => '<120', 8 => '120'];
+
+    /** Rodzaje wpisów protokołu. */
+    public const EVENT_GOAL = 'goal';
+
+    public const EVENT_OWN_GOAL = 'own_goal';
+
+    public const EVENT_CARD = 'card';
+
+    public const EVENT_SUB = 'sub';
+
+    public const EVENTS = [self::EVENT_GOAL, self::EVENT_CARD, self::EVENT_SUB, self::EVENT_OWN_GOAL];
+
+    /** Kartki w protokole: druga żółta i czerwona oznaczają zejście z boiska (z czasem). */
+    public const CARDS = ['yellow', 'second_yellow', 'red'];
+
+    /**
+     * Fakty występów z protokołu (bez bazy): jedenastka gra od 0, ławka nie gra, dopóki nie wejdzie zmianą.
+     * Zmiana: schodzący kończy w danym punkcie osi, wchodzący (opcjonalny, np. przy kontuzji bez zmiany) od niego zaczyna.
+     * Gol daje bramkę strzelcowi i asystę asystentowi, samobój liczy się autorowi, druga żółta (dwie żółte)
+     * i czerwona kończą grę zawodnika. Wpisy zawodników spoza składu pomijamy.
+     *
+     * @param  array<int, bool>  $squad  id zawodnika => wyjściowa jedenastka
+     * @param  array<int, array{type: string, player: int, other: int|null, card: string|null, slot: int|null}>  $events  w kolejności wpisu
+     * @param  int  $end  koniec meczu na osi (END_REGULAR albo END_EXTRA)
+     * @return array<int, array{on: int|null, off: int, goals: int, assists: int, own_goals: int, yellow: int, red: bool}>
+     */
+    public static function protocol(array $squad, array $events, int $end): array
+    {
+        $out = [];
+        foreach ($squad as $id => $started) {
+            $out[$id] = ['on' => $started ? 0 : null, 'off' => $end, 'goals' => 0, 'assists' => 0, 'own_goals' => 0, 'yellow' => 0, 'red' => false];
+        }
+
+        foreach ($events as $e) {
+            $id = $e['player'];
+            $other = $e['other'];
+
+            if (! isset($out[$id])) {
+                continue;
+            }
+
+            $slot = $e['slot'] === null ? $end : max(1, min($end, $e['slot']));
+
+            switch ($e['type']) {
+                case self::EVENT_GOAL:
+                    $out[$id]['goals']++;
+                    if ($other !== null && $other !== $id && isset($out[$other])) {
+                        $out[$other]['assists']++;
+                    }
+                    break;
+                case self::EVENT_OWN_GOAL:
+                    $out[$id]['own_goals']++;
+                    break;
+                case self::EVENT_CARD:
+                    if ($e['card'] === 'yellow') {
+                        $out[$id]['yellow'] = max(1, $out[$id]['yellow']);
+                    } elseif ($e['card'] === 'second_yellow') {
+                        $out[$id]['yellow'] = 2;
+                        $out[$id]['off'] = $slot;
+                    } elseif ($e['card'] === 'red') {
+                        $out[$id]['red'] = true;
+                        $out[$id]['off'] = $slot;
+                    }
+                    break;
+                case self::EVENT_SUB:
+                    $out[$id]['off'] = $slot;
+                    // Wchodzący z ławki: ten sam punkt osi (np. zmiana w przerwie: zejście 45, wejście 45).
+                    if ($other !== null && isset($out[$other]) && ! $squad[$other] && $out[$other]['on'] === null) {
+                        $out[$other]['on'] = min($slot, $end - 1);
+                    }
+                    break;
+            }
+        }
+
+        return $out;
+    }
+
+    /** Czas na boisku do tabeli („0–90”, „>45–90”), null = nie zagrał. */
+    public static function spanLabel(?int $on, int $off): ?string
+    {
+        if ($on === null) {
+            return null;
+        }
+
+        return ($on === 0 ? '0' : (self::ON_LABELS[$on] ?? (string) $on)).'–'.(self::OFF_LABELS[$off] ?? (string) $off);
+    }
 
     /**
      * Poprawne wejście i zejście: wyjściowa jedenastka od 0, rezerwowy wchodzi przed końcem meczu,
@@ -147,12 +235,28 @@ class MatchReport
     }
 
     /**
-     * Przelicza i zapisuje kolumny wyliczane występów meczu (po każdej zmianie raportu, wyniku albo ustawień).
+     * Przelicza i zapisuje występy meczu z protokołu (po każdej zmianie składu, protokołu, wyniku albo ustawień):
+     * wejście, zejście, gole, asysty, samobóje, kartki i kolumny wyliczane.
      */
     public static function store(LechMatch $match): void
     {
         $appearances = MatchAppearance::with('player:id,position')->where('lech_match_id', $match->id)->get()
             ->filter(fn (MatchAppearance $a) => $a->player !== null);
+        $end = $match->extra_time ? self::END_EXTRA : self::END_REGULAR;
+
+        $facts = self::protocol(
+            $appearances->mapWithKeys(fn (MatchAppearance $a) => [$a->lech_player_id => $a->started])->all(),
+            MatchEvent::where('lech_match_id', $match->id)->orderBy('id')->get()
+                ->map(fn (MatchEvent $e) => ['type' => $e->type, 'player' => $e->lech_player_id, 'other' => $e->other_player_id, 'card' => $e->card, 'slot' => $e->slot])
+                ->values()->all(),
+            $end,
+        );
+
+        foreach ($appearances as $a) {
+            $f = $facts[$a->lech_player_id];
+            $a->fill(['on_slot' => $f['on'], 'off_slot' => $f['off'], 'goals' => $f['goals'], 'assists' => $f['assists'],
+                'own_goals' => $f['own_goals'], 'yellow' => $f['yellow'], 'red' => $f['red']]);
+        }
 
         $computed = self::compute($appearances->map(fn (MatchAppearance $a) => [
             'id' => $a->lech_player_id,
@@ -172,14 +276,14 @@ class MatchReport
             [$on, $off] = ! $a->started && $a->on_slot === null
                 ? [null, $a->off_slot]
                 : self::normalize($a->started, (int) $a->on_slot, $a->off_slot, $match->extra_time);
-            $a->update([
+            $a->fill([
                 'on_slot' => $on,
                 'off_slot' => $off,
                 'clean_sheet' => $r['clean_sheet'],
                 'play_time' => $r['play_time'],
                 'rest_hours' => $r['rest_hours'],
                 'experience' => $r['experience'],
-            ]);
+            ])->save();
         }
 
         Squad::forget();

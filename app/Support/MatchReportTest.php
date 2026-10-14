@@ -95,3 +95,21 @@ it('takes the rest hours from the settings', function () {
 
     expect($r['rest_hours'])->toBe(36);
 });
+
+it('reads the appearances from the protocol', function () {
+    $events = [
+        ['type' => MatchReport::EVENT_GOAL, 'player' => 9, 'other' => 7, 'card' => null, 'slot' => null],
+        ['type' => MatchReport::EVENT_CARD, 'player' => 4, 'other' => null, 'card' => 'yellow', 'slot' => null],
+        ['type' => MatchReport::EVENT_SUB, 'player' => 7, 'other' => 12, 'card' => null, 'slot' => 2],
+        ['type' => MatchReport::EVENT_CARD, 'player' => 4, 'other' => null, 'card' => 'second_yellow', 'slot' => 3],
+        ['type' => MatchReport::EVENT_OWN_GOAL, 'player' => 12, 'other' => null, 'card' => null, 'slot' => null],
+        ['type' => MatchReport::EVENT_SUB, 'player' => 9, 'other' => null, 'card' => null, 'slot' => 3],
+    ];
+    $r = MatchReport::protocol([9 => true, 7 => true, 4 => true, 12 => false, 13 => false], $events, MatchReport::END_REGULAR);
+
+    expect($r[9])->toMatchArray(['on' => 0, 'off' => 3, 'goals' => 1])
+        ->and($r[7])->toMatchArray(['on' => 0, 'off' => 2, 'assists' => 1])
+        ->and($r[4])->toMatchArray(['off' => 3, 'yellow' => 2, 'red' => false])
+        ->and($r[12])->toMatchArray(['on' => 2, 'off' => 4, 'own_goals' => 1])
+        ->and($r[13]['on'])->toBeNull();
+});

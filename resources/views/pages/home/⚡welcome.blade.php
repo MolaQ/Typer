@@ -2,6 +2,7 @@
 
 use App\Enums\MatchdayStatus;
 use App\Enums\SeasonStatus;
+use App\Models\MatchEvent;
 use App\Models\Matchday;
 use App\Models\Season;
 use App\Models\Tip;
@@ -48,6 +49,31 @@ new #[Layout('layouts::public')] class extends Component {
 
         return $matchdays->first(fn($m) => $m->status !== MatchdayStatus::Played && $m->isFilled())
             ?? $matchdays->last(fn($m) => $m->status === MatchdayStatus::Played);
+    }
+
+    /** Ostatnia rozegrana kolejka, gdy w tablicy jest już następna (wynik i protokół pod spodem). */
+    #[Computed]
+    public function lastPlayed(): ?Matchday
+    {
+        if (!$this->matchday || $this->matchday->status === MatchdayStatus::Played) {
+            return null;
+        }
+
+        return Matchday::where('season_id', $this->matchday->season_id)->where('status', MatchdayStatus::Played->value)->orderByDesc('number')->first();
+    }
+
+    /**
+     * Protokół meczu Lecha (gole, kartki, zmiany zawodników Lecha) rozegranej kolejki.
+     *
+     * @return \Illuminate\Support\Collection<int, MatchEvent>
+     */
+    public function protocolOf(?Matchday $matchday)
+    {
+        if (!$matchday || $matchday->status !== MatchdayStatus::Played || !$matchday->lech_match_id) {
+            return collect();
+        }
+
+        return MatchEvent::with(['player:id,name', 'other:id,name'])->where('lech_match_id', $matchday->lech_match_id)->orderBy('id')->get();
     }
 
     /** Typ zalogowanego gracza na tę kolejkę (null, gdy brak albo gość). */
@@ -142,6 +168,16 @@ new #[Layout('layouts::public')] class extends Component {
                         @endforeach
                     </div>
 
+                    {{-- Protokół meczu (tylko zawodnicy Lecha) --}}
+                    @php
+                        $protocol = $this->protocolOf($played ? $matchday : null);
+                    @endphp
+                    @if ($protocol->isNotEmpty())
+                        <div class="mx-auto w-full max-w-md rounded-xl border border-zinc-100 px-3 py-1 dark:border-zinc-800">
+                            @include('partials.match-protocol', ['events' => $protocol])
+                        </div>
+                    @endif
+
                     @if ($matchday->kickoff_at)
                         <div class="flex items-center justify-center gap-1.5 text-sm text-zinc-500">
                             <flux:icon.calendar-days variant="mini" />
@@ -194,6 +230,29 @@ new #[Layout('layouts::public')] class extends Component {
                     </div>
                 </div>
             </section>
+
+            {{-- Ostatni mecz Lecha (gdy w tablicy jest już następna kolejka): wynik i protokół --}}
+            @if ($last = $this->lastPlayed)
+                @php
+                    $lastProtocol = $this->protocolOf($last);
+                    $lastScore = $last->is_home ? $last->lech_goals . ':' . $last->opponent_goals : $last->opponent_goals . ':' . $last->lech_goals;
+                @endphp
+                <section class="overflow-hidden rounded-2xl border border-zinc-200 bg-white dark:border-zinc-700 dark:bg-zinc-900">
+                    <div class="flex flex-wrap items-center justify-between gap-2 border-b border-zinc-100 px-5 py-3 dark:border-zinc-800">
+                        <span class="text-xs font-bold uppercase tracking-[0.15em] text-zinc-500">{{ __('Last matchday') }} · {{ __('Matchday :number', ['number' => $last->number]) }}</span>
+                        <span class="text-sm font-bold">
+                            {{ $last->is_home ? 'Lech Poznań' : $last->opponent }}
+                            <span class="lech-bar mx-1.5 rounded-md px-2 py-0.5 tabular-nums">{{ $lastScore }}</span>
+                            {{ $last->is_home ? $last->opponent : 'Lech Poznań' }}
+                        </span>
+                    </div>
+                    @if ($lastProtocol->isNotEmpty())
+                        <div class="mx-auto max-w-md px-5 py-2">
+                            @include('partials.match-protocol', ['events' => $lastProtocol])
+                        </div>
+                    @endif
+                </section>
+            @endif
         @endif
     @elseif ($this->upcoming)
         {{-- Brak aktywnego sezonu, ale kolejny jest w przygotowaniu --}}

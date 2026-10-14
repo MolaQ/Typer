@@ -8,6 +8,7 @@ use App\Enums\PlayerStatus;
 use App\Models\LechMatch;
 use App\Models\LechPlayer;
 use App\Models\MatchAppearance;
+use App\Models\MatchEvent;
 use App\Models\Matchday;
 use App\Support\MatchReport;
 use App\Support\TipRules;
@@ -22,8 +23,9 @@ use Livewire\Component;
  *    przy kolejce przeliczenie wyników,
  *  - 2/3: kadra w czterech kolumnach (B, O, P, N) według doświadczenia ze wszystkich raportów; klik dodaje zawodnika
  *    w kolejności trenera: pierwsze 11 do wyjściowej jedenastki, kolejni na ławkę (także ci, którzy nie weszli),
- *  - pod spodem tabela meczu na całą szerokość: wejście (ławka) i zejście (punkty osi meczu, MatchReport::ON_LABELS/OFF_LABELS),
- *    gole, asysty, samobóje (+ / −), kartki (żółta, dwie żółte, czerwona), czyste konto, czas gry, blokada i doświadczenie liczone same.
+ *  - pod spodem 1/4: protokół meczu jak w relacjach na żywo (gol z asystą, kartka, zmiana, samobój; czas tylko przy zmianie,
+ *    drugiej żółtej i czerwonej, punkty osi MatchReport::OFF_LABELS), 3/4: tabela zbiorcza liczona z protokołu
+ *    (czas gry, gole, asysty, samobóje, kartki, czyste konto, połowy, odpoczynek, doświadczenie; MatchReport::store).
  *
  * Kolejka: wynik zapisuje SaveMatchdayResult (przeliczona kolejka przelicza się od razu), zmiany raportu po przycisku
  * „Przelicz ponownie”. Mecz archiwalny z kalendarza (matchdayId = 0): wynik tylko w raporcie.
@@ -38,6 +40,17 @@ new class extends Component {
 
     /** Wyjściowa jedenastka. */
     public const STARTERS = 11;
+
+    /** Nowy wpis protokołu: rodzaj (MatchReport::EVENTS), zawodnik, drugi zawodnik (asysta, wchodzący), kartka, czas. */
+    public string $eventType = MatchReport::EVENT_GOAL;
+
+    public ?int $eventPlayer = null;
+
+    public ?int $eventOther = null;
+
+    public string $eventCard = 'yellow';
+
+    public ?int $eventSlot = null;
 
     /* ==================================================================
      | DANE
@@ -70,6 +83,13 @@ new class extends Component {
     public function appearances()
     {
         return MatchAppearance::where('lech_match_id', $this->lechMatchId)->orderBy('id')->get()->keyBy('lech_player_id');
+    }
+
+    /** Protokół meczu w kolejności wpisu. */
+    #[Computed]
+    public function events()
+    {
+        return MatchEvent::with(['player:id,name,number', 'other:id,name,number'])->where('lech_match_id', $this->lechMatchId)->orderBy('id')->get();
     }
 
     /** Doświadczenie zawodników ze wszystkich raportów (kolejność w kolumnach). */
@@ -204,15 +224,9 @@ new class extends Component {
         $on = !$match->extra_time;
         $match->update(['extra_time' => $on] + ($on ? [] : ['penalties' => false]));
 
-        foreach ($this->appearances as $a) {
-            if ($on && $a->off_slot === MatchReport::END_REGULAR) {
-                $a->update(['off_slot' => MatchReport::END_EXTRA]);
-            } elseif (!$on) {
-                $a->update([
-                    'off_slot' => min($a->off_slot, MatchReport::END_REGULAR),
-                    'on_slot' => $a->on_slot === null ? null : min($a->on_slot, MatchReport::END_REGULAR - 1),
-                ]);
-            }
+        // Bez dogrywki zdarzenia z dogrywki przesuwają się na koniec 90 minut (MatchReport::protocol i tak przycina czas).
+        if (!$on) {
+            MatchEvent::where('lech_match_id', $match->id)->where('slot', '>', MatchReport::END_REGULAR)->update(['slot' => MatchReport::END_REGULAR]);
         }
 
         $this->afterReport();
@@ -271,13 +285,16 @@ new class extends Component {
 
         if ($existing = $this->appearances->get($playerId)) {
             $existing->delete();
+            MatchEvent::where('lech_match_id', $this->lechMatchId)
+                ->where(fn($q) => $q->where('lech_player_id', $playerId)->orWhere('other_player_id', $playerId))
+                ->delete();
         } else {
             $started = $this->appearances->where('started', true)->count() < $this::STARTERS;
             MatchAppearance::create([
                 'lech_match_id' => $this->lechMatchId,
                 'lech_player_id' => $playerId,
                 'started' => $started,
-                // Ławka: wejście zaznacza admin tylko, gdy zawodnik wszedł. Zejście domyślnie koniec meczu.
+                // Ławka gra dopiero po zmianie w protokole.
                 'on_slot' => $started ? 0 : null,
                 'off_slot' => $this->end(),
             ]);
@@ -294,61 +311,98 @@ new class extends Component {
             return;
         }
 
-        $a->update(['started' => !$a->started, 'on_slot' => $a->started ? null : 0]);
+        $a->update(['started' => !$a->started]);
         $this->afterReport();
     }
 
-    /** Wejście rezerwowego (punkt osi meczu); zejście przed wejściem wraca na koniec meczu. */
-    public function setOn(int $playerId, int $slot): void
-    {
-        $a = $this->appearance($playerId);
-        if (!$a || $a->started || !isset(MatchReport::ON_LABELS[$slot]) || $slot >= $this->end()) {
-            return;
-        }
+    /* ==================================================================
+     | PROTOKÓŁ
+     * ================================================================*/
 
-        $offOk = $a->off_slot > $slot || ($a->off_slot === $slot && $slot % 2 === 1);
-        $a->update(['on_slot' => $a->on_slot === $slot ? null : $slot, 'off_slot' => $offOk ? $a->off_slot : $this->end()]);
-        $this->afterReport();
+    public function setEventType(string $type): void
+    {
+        if (in_array($type, MatchReport::EVENTS, true)) {
+            $this->eventType = $type;
+            $this->eventPlayer = null;
+            $this->eventOther = null;
+            $this->eventSlot = null;
+        }
     }
 
-    public function setOff(int $playerId, int $slot): void
+    /**
+     * Zawodnicy do wyboru w protokole: 'played' (zagrał: gol, asysta, samobój), 'pitch' (jest na boisku do końca: schodzący),
+     * 'bench' (rezerwowy, który jeszcze nie wszedł), 'squad' (cały skład meczu: kartki).
+     *
+     * @return array<int, int> id zawodników w kolejności składu
+     */
+    public function eventChoices(string $group): array
     {
-        $a = $this->appearance($playerId);
-        if (!$a || !isset(MatchReport::OFF_LABELS[$slot]) || $slot > $this->end()) {
-            return;
-        }
+        $end = $this->end();
 
-        $a->update(['off_slot' => $slot]);
-        $this->afterReport();
+        return $this->appearances
+            ->filter(fn(MatchAppearance $a) => match ($group) {
+                'played' => $a->started || $a->on_slot !== null,
+                'pitch' => ($a->started || $a->on_slot !== null) && $a->off_slot >= $end,
+                'bench' => !$a->started && $a->on_slot === null,
+                default => true,
+            })
+            ->keys()->all();
     }
 
-    /** + / − przy golach, asystach i samobójach (nie mniej niż 0). */
-    public function bumpStat(int $playerId, string $field, int $delta): void
+    /** Dodaje wpis do protokołu (kolejność wpisu = kolejność zdarzeń w relacji). */
+    public function addEvent(): void
     {
-        $a = $this->appearance($playerId);
-        if (!$a || !in_array($field, ['goals', 'assists', 'own_goals'], true)) {
+        if (!$this->guard()) {
             return;
         }
 
-        $a->update([$field => max(0, min(20, $a->{$field} + ($delta > 0 ? 1 : -1)))]);
-        $this->afterReport();
-    }
+        $type = $this->eventType;
+        $player = $this->eventPlayer;
+        $other = $this->eventOther;
+        $needsSlot = $type === MatchReport::EVENT_SUB || ($type === MatchReport::EVENT_CARD && $this->eventCard !== 'yellow');
+        $group = match ($type) {
+            MatchReport::EVENT_SUB => 'pitch',
+            MatchReport::EVENT_CARD => 'squad',
+            default => 'played',
+        };
 
-    /** Kartki: 'yellow' (żółta), 'double' (dwie żółte, wyłącza pojedynczą), 'red' (czerwona). */
-    public function card(int $playerId, string $kind): void
-    {
-        $a = $this->appearance($playerId);
-        if (!$a) {
-            return;
-        }
-
-        match ($kind) {
-            'yellow' => $a->update(['yellow' => $a->yellow === 1 ? 0 : 1]),
-            'double' => $a->update(['yellow' => $a->yellow === 2 ? 0 : 2]),
-            'red' => $a->update(['red' => !$a->red]),
+        $error = match (true) {
+            $player === null || !in_array($player, $this->eventChoices($group), true) => __('Choose a player.'),
+            $type === MatchReport::EVENT_CARD && !in_array($this->eventCard, MatchReport::CARDS, true) => __('Choose a card.'),
+            $needsSlot && ($this->eventSlot === null || !isset(MatchReport::OFF_LABELS[$this->eventSlot]) || $this->eventSlot > $this->end()) => __('Choose when it happened.'),
+            $other !== null && $type === MatchReport::EVENT_GOAL && ($other === $player || !in_array($other, $this->eventChoices('played'), true)) => __('Choose a player.'),
+            $other !== null && $type === MatchReport::EVENT_SUB && !in_array($other, $this->eventChoices('bench'), true) => __('Choose a player.'),
             default => null,
         };
 
+        if ($error) {
+            Flux::toast(variant: 'danger', text: $error);
+
+            return;
+        }
+
+        MatchEvent::create([
+            'lech_match_id' => $this->lechMatchId,
+            'type' => $type,
+            'lech_player_id' => $player,
+            'other_player_id' => in_array($type, [MatchReport::EVENT_GOAL, MatchReport::EVENT_SUB], true) ? $other : null,
+            'card' => $type === MatchReport::EVENT_CARD ? $this->eventCard : null,
+            'slot' => $needsSlot ? $this->eventSlot : null,
+        ]);
+
+        $this->eventPlayer = null;
+        $this->eventOther = null;
+        $this->eventSlot = null;
+        $this->afterReport();
+    }
+
+    public function deleteEvent(int $eventId): void
+    {
+        if (!$this->guard()) {
+            return;
+        }
+
+        MatchEvent::where('lech_match_id', $this->lechMatchId)->whereKey($eventId)->delete();
         $this->afterReport();
     }
 
@@ -392,7 +446,7 @@ new class extends Component {
 
     private function refresh(): void
     {
-        unset($this->lechMatch, $this->matchday, $this->editable, $this->appearances, $this->totals, $this->columns, $this->playersById, $this->warnings);
+        unset($this->lechMatch, $this->matchday, $this->editable, $this->appearances, $this->events, $this->totals, $this->columns, $this->playersById, $this->warnings);
     }
 }; ?>
 
@@ -413,9 +467,6 @@ new class extends Component {
             $fmt = fn ($v) => \App\Support\ClubStats::format($v);
 
             $boardBtn = 'flex h-10 w-16 items-center justify-center rounded-xl border border-zinc-300 bg-white text-xl font-black text-lech-800 shadow-sm transition active:scale-95 hover:bg-lech-50 disabled:opacity-40 dark:border-zinc-600 dark:bg-zinc-800 dark:text-lech-200 dark:hover:bg-zinc-700';
-            $miniBtn = 'flex size-7 items-center justify-center rounded-lg border border-zinc-300 bg-white text-sm font-bold text-zinc-700 transition active:scale-95 hover:bg-zinc-50 disabled:opacity-30 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-200';
-            $slotOn = 'border-lech-700 bg-lech-700 text-white';
-            $slotOff = 'border-zinc-300 bg-white text-zinc-700 hover:border-lech-400 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-200';
             $quickScores = [[0, 0], [1, 0], [2, 0], [2, 1], [3, 1], [1, 1], [2, 2], [0, 1], [1, 2]];
         @endphp
 
@@ -466,7 +517,7 @@ new class extends Component {
                             @include('partials.score-pair', ['label' => __('Goals in extra time'), 'lechKey' => 'et_lech', 'oppKey' => 'et_opponent', 'lechValue' => $match->et_lech_goals, 'oppValue' => $match->et_opponent_goals])
 
                             <flux:checkbox :checked="$match->penalties" wire:click="togglePenalties" :disabled="! $editable" :label="__('Penalty shootout')"
-                                :description="__('For information only. Add the shootout goals to the scorers below.')" />
+                                :description="__('For information only. Add the shootout goals to the protocol as goals.')" />
 
                             @if ($match->penalties)
                                 @include('partials.score-pair', ['label' => __('Penalty shootout'), 'lechKey' => 'pen_lech', 'oppKey' => 'pen_opponent', 'lechValue' => (int) $match->pen_lech_goals, 'oppValue' => (int) $match->pen_opponent_goals])
@@ -551,150 +602,220 @@ new class extends Component {
             </div>
         </div>
 
-        {{--
-            Tabela meczu na całą szerokość: jedna belka nagłówkowa, wyjściowa jedenastka, potem ławka.
-            Czas gry: rezerwowy ma rząd „wszedł” (puste = nie wszedł) i rząd „zszedł”, wyjściowy tylko „zszedł”.
-        --}}
+        {{-- Pod spodem: 1/4 protokół meczu, 3/4 tabela zbiorcza liczona z protokołu --}}
         @if ($appearances->isNotEmpty())
             @php
-                $slotBtn = 'h-6 w-9 shrink-0 rounded border text-[11px] font-bold tabular-nums transition active:scale-95 disabled:cursor-default disabled:opacity-30';
+                $type = $this->eventType;
+                $needsSlot = $type === \App\Support\MatchReport::EVENT_SUB || ($type === \App\Support\MatchReport::EVENT_CARD && $this->eventCard !== 'yellow');
+                $mainGroup = match ($type) {
+                    \App\Support\MatchReport::EVENT_SUB => 'pitch',
+                    \App\Support\MatchReport::EVENT_CARD => 'squad',
+                    default => 'played',
+                };
+                $mainLabel = match ($type) {
+                    \App\Support\MatchReport::EVENT_GOAL => __('Scorer'),
+                    \App\Support\MatchReport::EVENT_SUB => __('Coming off'),
+                    default => __('Footballer'),
+                };
+                $otherGroup = match ($type) {
+                    \App\Support\MatchReport::EVENT_GOAL => 'played',
+                    \App\Support\MatchReport::EVENT_SUB => 'bench',
+                    default => null,
+                };
+                $otherLabel = $type === \App\Support\MatchReport::EVENT_GOAL ? __('Assist (optional)') : __('Coming on (optional)');
+                $typeLabels = [
+                    \App\Support\MatchReport::EVENT_GOAL => __('Goal'),
+                    \App\Support\MatchReport::EVENT_CARD => __('Card'),
+                    \App\Support\MatchReport::EVENT_SUB => __('Substitution'),
+                    \App\Support\MatchReport::EVENT_OWN_GOAL => __('Own goal'),
+                ];
+                $cardLabels = ['yellow' => __('Yellow card'), 'second_yellow' => __('Second yellow card'), 'red' => __('Red card')];
+                $chipOn = 'border-lech-700 bg-lech-700 text-white';
+                $chipOff = 'border-zinc-300 bg-white text-zinc-700 hover:border-lech-400 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-200';
+                $chip = 'rounded-md border px-1.5 py-0.5 text-xs font-semibold transition active:scale-95';
+                $stepLabel = 'text-[10px] font-bold uppercase tracking-wide text-zinc-500';
                 $th = 'px-2 py-2 text-center font-semibold';
             @endphp
-            <div class="mt-6 overflow-x-auto rounded-xl border border-zinc-200 bg-white dark:border-zinc-700 dark:bg-zinc-900">
-                <table class="w-full min-w-[68rem] text-sm">
-                    <thead class="lech-bar text-xs uppercase tracking-wide">
-                        <tr>
-                            <th class="{{ $th }} w-8">#</th>
-                            <th class="px-2 py-2 text-left font-semibold">{{ __('Player') }}</th>
-                            <th class="px-2 py-2 text-left font-semibold">{{ __('Playing time') }}</th>
-                            <th class="{{ $th }}">{{ __('Goals') }}</th>
-                            <th class="{{ $th }}">{{ __('Assists') }}</th>
-                            <th class="{{ $th }}">{{ __('OG') }}</th>
-                            <th class="{{ $th }}">{{ __('Cards') }}</th>
-                            <th class="{{ $th }}" title="{{ __('Clean sheet') }}">{{ __('CS') }}</th>
-                            <th class="{{ $th }}" title="{{ __('Playing time in halves') }}">{{ __('Time') }}</th>
-                            <th class="{{ $th }}" title="{{ __('Rest after the match') }}">{{ __('Rest') }}</th>
-                            <th class="{{ $th }}">{{ __('Exp.') }}</th>
-                            <th class="w-8"></th>
-                        </tr>
-                    </thead>
-                    @foreach ([[__('Starting eleven'), $starters], [__('Bench'), $subs]] as [$groupTitle, $group])
-                        @if ($group->isNotEmpty())
-                            <tbody class="divide-y divide-zinc-100 dark:divide-zinc-800">
-                                <tr class="bg-zinc-50 dark:bg-white/5">
-                                    <td colspan="12" class="px-3 py-1 text-xs font-bold uppercase tracking-wide text-zinc-500">{{ $groupTitle }} ({{ $group->count() }})</td>
-                                </tr>
-                                @foreach ($group as $a)
+            <div class="mt-6 grid items-start gap-6 lg:grid-cols-4">
+                {{-- 1/4: protokół --}}
+                <div class="overflow-hidden rounded-xl border border-zinc-200 bg-white dark:border-zinc-700 dark:bg-zinc-900">
+                    <div class="lech-bar px-3 py-2 text-xs font-bold uppercase tracking-wide">{{ __('Match protocol') }}</div>
+
+                    @if ($editable)
+                        <div class="space-y-3 border-b border-zinc-100 p-3 dark:border-zinc-800">
+                            <div class="grid grid-cols-2 gap-1">
+                                @foreach ($typeLabels as $typeKey => $typeLabel)
+                                    <button type="button" wire:click="setEventType('{{ $typeKey }}')"
+                                        class="{{ $type === $typeKey ? $chipOn : $chipOff }} flex items-center justify-center gap-1.5 rounded-lg border px-2 py-1.5 text-xs font-bold transition">
+                                        @if ($typeKey === \App\Support\MatchReport::EVENT_GOAL)
+                                            <x-ball />
+                                        @elseif ($typeKey === \App\Support\MatchReport::EVENT_OWN_GOAL)
+                                            <x-ball own />
+                                        @elseif ($typeKey === \App\Support\MatchReport::EVENT_CARD)
+                                            <span class="inline-block h-3.5 w-2.5 rounded-[2px] bg-yellow-400"></span>
+                                        @else
+                                            <flux:icon.arrows-right-left variant="micro" />
+                                        @endif
+                                        {{ $typeLabel }}
+                                    </button>
+                                @endforeach
+                            </div>
+
+                            @if ($type === \App\Support\MatchReport::EVENT_CARD)
+                                <div class="flex flex-wrap gap-1">
+                                    @foreach ($cardLabels as $cardKey => $cardLabel)
+                                        <button type="button" wire:click="$set('eventCard', '{{ $cardKey }}')" class="{{ $chip }} {{ $this->eventCard === $cardKey ? $chipOn : $chipOff }}">{{ $cardLabel }}</button>
+                                    @endforeach
+                                </div>
+                            @endif
+
+                            @foreach (array_filter([['eventPlayer', $mainGroup, $mainLabel, $this->eventPlayer], $otherGroup ? ['eventOther', $otherGroup, $otherLabel, $this->eventOther] : null]) as [$field, $group, $groupLabel, $chosen])
+                                <div class="space-y-1">
+                                    <div class="{{ $stepLabel }}">{{ $groupLabel }}</div>
                                     @php
-                                        $player = $players[$a->lech_player_id] ?? null;
-                                        $on = $a->started ? 0 : $a->on_slot;
+                                        $choices = $this->eventChoices($group);
                                     @endphp
-                                    @if ($player)
-                                        <tr wire:key="row-{{ $a->id }}" class="group {{ !$a->started && $a->on_slot === null ? 'text-zinc-500' : '' }}">
-                                            <td class="px-2 py-1.5 text-right text-xs tabular-nums text-zinc-400">{{ $player->number }}</td>
-                                            <td class="px-2 py-1.5">
-                                                <div class="flex items-center gap-1.5 whitespace-nowrap">
-                                                    <span class="w-4 text-[10px] font-semibold uppercase text-zinc-400">{{ $player->position->short() }}</span>
-                                                    <span class="font-medium">{{ $player->name }}</span>
-                                                    @if ($editable)
-                                                        <button type="button" wire:click="toggleRole({{ $a->lech_player_id }})" class="rounded px-1 text-[10px] font-semibold text-lech-700 hover:bg-lech-50 dark:text-lech-300"
-                                                            title="{{ $a->started ? __('To the bench') : __('To the eleven') }}">{{ $a->started ? '↓' . __('Sub') : '↑' . __('XI') }}</button>
-                                                    @endif
-                                                </div>
-                                            </td>
-                                            <td class="px-2 py-1">
-                                                <div class="space-y-1">
-                                                    @if (!$a->started)
-                                                        <div class="flex items-center gap-1">
-                                                            <span class="w-16 shrink-0 whitespace-nowrap text-[10px] font-semibold uppercase text-zinc-400">{{ __('Came on') }}</span>
-                                                            @foreach (\App\Support\MatchReport::ON_LABELS as $slot => $slotLabel)
-                                                                @continue($slot >= $end)
-                                                                <button type="button" wire:click="setOn({{ $a->lech_player_id }}, {{ $slot }})" @disabled(!$editable)
-                                                                    class="{{ $slotBtn }} {{ $a->on_slot === $slot ? $slotOn : $slotOff }}">{{ $slotLabel }}</button>
-                                                            @endforeach
-                                                        </div>
-                                                    @endif
-                                                    @if ($on !== null)
-                                                        <div class="flex items-center gap-1">
-                                                            <span class="w-16 shrink-0 whitespace-nowrap text-[10px] font-semibold uppercase text-zinc-400">{{ __('Came off') }}</span>
-                                                            @foreach (\App\Support\MatchReport::OFF_LABELS as $slot => $slotLabel)
-                                                                @continue($slot > $end)
-                                                                @php
-                                                                    $valid = $slot > $on || ($slot === $on && $on % 2 === 1);
-                                                                @endphp
-                                                                <button type="button" wire:click="setOff({{ $a->lech_player_id }}, {{ $slot }})" @disabled(!$editable || !$valid)
-                                                                    class="{{ $slotBtn }} {{ $a->off_slot === $slot ? $slotOn : $slotOff }}">{{ $slotLabel }}</button>
-                                                            @endforeach
-                                                        </div>
-                                                    @endif
-                                                </div>
-                                            </td>
-                                            @foreach (['goals', 'assists', 'own_goals'] as $field)
-                                                <td class="px-1 py-1.5">
-                                                    {{-- Lekko: zero = blady „+” (wyraźny po najechaniu na wiersz), liczba = klik dodaje, małe „−” obok odejmuje. --}}
-                                                    @if ($on !== null)
-                                                        <div class="flex items-center justify-center gap-0.5">
-                                                            @if ($a->{$field} > 0)
-                                                                @if ($editable)
-                                                                    <button type="button" wire:click="bumpStat({{ $a->lech_player_id }}, '{{ $field }}', -1)" class="flex size-5 items-center justify-center rounded text-xs font-bold text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-white/10" aria-label="−">−</button>
-                                                                @endif
-                                                                <button type="button" wire:click="bumpStat({{ $a->lech_player_id }}, '{{ $field }}', 1)" @disabled(!$editable) title="+1"
-                                                                    class="{{ $field === 'own_goals' ? 'bg-red-600' : 'bg-lech-700' }} flex size-6 items-center justify-center rounded-full text-xs font-bold tabular-nums text-white">{{ $a->{$field} }}</button>
-                                                            @elseif ($editable)
-                                                                <button type="button" wire:click="bumpStat({{ $a->lech_player_id }}, '{{ $field }}', 1)" aria-label="+"
-                                                                    class="flex size-6 items-center justify-center rounded-full border border-dashed border-zinc-200 text-xs text-zinc-300 transition group-hover:border-zinc-400 group-hover:text-zinc-600 hover:bg-lech-50 dark:border-zinc-700 dark:text-zinc-600 dark:group-hover:text-zinc-300">+</button>
+                                    @if ($choices === [])
+                                        <flux:text class="text-xs">{{ __('Nobody to choose.') }}</flux:text>
+                                    @endif
+                                    <div class="flex flex-wrap gap-1">
+                                        @foreach ($choices as $choiceId)
+                                            @php
+                                                $choice = $players[$choiceId] ?? null;
+                                            @endphp
+                                            @if ($choice)
+                                                <button type="button" wire:click="$set('{{ $field }}', {{ $chosen === $choiceId ? 'null' : $choiceId }})" title="{{ $choice->name }}"
+                                                    class="{{ $chip }} {{ $chosen === $choiceId ? $chipOn : $chipOff }}">
+                                                    <span class="opacity-60">{{ $choice->number }}</span> {{ \App\Support\MatchSheet::surname($choice->name) }}
+                                                </button>
+                                            @endif
+                                        @endforeach
+                                    </div>
+                                </div>
+                            @endforeach
+
+                            @if ($needsSlot)
+                                <div class="space-y-1">
+                                    <div class="{{ $stepLabel }}">{{ __('When') }}</div>
+                                    <div class="flex flex-wrap gap-1">
+                                        @foreach (\App\Support\MatchReport::OFF_LABELS as $slot => $slotLabel)
+                                            @continue($slot > $end)
+                                            <button type="button" wire:click="$set('eventSlot', {{ $slot }})" class="{{ $chip }} w-10 tabular-nums {{ $this->eventSlot === $slot ? $chipOn : $chipOff }}">{{ $slotLabel }}</button>
+                                        @endforeach
+                                    </div>
+                                </div>
+                            @endif
+
+                            <flux:button class="w-full" size="sm" variant="primary" icon="plus" wire:click="addEvent" :disabled="$this->eventPlayer === null || ($needsSlot && $this->eventSlot === null)">
+                                {{ __('Add to the protocol') }}
+                            </flux:button>
+                        </div>
+                    @endif
+
+                    <div class="px-3 py-2">
+                        @if ($this->events->isEmpty())
+                            <flux:text class="py-2 text-xs">{{ __('No events yet. The starting eleven plays the whole match, the bench does not come on.') }}</flux:text>
+                        @else
+                            @include('partials.match-protocol', ['events' => $this->events, 'deletable' => $editable])
+                        @endif
+                    </div>
+                </div>
+
+                {{-- 3/4: tabela zbiorcza (tylko odczyt, liczona z protokołu) --}}
+                <div class="lg:col-span-3">
+                    <div class="overflow-x-auto rounded-xl border border-zinc-200 bg-white dark:border-zinc-700 dark:bg-zinc-900">
+                        <table class="w-full min-w-[46rem] text-sm">
+                            <thead class="lech-bar text-xs uppercase tracking-wide">
+                                <tr>
+                                    <th class="{{ $th }} w-8">#</th>
+                                    <th class="px-2 py-2 text-left font-semibold">{{ __('Player') }}</th>
+                                    <th class="{{ $th }}">{{ __('Playing time') }}</th>
+                                    <th class="{{ $th }}">{{ __('Goals') }}</th>
+                                    <th class="{{ $th }}">{{ __('Assists') }}</th>
+                                    <th class="{{ $th }}" title="{{ __('Own goals') }}">{{ __('OG') }}</th>
+                                    <th class="{{ $th }}">{{ __('Cards') }}</th>
+                                    <th class="{{ $th }}" title="{{ __('Clean sheet') }}">{{ __('CS') }}</th>
+                                    <th class="{{ $th }}" title="{{ __('Playing time in halves') }}">{{ __('Time') }}</th>
+                                    <th class="{{ $th }}" title="{{ __('Rest after the match') }}">{{ __('Rest') }}</th>
+                                    <th class="{{ $th }}">{{ __('Exp.') }}</th>
+                                    <th class="w-8"></th>
+                                </tr>
+                            </thead>
+                            @foreach ([[__('Starting eleven'), $starters], [__('Bench'), $subs]] as [$groupTitle, $group])
+                                @if ($group->isNotEmpty())
+                                    <tbody class="divide-y divide-zinc-100 dark:divide-zinc-800">
+                                        <tr class="bg-zinc-50 dark:bg-white/5">
+                                            <td colspan="12" class="px-3 py-1 text-xs font-bold uppercase tracking-wide text-zinc-500">{{ $groupTitle }} ({{ $group->count() }})</td>
+                                        </tr>
+                                        @foreach ($group as $a)
+                                            @php
+                                                $player = $players[$a->lech_player_id] ?? null;
+                                                $span = \App\Support\MatchReport::spanLabel($a->started ? 0 : $a->on_slot, $a->off_slot);
+                                            @endphp
+                                            @if ($player)
+                                                <tr wire:key="row-{{ $a->id }}" class="{{ $span === null ? 'text-zinc-400' : '' }}">
+                                                    <td class="px-2 py-1.5 text-right text-xs tabular-nums text-zinc-400">{{ $player->number }}</td>
+                                                    <td class="px-2 py-1.5">
+                                                        <div class="flex items-center gap-1.5 whitespace-nowrap">
+                                                            <span class="w-4 text-[10px] font-semibold uppercase text-zinc-400">{{ $player->position->short() }}</span>
+                                                            <span class="font-medium">{{ $player->name }}</span>
+                                                            @if ($editable)
+                                                                <button type="button" wire:click="toggleRole({{ $a->lech_player_id }})" class="rounded px-1 text-[10px] font-semibold text-lech-700 hover:bg-lech-50 dark:text-lech-300"
+                                                                    title="{{ $a->started ? __('To the bench') : __('To the eleven') }}">{{ $a->started ? '↓' . __('Sub') : '↑' . __('XI') }}</button>
                                                             @endif
                                                         </div>
-                                                    @endif
-                                                </td>
-                                            @endforeach
-                                            <td class="px-1 py-1.5">
-                                                {{-- Kartki: żółta, dwie żółte (wyłącza pojedynczą), czerwona --}}
-                                                <div class="flex items-center justify-center gap-1">
-                                                    @php
-                                                        $cards = [
-                                                            'yellow' => [__('Yellow card'), $a->yellow === 1, '<span class="inline-block h-3.5 w-2.5 rounded-[2px] bg-yellow-400"></span>'],
-                                                            'double' => [__('Two yellow cards'), $a->yellow === 2, '<span class="relative inline-block h-3.5 w-3.5"><span class="absolute left-0 top-0 h-3.5 w-2.5 rounded-[2px] bg-yellow-400"></span><span class="absolute left-1 top-0 h-3.5 w-2.5 rounded-[2px] bg-red-500 ring-1 ring-white dark:ring-zinc-900"></span></span>'],
-                                                            'red' => [__('Red card'), $a->red, '<span class="inline-block h-3.5 w-2.5 rounded-[2px] bg-red-500"></span>'],
-                                                        ];
-                                                    @endphp
-                                                    @foreach ($cards as $kind => [$cardLabel, $cardOn, $cardIcon])
-                                                        <button type="button" wire:click="card({{ $a->lech_player_id }}, '{{ $kind }}')" @disabled(!$editable) title="{{ $cardLabel }}" aria-label="{{ $cardLabel }}"
-                                                            class="{{ $cardOn ? 'border-lech-700 ring-2 ring-lech-600' : 'border-zinc-300 opacity-40 hover:opacity-100 dark:border-zinc-600' }} flex size-7 items-center justify-center rounded border bg-white transition dark:bg-zinc-800">
-                                                            {!! $cardIcon !!}
-                                                        </button>
+                                                    </td>
+                                                    <td class="px-2 py-1.5 text-center text-xs tabular-nums">{{ $span ?? __('did not come on') }}</td>
+                                                    @foreach (['goals', 'assists', 'own_goals'] as $field)
+                                                        <td class="px-2 py-1.5 text-center tabular-nums">
+                                                            @if ($a->{$field} > 0)
+                                                                <span class="{{ $field === 'own_goals' ? 'bg-red-600' : 'bg-lech-700' }} inline-flex size-6 items-center justify-center rounded-full text-xs font-bold text-white">{{ $a->{$field} }}</span>
+                                                            @endif
+                                                        </td>
                                                     @endforeach
-                                                </div>
-                                            </td>
-                                            <td class="px-2 py-1.5 text-center text-xs font-bold">
-                                                @if ($a->clean_sheet !== null)
-                                                    <span class="{{ $a->clean_sheet ? 'text-green-600' : 'text-zinc-400' }}">{{ $a->clean_sheet ? 1 : 0 }}</span>
-                                                @endif
-                                            </td>
-                                            <td class="px-2 py-1.5 text-center tabular-nums">{{ $fmt($a->play_time) }}</td>
-                                            <td class="px-2 py-1.5 text-center">
-                                                @if ($a->rest_hours)
-                                                    <span class="{{ \App\Support\Squad::lockColor($a->rest_hours) }} inline-block rounded px-1 text-[11px] font-bold tabular-nums">{{ $a->rest_hours }} h</span>
-                                                @endif
-                                            </td>
-                                            <td class="px-2 py-1.5 text-center font-bold tabular-nums text-lech-700 dark:text-lech-300">{{ \App\Support\ClubStats::experience($a->experience) }}</td>
-                                            <td class="px-1 py-1.5 text-center">
-                                                @if ($editable)
-                                                    <flux:button size="xs" variant="ghost" icon="x-mark" wire:click="togglePlayer({{ $a->lech_player_id }})" :aria-label="__('Remove')" />
-                                                @endif
-                                            </td>
-                                        </tr>
-                                    @endif
-                                @endforeach
-                            </tbody>
-                        @endif
-                    @endforeach
-                </table>
-            </div>
+                                                    <td class="px-2 py-1.5">
+                                                        <div class="flex items-center justify-center gap-1">
+                                                            @if ($a->yellow === 2)
+                                                                <span class="relative inline-block h-3.5 w-3.5" title="{{ __('Two yellow cards') }}"><span class="absolute left-0 top-0 h-3.5 w-2.5 rounded-[2px] bg-yellow-400"></span><span class="absolute left-1 top-0 h-3.5 w-2.5 rounded-[2px] bg-red-500 ring-1 ring-white dark:ring-zinc-900"></span></span>
+                                                            @elseif ($a->yellow === 1)
+                                                                <span class="inline-block h-3.5 w-2.5 rounded-[2px] bg-yellow-400" title="{{ __('Yellow card') }}"></span>
+                                                            @endif
+                                                            @if ($a->red)
+                                                                <span class="inline-block h-3.5 w-2.5 rounded-[2px] bg-red-500" title="{{ __('Red card') }}"></span>
+                                                            @endif
+                                                        </div>
+                                                    </td>
+                                                    <td class="px-2 py-1.5 text-center text-xs font-bold">
+                                                        @if ($a->clean_sheet !== null)
+                                                            <span class="{{ $a->clean_sheet ? 'text-green-600' : 'text-zinc-400' }}">{{ $a->clean_sheet ? 1 : 0 }}</span>
+                                                        @endif
+                                                    </td>
+                                                    <td class="px-2 py-1.5 text-center tabular-nums">{{ $fmt($a->play_time) }}</td>
+                                                    <td class="px-2 py-1.5 text-center">
+                                                        @if ($a->rest_hours)
+                                                            <span class="{{ \App\Support\Squad::lockColor($a->rest_hours) }} inline-block rounded px-1 text-[11px] font-bold tabular-nums">{{ $a->rest_hours }} h</span>
+                                                        @endif
+                                                    </td>
+                                                    <td class="px-2 py-1.5 text-center font-bold tabular-nums text-lech-700 dark:text-lech-300">{{ \App\Support\ClubStats::experience($a->experience) }}</td>
+                                                    <td class="px-1 py-1.5 text-center">
+                                                        @if ($editable)
+                                                            <flux:button size="xs" variant="ghost" icon="x-mark" wire:click="togglePlayer({{ $a->lech_player_id }})" :aria-label="__('Remove')" />
+                                                        @endif
+                                                    </td>
+                                                </tr>
+                                            @endif
+                                        @endforeach
+                                    </tbody>
+                                @endif
+                            @endforeach
+                        </table>
+                    </div>
 
-            <flux:text class="mt-2 text-xs">
-                {{ __('Experience: starting eleven 1, bench 0.5 (also without coming on), a whole half 1 and part of a half 0.5, a clean sheet (goalkeeper, defender who played) 1, each goal (also in a penalty shootout) and assist 1. Points are set in the line-up settings.') }}
-            </flux:text>
+                    <flux:text class="mt-2 text-xs">
+                        {{ __('The table is calculated from the protocol. Experience: starting eleven 1, bench 0.5 (also without coming on), a whole half 1 and part of a half 0.5, a clean sheet (goalkeeper, defender who played, Lech conceded nothing) 1, each goal (also in a penalty shootout) and assist 1. Points are set in the line-up settings.') }}
+                    </flux:text>
+                </div>
+            </div>
         @endif
     @endif
 </div>

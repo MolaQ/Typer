@@ -73,6 +73,18 @@ new class extends Component {
                     </div>
                 </div>
 
+                {{-- Protokół meczu (zawodnicy Lecha), dla wszystkich --}}
+                @php
+                    $protocol = $played && $matchday->lech_match_id
+                        ? \App\Models\MatchEvent::with(['player:id,name', 'other:id,name'])->where('lech_match_id', $matchday->lech_match_id)->orderBy('id')->get()
+                        : collect();
+                @endphp
+                @if ($protocol->isNotEmpty())
+                    <div class="rounded-xl border border-zinc-200 px-3 py-1 dark:border-zinc-700">
+                        @include('partials.match-protocol', ['events' => $protocol])
+                    </div>
+                @endif
+
                 {{-- ===== Szczegóły (premium) ===== --}}
                 <div class="space-y-4">
                     @if (!$this->premium)

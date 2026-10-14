@@ -55,6 +55,24 @@ return new class extends Migration
             $table->unique(['lech_match_id', 'lech_player_id']);
         });
 
+        // Protokół meczu (jak relacja na żywo, tylko zawodnicy Lecha, kolejność wpisu = kolejność zdarzeń). Z niego MatchReport::store
+        // liczy wejścia, zejścia, gole, asysty, samobóje i kartki w match_appearances.
+        Schema::create('match_events', function (Blueprint $table) {
+            $table->id();
+            $table->foreignId('lech_match_id')->constrained()->cascadeOnDelete();
+            // goal | own_goal | card | sub (App\Support\MatchReport::EVENT_*).
+            $table->string('type', 12);
+            // Strzelec, zawodnik z kartką, schodzący albo autor samobója.
+            $table->foreignId('lech_player_id')->constrained()->cascadeOnDelete();
+            // Asystent (gol) albo wchodzący (zmiana), opcjonalnie.
+            $table->foreignId('other_player_id')->nullable()->constrained('lech_players')->cascadeOnDelete();
+            // Kartka: yellow | second_yellow | red.
+            $table->string('card', 16)->nullable();
+            // Kiedy (punkt osi meczu MatchReport::OFF_LABELS): zmiana, druga żółta i czerwona (zejście z boiska).
+            $table->unsignedTinyInteger('slot')->nullable();
+            $table->timestamps();
+        });
+
         // Desygnowanie: zawodnicy wystawieni przez klub (gracz albo bot) w kolejce do jednego typu rozgrywek.
         // Każdy klub ma całą kadrę Lecha; dorobek zawodnika w klubie (gole, asysty, kartki, doświadczenie, odpoczynek)
         // liczy się tylko z kolejek, w których klub go wystawił (Support\Squad).
@@ -102,6 +120,7 @@ return new class extends Migration
     {
         Schema::dropIfExists('designation_settings');
         Schema::dropIfExists('designated_players');
+        Schema::dropIfExists('match_events');
         Schema::dropIfExists('match_appearances');
         Schema::dropIfExists('lech_players');
     }
