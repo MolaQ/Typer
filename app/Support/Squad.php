@@ -306,7 +306,8 @@ class Squad
                 'red' => $inSquad && $r['red'],
                 'attack' => $played ? (int) $r['goals'] + (int) $r['assists'] : 0,
                 'defense' => $played && $r['clean_sheet'] === true ? ($goalkeeper ? $cleanGk : $cleanDf) : 0,
-                'experience' => $inSquad ? (float) $r['experience'] : 0,
+                // Wystawiony przez klub, a nieobecny w kadrze meczowej Lecha: samo wystawienie daje premię jak ławka (0,5).
+                'experience' => $inSquad ? (float) $r['experience'] : ($locked ? 0 : Designation::number('exp_sub')),
                 'rest_hours' => $played ? (int) $r['rest_hours'] : 0,
             ];
             $pick->update($values);
@@ -329,6 +330,44 @@ class Squad
     }
 
     /**
+     * Ile występów daje wybór w typie rozgrywek: Liga Legend ma w kolejce dwa pojedynki, więc wszystko liczy się podwójnie
+     * (doświadczenie, statystyki zawodnika w klubie).
+     */
+    public static function appearances(CompetitionType|string $set): int
+    {
+        $value = $set instanceof CompetitionType ? $set->value : $set;
+
+        return $value === CompetitionType::Legends->value ? 2 : 1;
+    }
+
+    /** SQL: doświadczenie wyboru z mnożnikiem występów (Liga Legend × 2). */
+    private static function experienceSql(): string
+    {
+        return "SUM(designated_players.experience * CASE WHEN designated_players.score_set = '".CompetitionType::Legends->value."' THEN 2 ELSE 1 END)";
+    }
+
+    /**
+     * Doświadczenie zawodników w klubie (cała kariera, rozliczone kolejki): do kolejności i podglądu w wyborze składu.
+     *
+     * @return array<int, float> lech_player_id => doświadczenie
+     */
+    public static function clubExperience(?int $userId, ?int $botId): array
+    {
+        if ($userId === null && $botId === null) {
+            return [];
+        }
+
+        return DesignatedPlayer::query()
+            ->where('designated_players.counted', true)
+            ->where($userId !== null ? 'user_id' : 'bot_id', $userId ?? $botId)
+            ->groupBy('lech_player_id')
+            ->selectRaw('lech_player_id, '.self::experienceSql().' as total')
+            ->get()
+            ->mapWithKeys(fn ($row) => [(int) $row->lech_player_id => round((float) $row->getAttribute('total'), 1)])
+            ->all();
+    }
+
+    /**
      * Doświadczenie zawodników zebrane w klubach przed tą kolejką (wszystkie sezony, mecze z wcześniejszym gwizdkiem).
      *
      * @param  array<int, int>  $userIds
@@ -344,7 +383,7 @@ class Squad
             ->where('matchdays.kickoff_at', '<', $matchday->kickoff_at ?? now())
             ->where(fn ($q) => $q->whereIn('designated_players.user_id', $userIds)->orWhereIn('designated_players.bot_id', $botIds))
             ->groupBy('designated_players.user_id', 'designated_players.bot_id', 'designated_players.lech_player_id')
-            ->selectRaw('designated_players.user_id, designated_players.bot_id, designated_players.lech_player_id, SUM(designated_players.experience) as total')
+            ->selectRaw('designated_players.user_id, designated_players.bot_id, designated_players.lech_player_id, '.self::experienceSql().' as total')
             ->get();
 
         $out = [];

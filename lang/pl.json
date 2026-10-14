@@ -1500,7 +1500,6 @@
     "Experience: starting eleven 1, bench 0.5 (also without coming on), a whole half 1 and part of a half 0.5, a clean sheet (goalkeeper, defender who played) 1, each goal (also in a penalty shootout) and assist 1. Points are set in the line-up settings.": "Doświadczenie: wyjściowa jedenastka 1, ławka 0,5 (także bez wejścia), cała połowa 1 i część połowy 0,5, czyste konto (bramkarz, obrońca, który zagrał) 1, każdy gol (także w serii karnych) i asysta 1. Punkty ustawisz w ustawieniach składów.",
     ":count h left": "Zostało :count h",
     "A fielded player who played rests in this club for these hours from the kickoff of that matchday (all competition types).": "Wystawiony zawodnik, który zagrał, odpoczywa w tym klubie tyle godzin od gwizdka tej kolejki (we wszystkich typach rozgrywek).",
-    "A fielded player who played rests in your club for some hours from the kickoff (from 40 h for part of the first half to 250 h for the whole match with extra time). A player can be in only one competition type per matchday: clicking him with another type selected moves him there.": "Wystawiony zawodnik, który zagrał, odpoczywa w Twoim klubie przez kilka godzin od gwizdka (od 40 h za część pierwszej połowy do 250 h za cały mecz z dogrywką). W kolejce zawodnik może być tylko w jednym typie rozgrywek: kliknięcie go przy innym wybranym typie przenosi go tam.",
     "Add players to": "Dodajesz zawodników do",
     "Add to :set": "Dodaj do: :set",
     "Added for every half played, part of a half counts as half.": "Dochodzą za każdą rozegraną połowę, część połowy liczy się jako pół.",
@@ -1514,5 +1513,17 @@
     "Rules for fielding Lech players: line-up size, bots, clean sheets, rest and experience.": "Zasady wystawiania zawodników Lecha: liczba w składzie, boty, czyste konta, odpoczynek i doświadczenie.",
     "This player rests until :date.": "Ten zawodnik odpoczywa do :date.",
     "free from :date": "wolny od :date",
-    "up to :count h": "do :count h"
+    "up to :count h": "do :count h",
+    "A fielded player who played rests in your club for some hours from the kickoff (from 40 h for part of the first half to 250 h for the whole match with extra time).": "Wystawiony zawodnik, który zagrał, odpoczywa w Twoim klubie przez kilka godzin od gwizdka (od 40 h za część pierwszej połowy do 250 h za cały mecz z dogrywką).",
+    "Attack point (tip point, goal, assist)": "Punkt ataku (punkt za typ, gol, asysta)",
+    "Clean sheet: takes a point from the rival": "Czyste konto: zabiera rywalowi punkt",
+    "Experience in your club": "Doświadczenie w Twoim klubie",
+    "Goals of Lech in the real match": "Gole Lecha w prawdziwym meczu",
+    "Grey name: did not play in the Lech match (fielding still gives 0.5 experience)": "Szare nazwisko: nie zagrał w meczu Lecha (za samo wystawienie 0,5 doświadczenia)",
+    "Liga Legend: two duels, everything counts as two appearances": "Liga Legend: dwa pojedynki, wszystko liczy się jak dwa występy",
+    "Own goal: a point for the rival": "Samobój: punkt dla rywala",
+    "The number next to a player is his experience in your club. A player can be in only one competition type per matchday: clicking him with another type selected moves him there.": "Liczba przy zawodniku to jego doświadczenie w Twoim klubie. W kolejce zawodnik może być tylko w jednym typie rozgrywek: kliknięcie go przy innym wybranym typie przenosi go tam.",
+    "experience in the club after the match": "doświadczenie w klubie po meczu",
+    "no tip": "brak typu",
+    "Experience in the club after the match": "Doświadczenie w klubie po meczu"
 }

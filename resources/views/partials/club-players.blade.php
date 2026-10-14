@@ -84,7 +84,7 @@
                                         <li class="flex flex-wrap items-center gap-x-3 gap-y-1">
                                             <span class="font-semibold">{{ $m['season'] }}, {{ __('Matchday :number', ['number' => $m['matchday']]) }}</span>
                                             <span class="text-zinc-500">{{ $m['fixture'] }}</span>
-                                            <span class="rounded bg-lech-100 px-1.5 py-0.5 text-[10px] font-semibold text-lech-800 dark:bg-lech-900/60 dark:text-lech-100">{{ $m['set'] }}</span>
+                                            <span class="rounded bg-lech-100 px-1.5 py-0.5 text-[10px] font-semibold text-lech-800 dark:bg-lech-900/60 dark:text-lech-100">{{ $m['set'] }}@if ($m['times'] > 1) ×{{ $m['times'] }}@endif</span>
                                             @if (! $m['counted'])
                                                 <span class="rounded bg-red-600 px-1.5 py-0.5 text-[10px] font-bold text-white">{{ __('Forfeited (rest)') }}</span>
                                             @elseif ($m['play_time'] <= 0)

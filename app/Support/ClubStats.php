@@ -81,7 +81,8 @@ class ClubStats
                     'clean_sheet' => $pick->clean_sheet,
                     'yellow' => $pick->yellow,
                     'red' => $pick->red,
-                    'experience' => $pick->experience,
+                    'experience' => $pick->experience * Squad::appearances($pick->score_set),
+                    'times' => Squad::appearances($pick->score_set),
                     'rest_hours' => $pick->rest_hours,
                 ];
             }
@@ -109,21 +110,23 @@ class ClubStats
     private static function sums(DesignatedPlayer $pick): array
     {
         $counted = (bool) $pick->counted;
+        // Liga Legend: dwa pojedynki w kolejce, więc wybór liczy się jak dwa występy.
+        $times = Squad::appearances($pick->score_set);
 
         return [
-            'fielded' => $counted ? 1 : 0,
-            'played' => $counted && $pick->play_time > 0 ? 1 : 0,
-            'play_time' => $pick->play_time,
-            'goals' => $pick->goals,
-            'assists' => $pick->assists,
-            'own_goals' => $pick->own_goals,
-            'clean_sheets' => $pick->clean_sheet === true ? 1 : 0,
-            'yellow' => $pick->yellow,
-            'red' => (int) $pick->red,
-            'attack' => $pick->attack,
-            'defense' => $pick->defense,
-            'experience' => $pick->experience,
-            'forfeited' => $counted ? 0 : 1,
+            'fielded' => $counted ? $times : 0,
+            'played' => $counted && $pick->play_time > 0 ? $times : 0,
+            'play_time' => $pick->play_time * $times,
+            'goals' => $pick->goals * $times,
+            'assists' => $pick->assists * $times,
+            'own_goals' => $pick->own_goals * $times,
+            'clean_sheets' => $pick->clean_sheet === true ? $times : 0,
+            'yellow' => $pick->yellow * $times,
+            'red' => (int) $pick->red * $times,
+            'attack' => $pick->attack * $times,
+            'defense' => $pick->defense * $times,
+            'experience' => $pick->experience * $times,
+            'forfeited' => $counted ? 0 : $times,
         ];
     }
 

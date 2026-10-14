@@ -208,7 +208,8 @@ final class Rivals
 
     /**
      * Wystawieni zawodnicy strony meczu (desygnowanie, Support\Squad) z widocznością jak typ:
-     * przed gwizdkiem wszyscy widzą liczbę, premium pozycje; po gwizdku wszyscy widzą pozycje (B O P N), premium nazwiska.
+     * przed gwizdkiem wszyscy widzą liczbę, premium pozycje; po gwizdku wszyscy widzą pozycje (B O P N), premium nazwiska;
+     * po rozliczeniu nazwiska widzą wszyscy.
      * Bot wystawia skład przy przeliczeniu kolejki, więc przed wynikami nic nie pokazujemy.
      *
      * @return array{count: int, positions: array<string, int>|null, names: array<int, string>|null}|null
@@ -233,7 +234,8 @@ final class Rivals
         }
 
         $showPositions = $phase !== self::OPEN || $premium;
-        $showNames = $phase !== self::OPEN && $premium;
+        // Po rozliczeniu kolejki skład to już historia meczu: nazwiska widzą wszyscy.
+        $showNames = $phase === self::PLAYED || ($phase !== self::OPEN && $premium);
 
         return [
             'count' => $players->count(),
