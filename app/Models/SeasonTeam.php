@@ -17,6 +17,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property int|null $bot_id
  * @property int|null $previous_id miejsce z poprzedniego sezonu, z którego powstał ten wpis
  * @property-read string $name nazwa zespołu gracza albo bota (akcesor name())
+ * @property-read bool $is_bot zespół bota (akcesor isBot())
  */
 class SeasonTeam extends Model
 {
