@@ -36,7 +36,7 @@ class ClubStats
             ->where('matches', '>', 0)
             ->whereHas('matchday', fn ($q) => $q->where('status', MatchdayStatus::Played->value))
             ->get()
-            ->sortBy(fn (DesignatedPlayer $p) => [-(int) $p->matchday?->season?->number, (int) $p->matchday?->number])
+            ->sortBy(fn (DesignatedPlayer $p) => [-(int) $p->matchday?->season?->getAttribute('number'), (int) $p->matchday?->number])
             ->groupBy('lech_player_id');
 
         // Odpoczynek przed najbliższą kolejką bez wyniku w sezonie (do „wolny od”).
