@@ -1515,7 +1515,6 @@
     "free from :date": "wolny od :date",
     "up to :count h": "do :count h",
     "A fielded player who played rests in your club for some hours from the kickoff (from 40 h for part of the first half to 250 h for the whole match with extra time).": "Wystawiony zawodnik, który zagrał, odpoczywa w Twoim klubie przez kilka godzin od gwizdka (od 40 h za część pierwszej połowy do 250 h za cały mecz z dogrywką).",
-    "Attack point (tip point, goal, assist)": "Punkt ataku (punkt za typ, gol, asysta)",
     "Clean sheet: takes a point from the rival": "Czyste konto: zabiera rywalowi punkt",
     "Experience in your club": "Doświadczenie w Twoim klubie",
     "Goals of Lech in the real match": "Gole Lecha w prawdziwym meczu",
@@ -1524,6 +1523,6 @@
     "Own goal: a point for the rival": "Samobój: punkt dla rywala",
     "The number next to a player is his experience in your club. A player can be in only one competition type per matchday: clicking him with another type selected moves him there.": "Liczba przy zawodniku to jego doświadczenie w Twoim klubie. W kolejce zawodnik może być tylko w jednym typie rozgrywek: kliknięcie go przy innym wybranym typie przenosi go tam.",
     "experience in the club after the match": "doświadczenie w klubie po meczu",
-    "no tip": "brak typu",
-    "Experience in the club after the match": "Doświadczenie w klubie po meczu"
+    "Experience in the club after the match": "Doświadczenie w klubie po meczu",
+    "Attack point (goal, assist)": "Punkt ataku (gol, asysta)"
 }

@@ -323,7 +323,7 @@ new class extends Component {
                 {{-- Legenda protokołów --}}
                 @if ($sheets !== [])
                     <div class="flex flex-wrap items-center gap-x-4 gap-y-1.5 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-xs text-zinc-600 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300">
-                        <span class="flex items-center gap-1.5"><x-ball /> {{ __('Attack point (tip point, goal, assist)') }}</span>
+                        <span class="flex items-center gap-1.5"><x-ball /> {{ __('Attack point (goal, assist)') }}</span>
                         <span class="flex items-center gap-1.5"><x-ball own /> {{ __('Own goal: a point for the rival') }}</span>
                         <span class="flex items-center gap-1.5"><x-fist /> {{ __('Clean sheet: takes a point from the rival') }}</span>
                         <span class="flex items-center gap-1.5"><span class="inline-block h-3.5 w-2.5 rounded-[2px] bg-yellow-400"></span><span class="inline-block h-3.5 w-2.5 rounded-[2px] bg-red-500"></span> {{ __('Cards') }}</span>

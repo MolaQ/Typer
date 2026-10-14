@@ -1,6 +1,6 @@
 {{--
     Protokół meczu rozliczonej kolejki (Support\MatchSheet) w karcie typu rozgrywek na /tips: wynik, a pod nim „strzelcy” obu stron.
-    Pierwszy wiersz strony to zespół (piłka za każdy punkt za typ), dalej wystawieni zawodnicy: piłki za punkty ataku, czerwona piłka
+    Przy nazwie zespołu w wyniku typ gracza (szary, w nawiasie). Strzelcy to tylko wystawieni zawodnicy: piłki za punkty ataku, czerwona piłka
     za samobója, pięść za czyste konto; w kolumnach kartki i doświadczenie w klubie po meczu. Szarzy = nie zagrali w meczu Lecha.
     Zmienne: $sheet, $showCompetition.
 --}}
@@ -13,7 +13,12 @@
     <div class="space-y-0.5 px-2 py-1.5">
         @foreach ($sheet['sides'] as $side)
             <div class="flex items-center gap-2 text-sm {{ $side['winner'] ? 'font-black' : 'font-semibold' }} {{ $side['mine'] ? 'text-lech-800 dark:text-lech-200' : '' }}">
-                <span class="min-w-0 flex-1 truncate {{ $side['bot'] ? 'italic' : '' }}">{{ $side['name'] }}</span>
+                <span class="flex min-w-0 flex-1 items-baseline gap-1">
+                    <span class="min-w-0 truncate {{ $side['bot'] ? 'italic' : '' }}">{{ $side['name'] }}</span>
+                    @if (!$side['virtual'])
+                        <span class="shrink-0 text-[10px] font-normal tabular-nums text-zinc-400" title="{{ __('Tip') }}">({{ $side['tip'] ?? '–' }})</span>
+                    @endif
+                </span>
                 <span class="shrink-0 rounded bg-zinc-100 px-1.5 tabular-nums dark:bg-white/10">{{ $side['goals'] }}</span>
             </div>
         @endforeach
@@ -35,25 +40,10 @@
 
             @if ($side['virtual'])
                 <div class="text-[11px] text-zinc-500">{{ __('Goals of Lech in the real match') }}</div>
+            @elseif ($side['rows'] === [])
+                <div class="text-[11px] text-zinc-400">{{ __('Nobody was fielded.') }}</div>
             @else
                 <ul class="space-y-0.5 text-[11px]">
-                    {{-- Zespół: punkty za typ jako gole --}}
-                    <li class="flex items-center gap-1">
-                        <span class="flex min-w-0 flex-1 flex-wrap items-center gap-x-1 gap-y-0.5">
-                            <span class="min-w-0 max-w-full truncate font-bold {{ $side['bot'] ? 'italic' : '' }}">{{ $side['name'] }}</span>
-                            @if ($side['has_tip'])
-                                <span class="shrink-0 text-[10px] tabular-nums text-zinc-500">({{ $side['tip'] }})</span>
-                                @for ($i = 0; $i < $side['tip_points']; $i++)
-                                    <x-ball />
-                                @endfor
-                            @else
-                                <span class="shrink-0 text-[10px] text-zinc-400">{{ __('no tip') }}</span>
-                            @endif
-                        </span>
-                        <span class="w-8 shrink-0"></span>
-                        <span class="w-8 shrink-0"></span>
-                    </li>
-
                     @foreach ($side['rows'] as $row)
                         <li class="{{ $row['played'] ? '' : 'text-zinc-400 dark:text-zinc-500' }} flex items-center gap-1">
                             <span class="w-3 shrink-0 text-[9px] font-semibold">{{ $row['position']->short() }}</span>

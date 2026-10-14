@@ -14,7 +14,7 @@ use App\Models\User;
 
 /**
  * Protokoły meczów gracza w rozliczonej kolejce (/tips, pod kartami typów rozgrywek): wynik i „strzelcy” obu stron.
- * Pierwszy strzelec to zespół (tyle piłek, ile punktów za typ), dalej wystawieni zawodnicy: piłka za każdy punkt ataku,
+ * Przy zespole typ gracza, strzelcy to wystawieni zawodnicy: piłka za każdy punkt ataku,
  * czerwona piłka za samobója (punkt dla rywala), pięść za czyste konto (zabiera rywalowi punkt ataku), kartki
  * i doświadczenie zawodnika w klubie po meczu. Zawodnicy, którzy nie zagrali w meczu Lecha, są wyszarzeni.
  * Po rozliczeniu wszystko jest jawne (także skład rywala).
