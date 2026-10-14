@@ -24,8 +24,8 @@ use Random\Randomizer;
  */
 class Squad
 {
-    /** SQL: doświadczenie wyboru z mnożnikiem występów (Liga Legend × 2). */
-    private const EXPERIENCE_SQL = "SUM(designated_players.experience * CASE WHEN designated_players.score_set = 'legends' THEN 2 ELSE 1 END)";
+    /** SQL: doświadczenie wyboru razy liczba meczów, które się odbyły (Liga Legend do dwóch pojedynków). */
+    private const EXPERIENCE_SQL = 'SUM(designated_players.experience * designated_players.matches)';
 
     /** @var array<int, array<int, array<string, mixed>>> matchday_id => rozliczenie meczu (MatchReport) */
     private static array $reports = [];
@@ -91,7 +91,7 @@ class Squad
 
         $picks = DesignatedPlayer::whereIn('matchday_id', $previous->keys())
             ->where(fn ($q) => $q->whereIn('user_id', $userIds)->orWhereIn('bot_id', $botIds))
-            ->where(fn ($q) => $q->whereNull('counted')->orWhere('counted', true))
+            ->where(fn ($q) => $q->whereNull('counted')->orWhere(fn ($q) => $q->where('counted', true)->where('matches', '>', 0)))
             ->get(['matchday_id', 'user_id', 'bot_id', 'lech_player_id']);
 
         $locks = [];
@@ -268,10 +268,13 @@ class Squad
      * Rozliczenie wystawionych zawodników kolejki (przy przeliczeniu, ScoreMatchday): zapisuje dorobek każdego wyboru
      * i zwraca sumy klubu w typie rozgrywek. Wybór zawodnika z blokadą przepada (counted = false).
      * Doświadczenie do remisów = doświadczenie wystawionych zawodników zebrane w klubie (cała kariera) z tym meczem.
+     * Dorobek liczy się tylko z meczów, które się odbyły: $matches = klucz klubu => typ rozgrywek => liczba meczów w kolejce
+     * (Liga Legend 0-2). Wybór w typie bez meczu nie daje nic (ani doświadczenia, ani odpoczynku).
      *
+     * @param  array<string, array<string, int>>  $matches
      * @return array<string, array<string, array{attack: int, defense: int, own_goals: int, experience: float, yellow: int, red: int}>>
      */
-    public static function settle(Matchday $matchday): array
+    public static function settle(Matchday $matchday, array $matches = []): array
     {
         self::forget();
         $report = self::report($matchday);
@@ -313,12 +316,13 @@ class Squad
                 'experience' => $inSquad ? (float) $r['experience'] : ($locked ? 0 : Designation::number('exp_sub')),
                 'rest_hours' => $played ? (int) $r['rest_hours'] : 0,
             ];
+            $set = $pick->score_set->value;
+            $values['matches'] = $matches[$club][$set] ?? 0;
             $pick->update($values);
 
-            $set = $pick->score_set->value;
             $total = $totals[$club][$set] ?? ['attack' => 0, 'defense' => 0, 'own_goals' => 0, 'experience' => 0.0, 'yellow' => 0, 'red' => 0];
 
-            if (! $locked) {
+            if (! $locked && $values['matches'] > 0) {
                 $total['attack'] += $values['attack'];
                 $total['defense'] += $values['defense'];
                 $total['own_goals'] += $values['own_goals'];
@@ -333,8 +337,8 @@ class Squad
     }
 
     /**
-     * Ile występów daje wybór w typie rozgrywek: Liga Legend ma w kolejce dwa pojedynki, więc wszystko liczy się podwójnie
-     * (doświadczenie, statystyki zawodnika w klubie).
+     * Najwięcej meczów klubu w kolejce w typie rozgrywek: Liga Legend dwa pojedynki, reszta jeden. Ile się faktycznie
+     * odbyło, zapisuje settle w designated_players.matches.
      */
     public static function appearances(CompetitionType|string $set): int
     {

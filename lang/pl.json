@@ -1465,7 +1465,6 @@
     "A match outside the game: its report counts only to the order of players in the result panel.": "Mecz spoza gry: jego raport liczy się tylko do kolejności zawodników w panelu wyniku.",
     "Also every goal in a penalty shootout.": "Także każdy gol w serii rzutów karnych.",
     "Attack points taken from the rival when Lech concedes no goal and the player played.": "Tyle punktów ataku traci rywal, gdy Lech nie stracił gola, a zawodnik zagrał.",
-    "Each club has its own Lech players: the numbers come only from matchdays in which this club fielded the player. Click a player to see earlier seasons, all seasons and the matches.": "Każdy klub ma własnych zawodników Lecha: liczby pochodzą tylko z kolejek, w których ten klub wystawił zawodnika. Kliknij zawodnika, aby zobaczyć wcześniejsze sezony, wszystkie sezony i mecze.",
     "Enter the Lech score, the line-up and the events. Every click is saved at once, then recalculate the matchday.": "Wpisz wynik Lecha, skład i zdarzenia. Każde kliknięcie zapisuje się od razu, potem przelicz kolejkę.",
     "Enter the score, the line-up and the events, then recalculate the matchday.": "Wpisz wynik, skład i zdarzenia, potem przelicz kolejkę.",
     "Extra time": "Dogrywka",
@@ -1515,7 +1514,6 @@
     "Experience in your club": "Doświadczenie w Twoim klubie",
     "Goals of Lech in the real match": "Gole Lecha w prawdziwym meczu",
     "Grey name: did not play in the Lech match (fielding still gives 0.5 experience)": "Szare nazwisko: nie zagrał w meczu Lecha (za samo wystawienie 0,5 doświadczenia)",
-    "Liga Legend: two duels, everything counts as two appearances": "Liga Legend: dwa pojedynki, wszystko liczy się jak dwa występy",
     "Own goal: a point for the rival": "Samobój: punkt dla rywala",
     "The number next to a player is his experience in your club. A player can be in only one competition type per matchday: clicking him with another type selected moves him there.": "Liczba przy zawodniku to jego doświadczenie w Twoim klubie. W kolejce zawodnik może być tylko w jednym typie rozgrywek: kliknięcie go przy innym wybranym typie przenosi go tam.",
     "experience in the club after the match": "doświadczenie w klubie po meczu",
@@ -1543,5 +1541,7 @@
     "did not come on": "nie wszedł",
     "no substitute": "bez zmiennika",
     "own goal": "samobój",
-    "Footballer": "Zawodnik"
+    "Footballer": "Zawodnik",
+    "Liga Legend: each duel that takes place counts as one appearance": "Liga Legend: każdy rozegrany pojedynek to osobny występ",
+    "Each club has its own Lech players: the numbers come only from matches that took place in matchdays in which this club fielded the player. Click a player to see all seasons, then a season to see its matches.": "Każdy klub ma swoich zawodników Lecha: liczby pochodzą tylko z meczów, które się odbyły, w kolejkach, w których ten klub wystawił zawodnika. Kliknij zawodnika, aby zobaczyć wszystkie sezony, a potem sezon, aby zobaczyć jego mecze."
 }

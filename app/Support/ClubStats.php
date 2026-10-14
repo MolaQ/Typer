@@ -3,6 +3,7 @@
 namespace App\Support;
 
 use App\Enums\MatchdayStatus;
+use App\Enums\PlayerPosition;
 use App\Models\DesignatedPlayer;
 use App\Models\LechPlayer;
 use App\Models\Matchday;
@@ -17,8 +18,10 @@ class ClubStats
 
     /**
      * Kadra klubu z dorobkiem: cała kadra bez niedostępnych plus niedostępni, którzy już coś mają.
+     * Kolejność: doświadczenie w bieżącym sezonie malejąco, potem w całej karierze w klubie, potem pozycja i numer.
+     * „seasons” to sezony od ostatniego (także bieżący) z sumą i meczami od pierwszej kolejki do ostatniej.
      *
-     * @return array<int, array{player: LechPlayer, free_at: int|null, season: array<string, int|float>, seasons: array<string, array<string, int|float>>, career: array<string, int|float>, matches: array<int, array<string, mixed>>}>
+     * @return array<int, array{player: LechPlayer, free_at: int|null, season: array<string, int|float>, career: array<string, int|float>, seasons: array<int, array{title: string, current: bool, sums: array<string, int|float>, matches: array<int, array<string, mixed>>}>}>
      */
     public static function players(?int $userId, ?int $botId, ?int $seasonId): array
     {
@@ -29,9 +32,11 @@ class ClubStats
         $picks = DesignatedPlayer::with(['matchday.season'])
             ->where($userId !== null ? 'user_id' : 'bot_id', $userId ?? $botId)
             ->whereNotNull('counted')
+            // Tylko mecze, które się odbyły (np. Liga Legend z jednym zespołem nie ma pojedynku).
+            ->where('matches', '>', 0)
             ->whereHas('matchday', fn ($q) => $q->where('status', MatchdayStatus::Played->value))
             ->get()
-            ->sortByDesc(fn (DesignatedPlayer $p) => (int) $p->matchday?->kickoff_at?->getTimestamp())
+            ->sortBy(fn (DesignatedPlayer $p) => [-(int) $p->matchday?->season?->number, (int) $p->matchday?->number])
             ->groupBy('lech_player_id');
 
         // Odpoczynek przed najbliższą kolejką bez wyniku w sezonie (do „wolny od”).
@@ -40,36 +45,30 @@ class ClubStats
 
         $squad = Squad::available();
         $extra = LechPlayer::whereIn('id', $picks->keys()->diff($squad->pluck('id')))->get();
+        $order = array_flip(PlayerPosition::values());
         $out = [];
 
         foreach ($squad->concat($extra) as $player) {
             $season = self::empty();
             $career = $season;
             $seasons = [];
-            $matches = [];
 
             foreach ($picks->get($player->id, collect()) as $pick) {
                 $row = self::sums($pick);
                 $md = $pick->matchday;
                 $current = $md?->season_id === $seasonId;
-                $title = (string) $md?->season?->title;
+                $key = (int) $md?->season_id;
+                $seasons[$key] ??= ['title' => (string) $md?->season?->title, 'current' => $current, 'sums' => self::empty(), 'matches' => []];
 
-                if (! $current) {
-                    $seasons[$title] ??= self::empty();
-                }
-
-                foreach (self::SUMS as $key) {
-                    $career[$key] += $row[$key];
+                foreach (self::SUMS as $sum) {
+                    $career[$sum] += $row[$sum];
+                    $seasons[$key]['sums'][$sum] += $row[$sum];
                     if ($current) {
-                        $season[$key] += $row[$key];
-                    } else {
-                        $seasons[$title][$key] += $row[$key];
+                        $season[$sum] += $row[$sum];
                     }
                 }
 
-                $matches[] = [
-                    'this_season' => $current,
-                    'season' => $title,
+                $seasons[$key]['matches'][] = [
                     'matchday' => $md?->number,
                     'fixture' => $md ? $md->fixture.($md->lech_goals !== null ? ' '.$md->lech_goals.':'.$md->opponent_goals : '') : '',
                     'set' => $pick->score_set->scoreSetLabel(),
@@ -81,8 +80,8 @@ class ClubStats
                     'clean_sheet' => $pick->clean_sheet,
                     'yellow' => $pick->yellow,
                     'red' => $pick->red,
-                    'experience' => $pick->experience * Squad::appearances($pick->score_set),
-                    'times' => Squad::appearances($pick->score_set),
+                    'experience' => $pick->experience * $pick->matches,
+                    'times' => $pick->matches,
                     'rest_hours' => $pick->rest_hours,
                 ];
             }
@@ -91,11 +90,13 @@ class ClubStats
                 'player' => $player,
                 'free_at' => $locks[$player->id] ?? null,
                 'season' => $season,
-                'seasons' => $seasons,
                 'career' => $career,
-                'matches' => $matches,
+                'seasons' => array_values($seasons),
             ];
         }
+
+        usort($out, fn ($a, $b) => [$b['season']['experience'], $b['career']['experience'], $order[$a['player']->position->value], $a['player']->number ?? 999]
+            <=> [$a['season']['experience'], $a['career']['experience'], $order[$b['player']->position->value], $b['player']->number ?? 999]);
 
         return $out;
     }
@@ -110,8 +111,8 @@ class ClubStats
     private static function sums(DesignatedPlayer $pick): array
     {
         $counted = (bool) $pick->counted;
-        // Liga Legend: dwa pojedynki w kolejce, więc wybór liczy się jak dwa występy.
-        $times = Squad::appearances($pick->score_set);
+        // Liga Legend: każdy pojedynek, który się odbył, to osobny występ (zwykle dwa, przy dwóch zespołach jeden).
+        $times = $pick->matches;
 
         return [
             'fielded' => $counted ? $times : 0,

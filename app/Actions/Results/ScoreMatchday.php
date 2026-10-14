@@ -98,8 +98,29 @@ class ScoreMatchday
             }
             Squad::pickForBots($matchday, $setsOfBot);
 
+            // Ile meczów każdy klub rozegrał w kolejce w każdym typie rozgrywek (Liga Legend do dwóch pojedynków, przy dwóch
+            // zespołach jeden, przy jednym żaden): dorobek wystawionych zawodników liczy się tylko z meczów, które się odbyły.
+            $teamsById = $teams->keyBy('id');
+            $matchesOf = [];
+            $roundFixtures = Fixture::whereIn('competition_id', $competitions->keys())->where('round', $matchday->number)
+                ->whereNotNull('home_entry_id')->get(['competition_id', 'home_entry_id', 'away_entry_id', 'away_seat']);
+            foreach ($roundFixtures as $roundFixture) {
+                if ($roundFixture->away_entry_id === null && ! $roundFixture->isBye()) {
+                    continue; // puchar: rywal jeszcze nieznany
+                }
+
+                $set = $competitions[$roundFixture->competition_id]->type->scoreSet()->value;
+                foreach ([$roundFixture->home_entry_id, $roundFixture->away_entry_id] as $entryId) {
+                    $team = $entryId !== null && isset($entries[$entryId]) ? $teamsById->get($entries[$entryId]->season_team_id) : null;
+                    if ($team !== null) {
+                        $club = Squad::clubKey($team->user_id, $team->bot_id);
+                        $matchesOf[$club][$set] = ($matchesOf[$club][$set] ?? 0) + 1;
+                    }
+                }
+            }
+
             // Dorobek wystawionych zawodników z raportu meczu: klub => typ rozgrywek => sumy (Support\Squad::settle).
-            $lineups = Squad::settle($matchday);
+            $lineups = Squad::settle($matchday, $matchesOf);
             $humanTips = Tip::where('matchday_id', $matchday->id)->get()->keyBy('user_id');
 
             // --- Dorobek zespołów ---

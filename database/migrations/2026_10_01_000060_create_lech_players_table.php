@@ -87,6 +87,9 @@ return new class extends Migration
             $table->foreignId('lech_player_id')->constrained()->cascadeOnDelete();
             // Rozliczenie przy przeliczeniu kolejki (ScoreMatchday). counted: null = jeszcze nie, false = przepadł (blokada), true = liczy się.
             $table->boolean('counted')->nullable();
+            // Ile meczów klub rozegrał w kolejce w tym typie rozgrywek (Liga Legend 0-2: przy dwóch zespołach jeden pojedynek,
+            // przy jednym żaden; puchar po odpadnięciu 0). Dorobek i doświadczenie liczą się razy tyle meczów.
+            $table->unsignedTinyInteger('matches')->default(0);
             // Czas gry w połowach (cała połowa 1, część 0,5).
             $table->decimal('play_time', 3, 1)->default(0);
             $table->unsignedTinyInteger('goals')->default(0);

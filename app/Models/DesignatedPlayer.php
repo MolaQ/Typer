@@ -15,6 +15,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property CompetitionType $score_set
  * @property int $lech_player_id
  * @property bool|null $counted null = jeszcze nie rozliczony, false = przepadł (blokada)
+ * @property int $matches mecze klubu w kolejce w tym typie rozgrywek, które się odbyły (Liga Legend 0-2)
  * @property float $play_time czas gry w połowach
  * @property int $goals
  * @property int $assists
@@ -31,7 +32,7 @@ class DesignatedPlayer extends Model
 {
     protected $fillable = [
         'matchday_id', 'user_id', 'bot_id', 'score_set', 'lech_player_id',
-        'counted', 'play_time', 'goals', 'assists', 'own_goals', 'clean_sheet', 'yellow', 'red', 'attack', 'defense', 'experience', 'rest_hours',
+        'counted', 'matches', 'play_time', 'goals', 'assists', 'own_goals', 'clean_sheet', 'yellow', 'red', 'attack', 'defense', 'experience', 'rest_hours',
     ];
 
     protected function casts(): array
@@ -39,6 +40,7 @@ class DesignatedPlayer extends Model
         return [
             'score_set' => CompetitionType::class,
             'counted' => 'boolean',
+            'matches' => 'integer',
             'clean_sheet' => 'boolean',
             'play_time' => 'float',
             'yellow' => 'integer',

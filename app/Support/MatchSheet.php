@@ -72,7 +72,7 @@ class MatchSheet
         $before = Squad::experienceBefore($matchday, $userIds, $botIds);
         $order = array_flip(PlayerPosition::values());
 
-        // Liga Legend: zespół gra w kolejce dwa pojedynki, wybór liczy się jak dwa występy. Doświadczenie po pierwszym
+        // Liga Legend: zespół gra w kolejce do dwóch pojedynków, każdy rozegrany to osobny występ. Doświadczenie po pierwszym
         // pojedynku = przed + raz dorobek, po drugim = przed + dwa razy (wpis => kolejne pojedynki według id meczu).
         $legendsDuels = [];
         foreach ($competitions->filter(fn (Competition $c) => $c->type === CompetitionType::Legends) as $legends) {

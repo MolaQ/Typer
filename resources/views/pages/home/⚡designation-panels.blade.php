@@ -329,7 +329,7 @@ new class extends Component {
                         <span class="flex items-center gap-1.5"><span class="inline-block h-3.5 w-2.5 rounded-[2px] bg-yellow-400"></span><span class="inline-block h-3.5 w-2.5 rounded-[2px] bg-red-500"></span> {{ __('Cards') }}</span>
                         <span class="flex items-center gap-1.5"><span class="font-bold">{{ __('Exp.') }}</span> {{ __('experience in the club after the match') }}</span>
                         <span class="flex items-center gap-1.5 text-zinc-400">{{ __('Grey name: did not play in the Lech match (fielding still gives 0.5 experience)') }}</span>
-                        <span class="flex items-center gap-1.5">{{ __('Liga Legend: two duels, everything counts as two appearances') }}</span>
+                        <span class="flex items-center gap-1.5">{{ __('Liga Legend: each duel that takes place counts as one appearance') }}</span>
                     </div>
                 @endif
 
