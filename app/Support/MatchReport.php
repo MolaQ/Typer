@@ -6,6 +6,7 @@ use App\Enums\PlayerPosition;
 use App\Models\LechMatch;
 use App\Models\MatchAppearance;
 use App\Models\MatchEvent;
+use Illuminate\Support\Collection;
 
 /**
  * Rozliczenie meczu Lecha z raportu (dashboard/results, kalendarz Lecha). Admin klika skład (jedenastka, ławka) i protokół
@@ -42,6 +43,22 @@ class MatchReport
     public const EVENT_SUB = 'sub';
 
     public const EVENTS = [self::EVENT_GOAL, self::EVENT_CARD, self::EVENT_SUB, self::EVENT_OWN_GOAL];
+
+    /** Kolejność grup w wyświetlanym protokole: gole z asystami, samobóje, kartki, zmiany. */
+    public const EVENT_ORDER = [self::EVENT_GOAL, self::EVENT_OWN_GOAL, self::EVENT_CARD, self::EVENT_SUB];
+
+    /**
+     * Protokół do wyświetlenia: grupy według EVENT_ORDER, w grupie według czasu (bez czasu na początku) i kolejności wpisu.
+     *
+     * @param  Collection<int, MatchEvent>  $events
+     * @return Collection<int, MatchEvent>
+     */
+    public static function ordered(Collection $events): Collection
+    {
+        $groups = array_flip(self::EVENT_ORDER);
+
+        return $events->sortBy(fn (MatchEvent $e) => [$groups[$e->type] ?? 9, $e->slot ?? 0, $e->id])->values();
+    }
 
     /** Kartki w protokole: druga żółta i czerwona oznaczają zejście z boiska (z czasem). */
     public const CARDS = ['yellow', 'second_yellow', 'red'];

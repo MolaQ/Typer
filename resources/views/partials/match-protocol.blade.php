@@ -1,11 +1,13 @@
 {{--
-    Protokół meczu Lecha (match_events) jak w relacjach na żywo: tylko zawodnicy Lecha, kolejność wpisu.
+    Protokół meczu Lecha (match_events): tylko zawodnicy Lecha, zawsze uporządkowany: gole z asystami, samobóje, kartki, zmiany
+    (MatchReport::EVENT_ORDER), w każdej grupie według czasu i kolejności wpisu.
     Czas (punkt osi MatchReport::OFF_LABELS) tylko przy zmianie, drugiej żółtej i czerwonej kartce.
     Zmienne: $events (MatchEvent z player i other), $deletable (przycisk usuwania wpisu, panel admina).
 --}}
 @php
     $deletable = $deletable ?? false;
     $surname = fn ($p) => $p ? \App\Support\MatchSheet::surname($p->name) : '?';
+    $events = \App\Support\MatchReport::ordered($events);
 @endphp
 <ol class="divide-y divide-zinc-100 text-sm dark:divide-zinc-800">
     @foreach ($events as $event)

@@ -15,8 +15,8 @@ class Designation
         // R1: najwyżej tylu zawodników w jednym typie rozgrywek na kolejkę.
         'max_players' => 6,
         // R7: bot wystawia w każdym typie rozgrywek losowo od min do max dostępnych zawodników.
-        'bot_players_min' => 0,
-        'bot_players_max' => 2,
+        'bot_players_min' => 1,
+        'bot_players_max' => 1,
         // R4: tyle punktów ataku rywala zabiera czyste konto bramkarza i obrońcy (Lech nie stracił gola w meczu, zawodnik zagrał).
         'clean_sheet_goalkeeper' => 1,
         'clean_sheet_defender' => 1,

@@ -8,25 +8,33 @@ use App\Actions\Seasons\SetUpSeason;
 use App\Actions\Tips\SaveTip;
 use App\Enums\CompetitionType;
 use App\Enums\MatchCompetition;
+use App\Enums\PlayerPosition;
 use App\Enums\RoleName;
 use App\Enums\SeasonStatus;
 use App\Models\Bot;
 use App\Models\Competition;
 use App\Models\HallOfFameAward;
 use App\Models\LechMatch;
+use App\Models\LechPlayer;
+use App\Models\MatchAppearance;
 use App\Models\Matchday;
+use App\Models\MatchEvent;
 use App\Models\Season;
 use App\Models\SeasonTeam;
 use App\Models\User;
 use App\Support\Audit;
 use App\Support\HallOfFame;
+use App\Support\MatchReport;
+use App\Support\PlayerCompetitions;
 use App\Support\Premium;
 use App\Support\Roster;
+use App\Support\Squad;
 use App\Support\Standings;
 use App\Support\SystemFeed;
 use Carbon\CarbonInterface;
 use DomainException;
 use Illuminate\Console\Command;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
@@ -39,13 +47,18 @@ use Illuminate\Support\Str;
  * Każde uruchomienie to jeden sezon, tymi samymi klasami co panel admina i strona typowania:
  *  1. nowy sezon z losowym sloganem i 9 meczów Lecha w kalendarzu w losowej kolejności (1 towarzyski, 5 ligowych,
  *     1 Puchar Polski, 2 z jednych losowych pucharów europejskich), u siebie albo na wyjeździe losowo;
- *     pierwszy gwizdek w chwili uruchomienia, każdy następny minutę później,
+ *     pierwszy gwizdek w chwili uruchomienia (albo 4 dni po ostatnim meczu poprzedniego sezonu), każdy następny 4 dni później
+ *     (odpoczynek zawodników działa jak w prawdziwym sezonie),
  *  2. SetUpSeason (lista z poprzedniego sezonu z awansami, spadkami i czyszczeniem z botów, nowi gracze do podwórkowej,
  *     zatwierdzenie), potem aktywacja,
- *  3. w każdej kolejce: typy 90-100% graczy (SaveTip), wynik Lecha (w pucharach europejskich remis albo porażka,
- *     w pozostałych wygrana) i przeliczenie (SaveMatchdayResult), nowi gracze (1-5% kont),
+ *  3. w każdej kolejce: typy 98-100% graczy (SaveTip, zawsze wygrana Lecha: 1:0, 2:0, 2:1 albo 3:1) i 1-4 losowych dostępnych
+ *     zawodników w każdym typie rozgrywek gracza (Squad::toggle); boty wystawiają według ustawień desygnowania (bot_players_min/max),
+ *  4. mecz Lecha z protokołem (match_events): stała jedenastka (LINEUP), 10 rezerwowych (w tym bramkarz), 5 zmian w przerwie
+ *     albo w 2. połowie, Lech wygrywa (w Europie wygrywa albo remisuje), gole 65% napastnicy / 30% pomocnicy / 5% obrońcy,
+ *     90% goli z asystą (70% pomocnicy / 20% obrońcy / 10% napastnicy), 1-5 żółtych kartek (każda 8% na drugą żółtą),
+ *     czerwona 3% i samobój 10% na mecz; potem przeliczenie (SaveMatchdayResult), nowi gracze (1-5% kont),
  *     raz na sezon ban jednego gracza (bez admina),
- *  4. zakończenie sezonu (FinishSeason: tabele końcowe, Hall of Fame, nieaktywni) i 10-15% nowych kont na następny sezon.
+ *  5. zakończenie sezonu (FinishSeason: tabele końcowe, Hall of Fame, nieaktywni) i 10-15% nowych kont na następny sezon.
  *
  * Czas: symulacja przestawia zegar aplikacji (Date::setTestNow), żeby typy były przed pierwszym gwizdkiem,
  * a wyniki po nim; na końcu zegar wraca do normalnego.
@@ -65,10 +78,32 @@ class SimulateSeason extends Command
 
     private const EUROPE = ['Manchester United', 'Borussia Dortmund'];
 
-    /** Rozkład typów kibiców (procent): wygrana Lecha, remis, reszta to porażka. Z ręcznej gry: większość stawia na Lecha. */
-    private const TIP_WIN = 85;
+    /** Typy graczy: zawsze wygrana Lecha, jeden z tych wyników (Lech : rywal). */
+    private const TIPS = [[1, 0], [2, 0], [2, 1], [3, 1]];
 
-    private const TIP_DRAW = 10;
+    /** Wyjściowa jedenastka Lecha w każdym meczu (nazwiska z kadry). */
+    private const LINEUP = ['Lis', 'Pereira', 'Mońka', 'Yegbe', 'Gurgul', 'Wålemark', 'Rodríguez', 'Palma', 'Sayyadmanesh', 'Gholizadeh', 'Ishak'];
+
+    private const BENCH = 10;
+
+    private const SUBSTITUTIONS = 5;
+
+    /** Kto strzela i kto asystuje (procent według pozycji). */
+    private const GOAL_WEIGHTS = ['forward' => 65, 'midfielder' => 30, 'defender' => 5];
+
+    private const ASSIST_WEIGHTS = ['midfielder' => 70, 'defender' => 20, 'forward' => 10];
+
+    /** Prawdopodobieństwa w procentach: gol z asystą, druga żółta (od każdej żółtej), czerwona i samobój (na mecz). */
+    private const ASSIST_CHANCE = 90;
+
+    private const SECOND_YELLOW_CHANCE = 8;
+
+    private const RED_CHANCE = 3;
+
+    private const OWN_GOAL_CHANCE = 10;
+
+    /** Odstęp między kolejkami w dniach. */
+    private const DAYS_BETWEEN = 4;
 
     private const SLOGANS = [
         'Kolejorz gra, a my typujemy!',
@@ -135,7 +170,12 @@ class SimulateSeason extends Command
 
         $this->renameNumberedTeams();
 
+        // Pierwszy gwizdek teraz, ale nie wcześniej niż 4 dni po ostatnim meczu poprzedniego sezonu (odpoczynek i kolejność gwizdków).
         $start = now()->startOfMinute();
+        $lastKickoff = Matchday::max('kickoff_at');
+        if ($lastKickoff !== null) {
+            $start = $start->max(Date::parse($lastKickoff)->addDays(self::DAYS_BETWEEN)->startOfMinute());
+        }
 
         try {
             // Przygotowanie sezonu „godzinę wcześniej”, przed pierwszym gwizdkiem.
@@ -223,7 +263,7 @@ class SimulateSeason extends Command
                 'opponent' => $opponent,
                 'is_home' => (bool) mt_rand(0, 1),
                 'competition' => $competition->value,
-                'kickoff_at' => $start->copy()->addMinutes($index),
+                'kickoff_at' => $start->copy()->addDays($index * self::DAYS_BETWEEN),
             ]));
         }
 
@@ -246,61 +286,49 @@ class SimulateSeason extends Command
         $kickoff = $matchday->kickoff_at?->copy() ?? now();
         $europe = in_array($matchday->competition, [MatchCompetition::ChampionsLeague->value, MatchCompetition::EuropaLeague->value, MatchCompetition::ConferenceLeague->value], true);
 
-        // Typy: 90-100% graczy z listy sezonu, w kolejności zapisu (wcześniejszy zapis = mniejszy numer).
-        $players = User::whereIn('id', SeasonTeam::where('season_id', $matchday->season_id)->whereNotNull('user_id')->pluck('user_id'))->with('roles')->get();
+        // Typy: 98-100% graczy z listy sezonu, w kolejności zapisu (wcześniejszy zapis = mniejszy numer), zawsze wygrana Lecha,
+        // i 1-4 losowych dostępnych zawodników w każdym typie rozgrywek gracza.
+        $players = User::whereIn('id', SeasonTeam::where('season_id', $matchday->season_id)->whereNotNull('user_id')->pluck('user_id'))->get();
         $share = mt_rand(98, 100) / 100;
         $tippers = $players->shuffle()->take((int) round($players->count() * $share));
         $leads = collect(range(1, max(1, $tippers->count())))->map(fn () => mt_rand(1, 600))->sortDesc()->values();
+        $squad = Squad::available()->pluck('id')->all();
         $saved = 0;
         $failed = 0;
+        $picked = 0;
 
         foreach ($tippers->values() as $index => $user) {
             /** @var User $user */
             Date::setTestNow($kickoff->copy()->subMinutes((int) $leads[$index]));
-            $isAdmin = $user->hasRole(RoleName::Admin->value);
-
-            if ($isAdmin) {
-                // Admin: zawsze zwycięstwo Lecha, a w pucharach europejskich remis albo porażka.
-                if ($europe) {
-                    $rival = mt_rand(0, 2);
-                    [$lech, $opponent] = [mt_rand(0, $rival), $rival];
-                } else {
-                    $lech = mt_rand(1, 3);
-                    $opponent = mt_rand(0, $lech - 1);
-                }
-            } else {
-                [$lech, $opponent] = $this->fanTip();
-            }
+            [$lech, $opponent] = self::TIPS[array_rand(self::TIPS)];
 
             try {
                 $saveTip->handle($user, $matchday, $lech, $opponent);
                 $saved++;
+                $picked += $this->pickPlayers($user, $matchday, $squad);
             } catch (DomainException) {
                 $failed++;
             }
         }
 
-        // Wynik Lecha: puchary europejskie remis albo porażka, pozostałe mecze wygrana.
-        if ($europe) {
-            $opponentGoals = mt_rand(0, 3);
-            $lechGoals = mt_rand(0, $opponentGoals);
-        } else {
-            $lechGoals = mt_rand(1, 4);
-            $opponentGoals = mt_rand(0, $lechGoals - 1);
-        }
+        // Mecz Lecha z protokołem: wygrana, w pucharach europejskich wygrana albo remis.
+        [$lechGoals, $opponentGoals, $scorers] = $this->playLechMatch($matchday, $europe);
 
         Date::setTestNow($kickoff->copy()->addSeconds(30));
         $stats = $results->handle($matchday->fresh() ?? $matchday, $lechGoals, $opponentGoals);
 
-        $line = sprintf('Kolejka %d: %s %d:%d (%s) | typy %d/%d%s | mecze %d, odpadli %d',
+        $line = sprintf('Kolejka %d: %s %d:%d (%s) [%s] | typy %d/%d%s, zawodnicy %d | mecze %d, odpadli %d',
             $matchday->number,
             (string) $matchday->getAttribute('fixture'),
-            $lechGoals,
-            $opponentGoals,
+            // Wynik w kolejności meczu (gospodarz pierwszy).
+            $matchday->is_home ? $lechGoals : $opponentGoals,
+            $matchday->is_home ? $opponentGoals : $lechGoals,
             $matchday->competitionLabel() ?? '-',
+            $scorers,
             $saved,
             $players->count(),
             $failed > 0 ? ", odrzucone {$failed}" : '',
+            $picked,
             $stats['fixtures'],
             $stats['eliminated'],
         );
@@ -317,29 +345,163 @@ class SimulateSeason extends Command
     }
 
     /**
-     * Typ kibica (Lech : rywal): 85% wygrana Lecha (1-3 bramki Lecha), 10% remis (0:0-2:2), 5% porażka.
+     * Gracz wystawia 1-4 losowych dostępnych (nieodpoczywających) zawodników w każdym swoim typie rozgrywek, każdego raz.
      *
-     * @return array{0: int, 1: int}
+     * @param  array<int, int>  $squad  id dostępnych zawodników
      */
-    private function fanTip(): array
+    private function pickPlayers(User $user, Matchday $matchday, array $squad): int
     {
-        $roll = mt_rand(1, 100);
+        $free = array_values(array_diff($squad, array_keys(Squad::locks($user->id, null, $matchday))));
+        shuffle($free);
+        $picked = 0;
 
-        if ($roll <= self::TIP_WIN) {
-            $lech = mt_rand(1, 3);
-
-            return [$lech, mt_rand(0, $lech - 1)];
+        foreach (PlayerCompetitions::types($user->id, $matchday->season_id, $matchday->number) as $set) {
+            foreach (array_splice($free, 0, mt_rand(1, 4)) as $playerId) {
+                try {
+                    Squad::toggle($user, $matchday, $set, $playerId);
+                    $picked++;
+                } catch (DomainException) {
+                    // np. limit zawodników w typie rozgrywek
+                }
+            }
         }
 
-        if ($roll <= self::TIP_WIN + self::TIP_DRAW) {
-            $goals = mt_rand(0, 2);
+        return $picked;
+    }
 
-            return [$goals, $goals];
+    /* ==================================================================
+     | Mecz Lecha: skład i protokół
+     * ================================================================*/
+
+    /**
+     * Raport meczu Lecha: jedenastka z LINEUP, 10 rezerwowych (w tym bramkarz), 5 zmian w przerwie albo w 2. połowie
+     * i protokół (gole z asystami, samobój, kartki, zmiany). Wynik: Lech wygrywa, w Europie wygrywa albo remisuje;
+     * samobój to gol rywala.
+     *
+     * @return array{0: int, 1: int, 2: string} gole Lecha, gole rywala, strzelcy do raportu
+     */
+    private function playLechMatch(Matchday $matchday, bool $europe): array
+    {
+        $matchId = (int) $matchday->lech_match_id;
+        MatchEvent::where('lech_match_id', $matchId)->delete();
+        MatchAppearance::where('lech_match_id', $matchId)->delete();
+
+        $squad = Squad::available();
+        $starters = collect(self::LINEUP)
+            ->map(fn (string $surname) => $squad->first(fn (LechPlayer $p) => Str::endsWith($p->name, ' '.$surname)))
+            ->filter()
+            ->values();
+        $rest = $squad->reject(fn (LechPlayer $p) => $starters->contains('id', $p->id))->shuffle()->values();
+        $keeper = $rest->first(fn (LechPlayer $p) => $p->position === PlayerPosition::Goalkeeper);
+        $bench = collect($keeper ? [$keeper] : [])
+            ->concat($rest->reject(fn (LechPlayer $p) => $p->id === $keeper?->id)->take(self::BENCH - ($keeper ? 1 : 0)))
+            ->values();
+
+        foreach ([[$starters, true], [$bench, false]] as [$group, $started]) {
+            foreach ($group as $player) {
+                MatchAppearance::create(['lech_match_id' => $matchId, 'lech_player_id' => $player->id, 'started' => $started,
+                    'on_slot' => $started ? 0 : null, 'off_slot' => MatchReport::END_REGULAR]);
+            }
         }
 
-        $opponent = mt_rand(1, 3);
+        // Zmiany: 5 zawodników z pola schodzi w przerwie (45) albo w trakcie 2. połowy (>45), wchodzą rezerwowi z pola.
+        $goingOff = $starters->reject(fn (LechPlayer $p) => $p->position === PlayerPosition::Goalkeeper)->shuffle()->take(self::SUBSTITUTIONS)->values();
+        $comingOn = $bench->reject(fn (LechPlayer $p) => $p->position === PlayerPosition::Goalkeeper)->shuffle()->take(self::SUBSTITUTIONS)->values();
+        $subs = [];
+        $on = $starters->mapWithKeys(fn (LechPlayer $p) => [$p->id => 0])->all();
+        $subbedOff = [];
+        foreach ($goingOff as $i => $player) {
+            if (! isset($comingOn[$i])) {
+                break;
+            }
+            $slot = mt_rand(2, 3);
+            $subs[] = [$player->id, $comingOn[$i]->id, $slot];
+            $on[$comingOn[$i]->id] = $slot;
+            $subbedOff[$player->id] = true;
+        }
+        /** @var Collection<int, LechPlayer> $played */
+        $played = $starters->concat($bench->filter(fn (LechPlayer $p) => isset($on[$p->id])))->values();
 
-        return [mt_rand(0, $opponent - 1), $opponent];
+        // Wynik: samobój (gol rywala) wymaga co najmniej jednego gola rywala, a Lech dalej nie przegrywa.
+        $ownGoal = mt_rand(1, 100) <= self::OWN_GOAL_CHANCE;
+        if ($europe && mt_rand(0, 1) === 1) {
+            $lechGoals = mt_rand($ownGoal ? 1 : 0, 3);
+            $opponentGoals = $lechGoals;
+        } else {
+            $lechGoals = mt_rand($ownGoal ? 2 : 1, 4);
+            $opponentGoals = mt_rand($ownGoal ? 1 : 0, $lechGoals - 1);
+        }
+
+        $event = fn (array $data) => MatchEvent::create(['lech_match_id' => $matchId] + $data);
+        $scorers = [];
+
+        for ($goal = 0; $goal < $lechGoals; $goal++) {
+            $scorer = $this->weightedPlayer($played, self::GOAL_WEIGHTS);
+            if (! $scorer) {
+                break;
+            }
+            $assistant = mt_rand(1, 100) <= self::ASSIST_CHANCE
+                ? $this->weightedPlayer($played->reject(fn (LechPlayer $p) => $p->id === $scorer->id), self::ASSIST_WEIGHTS)
+                : null;
+            $event(['type' => MatchReport::EVENT_GOAL, 'lech_player_id' => $scorer->id, 'other_player_id' => $assistant?->id]);
+            $scorers[] = Str::afterLast($scorer->name, ' ');
+        }
+
+        if ($ownGoal && ($author = $played->reject(fn (LechPlayer $p) => $p->position === PlayerPosition::Goalkeeper)->random())) {
+            $event(['type' => MatchReport::EVENT_OWN_GOAL, 'lech_player_id' => $author->id]);
+            $scorers[] = Str::afterLast($author->name, ' ').' (sam.)';
+        }
+
+        // Kartki: 1-5 żółtych dla różnych zawodników; druga żółta i czerwona tylko dla grających do końca (zejście w 2. połowie
+        // albo od wejścia do końca, zawodnik zmieniony nie wraca na boisko).
+        $sentOff = [];
+        $sendOffSlot = fn (LechPlayer $p) => mt_rand(max(1, $on[$p->id]), 3);
+        foreach ($played->shuffle()->take(mt_rand(1, 5)) as $player) {
+            $event(['type' => MatchReport::EVENT_CARD, 'lech_player_id' => $player->id, 'card' => 'yellow']);
+            if (! isset($subbedOff[$player->id]) && mt_rand(1, 100) <= self::SECOND_YELLOW_CHANCE) {
+                $event(['type' => MatchReport::EVENT_CARD, 'lech_player_id' => $player->id, 'card' => 'second_yellow', 'slot' => $sendOffSlot($player)]);
+                $sentOff[$player->id] = true;
+            }
+        }
+        if (mt_rand(1, 100) <= self::RED_CHANCE) {
+            $candidates = $played->reject(fn (LechPlayer $p) => isset($subbedOff[$p->id]) || isset($sentOff[$p->id]));
+            if ($candidates->isNotEmpty()) {
+                $player = $candidates->random();
+                $event(['type' => MatchReport::EVENT_CARD, 'lech_player_id' => $player->id, 'card' => 'red', 'slot' => $sendOffSlot($player)]);
+            }
+        }
+
+        foreach ($subs as [$offId, $onId, $slot]) {
+            $event(['type' => MatchReport::EVENT_SUB, 'lech_player_id' => $offId, 'other_player_id' => $onId, 'slot' => $slot]);
+        }
+
+        return [$lechGoals, $opponentGoals, $scorers === [] ? '-' : implode(', ', $scorers)];
+    }
+
+    /**
+     * Losowy zawodnik z grających: najpierw pozycja według wag (procent), potem zawodnik tej pozycji.
+     *
+     * @param  Collection<int, LechPlayer>  $players
+     * @param  array<string, int>  $weights  pozycja (PlayerPosition) => waga
+     */
+    private function weightedPlayer(Collection $players, array $weights): ?LechPlayer
+    {
+        $byPosition = $players->groupBy(fn (LechPlayer $p) => $p->position->value);
+        $weights = array_filter($weights, fn (string $position) => $byPosition->has($position), ARRAY_FILTER_USE_KEY);
+
+        if ($weights === []) {
+            return $players->isEmpty() ? null : $players->random();
+        }
+
+        $roll = mt_rand(1, array_sum($weights));
+        foreach ($weights as $position => $weight) {
+            $roll -= $weight;
+            if ($roll <= 0) {
+                return $byPosition[$position]->random();
+            }
+        }
+
+        return null;
     }
 
     /* ==================================================================
@@ -485,7 +647,7 @@ class SimulateSeason extends Command
     private function printCalendar(Season $season): void
     {
         $rows = Matchday::where('season_id', $season->id)->orderBy('number')->get()
-            ->map(fn (Matchday $m): array => [$m->number, (string) $m->getAttribute('fixture'), $m->competitionLabel() ?? '-', (string) $m->kickoff_at?->format('H:i')])
+            ->map(fn (Matchday $m): array => [$m->number, (string) $m->getAttribute('fixture'), $m->competitionLabel() ?? '-', (string) $m->kickoff_at?->format('d.m H:i')])
             ->all();
         $this->table(['#', 'Mecz', 'Rozgrywki', 'Gwizdek'], $rows);
     }
