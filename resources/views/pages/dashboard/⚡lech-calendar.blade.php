@@ -257,6 +257,9 @@ new class extends Component {
                                     <flux:badge size="sm" color="amber" icon="pencil-square">{{ $match->fixture() }}</flux:badge>
                                 @else
                                     <span>{{ $match->fixture() }}</span>
+                                    @if ($match->lech_goals !== null)
+                                        <span class="tabular-nums">{{ $match->lech_goals }}:{{ $match->opponent_goals }}</span>
+                                    @endif
                                     <flux:badge size="sm" color="zinc">{{ $match->is_home ? __('Home') : __('Away') }}</flux:badge>
                                 @endif
                             </div>
@@ -273,6 +276,12 @@ new class extends Component {
                         </flux:table.cell>
                         <flux:table.cell class="text-sm text-zinc-500">{{ $match->note ?? '' }}</flux:table.cell>
                         <flux:table.cell align="end">
+                            {{-- Wynik i raport meczu: kolejka w panelu wyników, mecz spoza gry (archiwalny) na osobnej stronie --}}
+                            @if (!$match->isPlaceholder())
+                                <flux:button variant="ghost" size="sm" icon="clipboard-document-list" inset="top bottom"
+                                    :href="$matchday ? route('dashboard.results', ['season' => $matchday->season_id, 'matchday' => $matchday->number]) : route('dashboard.lech-match-report', $match)"
+                                    wire:navigate :aria-label="__('Match report')" :tooltip="__('Match report')" />
+                            @endif
                             @can(\App\Enums\Permission::SeasonEdit->value)
                                 @if (!$played)
                                     <flux:button variant="ghost" size="sm" icon="pencil-square" inset="top bottom" wire:click="openForm({{ $match->id }})" :aria-label="__('Edit')" />

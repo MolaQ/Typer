@@ -15,23 +15,23 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property CompetitionType $score_set
  * @property int $lech_player_id
  * @property bool|null $counted null = jeszcze nie rozliczony, false = przepadł (blokada)
- * @property int $minutes
+ * @property float $play_time czas gry w połowach
  * @property int $goals
  * @property int $assists
  * @property int $own_goals
  * @property bool|null $clean_sheet
- * @property bool $yellow
+ * @property int $yellow 0-2
  * @property bool $red
  * @property int $attack
  * @property int $defense
- * @property int $experience
+ * @property float $experience
  * @property int $lock
  */
 class DesignatedPlayer extends Model
 {
     protected $fillable = [
         'matchday_id', 'user_id', 'bot_id', 'score_set', 'lech_player_id',
-        'counted', 'minutes', 'goals', 'assists', 'own_goals', 'clean_sheet', 'yellow', 'red', 'attack', 'defense', 'experience', 'lock',
+        'counted', 'play_time', 'goals', 'assists', 'own_goals', 'clean_sheet', 'yellow', 'red', 'attack', 'defense', 'experience', 'lock',
     ];
 
     protected function casts(): array
@@ -40,8 +40,10 @@ class DesignatedPlayer extends Model
             'score_set' => CompetitionType::class,
             'counted' => 'boolean',
             'clean_sheet' => 'boolean',
-            'yellow' => 'boolean',
+            'play_time' => 'float',
+            'yellow' => 'integer',
             'red' => 'boolean',
+            'experience' => 'float',
         ];
     }
 

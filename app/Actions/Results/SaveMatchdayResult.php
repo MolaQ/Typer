@@ -9,6 +9,7 @@ use App\Enums\SeasonStatus;
 use App\Models\Matchday;
 use App\Support\Audit;
 use App\Support\LegendsLeague;
+use App\Support\MatchReport;
 use App\Support\SystemFeed;
 use App\Support\TipRules;
 use DomainException;
@@ -65,6 +66,12 @@ class SaveMatchdayResult
 
         $old = $matchday->lech_goals !== null ? $matchday->lech_goals.':'.$matchday->opponent_goals : null;
         $matchday->update(['lech_goals' => $lech, 'opponent_goals' => $opponent]);
+
+        // Raport meczu Lecha trzyma kopię wyniku (czyste konta liczą się od straconych goli).
+        if ($match = $matchday->lechMatch) {
+            $match->update(['lech_goals' => $lech, 'opponent_goals' => $opponent]);
+            MatchReport::store($match);
+        }
 
         Audit::log('matchday.result', null, ['result' => $old], ['result' => $lech.':'.$opponent], $this->label($matchday));
     }

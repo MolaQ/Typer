@@ -41,7 +41,7 @@ return new class extends Migration
             // Samobóje wystawionych zawodników: tyle punktów ataku dostaje rywal.
             $table->unsignedTinyInteger('own_goals')->default(0);
             // Doświadczenie wystawionych zawodników w klubie (z tym meczem): rozstrzyga remisy w pucharach przed czasem typu.
-            $table->unsignedSmallInteger('experience')->default(0);
+            $table->decimal('experience', 7, 1)->default(0);
             // Kartki wystawionych zawodników (kryteria tabeli po bonusach, mniej = wyżej).
             $table->unsignedTinyInteger('yellow_cards')->default(0);
             $table->unsignedTinyInteger('red_cards')->default(0);

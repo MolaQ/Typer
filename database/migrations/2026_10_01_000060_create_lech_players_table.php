@@ -6,7 +6,7 @@ use Illuminate\Support\Facades\Schema;
 
 /**
  * Kadra Lecha (bez sztabu): zawodnicy, których gracze będą desygnować do gry (punkty za gole, asysty i czyste konta),
- * raport meczu kolejki (występy, gole) i ustawienia desygnowania.
+ * raport meczu (występy) i ustawienia desygnowania.
  */
 return new class extends Migration
 {
@@ -26,39 +26,33 @@ return new class extends Migration
             $table->timestamps();
         });
 
-        // Raport meczu kolejki (dashboard/results): kto zagrał, od której do której minuty, kartki.
-        // Z tego Support\MatchReport liczy połowy, blokady, czyste konta i doświadczenie.
+        // Raport meczu Lecha (dashboard/results dla kolejki, kalendarz Lecha dla meczów archiwalnych): kto zagrał,
+        // kiedy wszedł i zszedł (bez minut, punkty osi meczu Support\MatchReport::SLOTS), gole, asysty, samobóje, kartki.
+        // Kolumny wyliczane (czyste konto, czas gry, blokada, doświadczenie) zapisuje MatchReport::store po każdej zmianie.
         Schema::create('match_appearances', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('matchday_id')->constrained()->cascadeOnDelete();
+            $table->foreignId('lech_match_id')->constrained()->cascadeOnDelete();
             $table->foreignId('lech_player_id')->constrained()->cascadeOnDelete();
             // Wyjściowa jedenastka (true) albo wejście z ławki (false).
             $table->boolean('started')->default(true);
-            // Minuta wejścia z ławki (46 = od przerwy), dla wyjściowych null.
-            $table->unsignedTinyInteger('on_minute')->nullable();
-            // Minuta zejścia (zmiana albo czerwona kartka), null = do końca meczu.
-            $table->unsignedTinyInteger('off_minute')->nullable();
-            // Żółta kartka (druga żółta = czerwona, zaznaczamy wtedy czerwoną).
-            $table->boolean('yellow')->default(false);
+            // Wejście i zejście na osi meczu: 0 = początek, 1 = w 1. połowie, 2 = przerwa (45), 3 = w 2. połowie, 4 = koniec 90 minut,
+            // 5 = w 1. połowie dogrywki, 6 = przerwa dogrywki (105), 7 = w 2. połowie dogrywki, 8 = koniec dogrywki (120).
+            $table->unsignedTinyInteger('on_slot')->nullable()->default(0);
+            $table->unsignedTinyInteger('off_slot')->default(4);
+            // Gole (także w serii rzutów karnych), asysty i samobóje.
+            $table->unsignedTinyInteger('goals')->default(0);
+            $table->unsignedTinyInteger('assists')->default(0);
+            $table->unsignedTinyInteger('own_goals')->default(0);
+            // Żółte kartki (0, 1 albo 2 = dwie żółte) i czerwona.
+            $table->unsignedTinyInteger('yellow')->default(0);
             $table->boolean('red')->default(false);
+            // Wyliczane: czyste konto (bramkarz i obrońca, null = nie dotyczy), czas gry w połowach (np. 1,5), kolejki blokady, doświadczenie.
+            $table->boolean('clean_sheet')->nullable();
+            $table->decimal('play_time', 3, 1)->default(0);
+            $table->unsignedTinyInteger('lock')->default(0);
+            $table->decimal('experience', 4, 1)->default(0);
             $table->timestamps();
-            $table->unique(['matchday_id', 'lech_player_id']);
-        });
-
-        // Gole meczu kolejki, także z dogrywki: strona (Lech albo rywal), minuta, strzelec i asystent z kadry Lecha.
-        Schema::create('match_goals', function (Blueprint $table) {
-            $table->id();
-            $table->foreignId('matchday_id')->constrained()->cascadeOnDelete();
-            // lech | opponent: kto zdobył bramkę.
-            $table->string('side', 10);
-            // Minuta gola (doliczony czas = 45 albo 90), null = jeszcze nie wpisana.
-            $table->unsignedTinyInteger('minute')->nullable();
-            // Gol Lecha: strzelec i asystent (null = samobój rywala albo nieznany).
-            // Gol rywala: scorer_id = zawodnik Lecha, który strzelił samobója (null = zwykły gol rywala).
-            $table->foreignId('scorer_id')->nullable()->constrained('lech_players')->nullOnDelete();
-            $table->foreignId('assist_id')->nullable()->constrained('lech_players')->nullOnDelete();
-            $table->timestamps();
-            $table->index(['matchday_id', 'side']);
+            $table->unique(['lech_match_id', 'lech_player_id']);
         });
 
         // Desygnowanie: zawodnicy wystawieni przez klub (gracz albo bot) w kolejce do jednego typu rozgrywek.
@@ -75,18 +69,19 @@ return new class extends Migration
             $table->foreignId('lech_player_id')->constrained()->cascadeOnDelete();
             // Rozliczenie przy przeliczeniu kolejki (ScoreMatchday). counted: null = jeszcze nie, false = przepadł (blokada), true = liczy się.
             $table->boolean('counted')->nullable();
-            $table->unsignedTinyInteger('minutes')->default(0);
+            // Czas gry w połowach (cała połowa 1, część 0,5).
+            $table->decimal('play_time', 3, 1)->default(0);
             $table->unsignedTinyInteger('goals')->default(0);
             $table->unsignedTinyInteger('assists')->default(0);
             $table->unsignedTinyInteger('own_goals')->default(0);
             // Czyste konto bramkarza albo obrońcy (null = nie dotyczy: inna pozycja albo nie grał).
             $table->boolean('clean_sheet')->nullable();
-            $table->boolean('yellow')->default(false);
+            $table->unsignedTinyInteger('yellow')->default(0);
             $table->boolean('red')->default(false);
             // Punkty ataku (gole + asysty) i obrony (czyste konto) dla klubu, doświadczenie i kolejki blokady z tego meczu.
             $table->unsignedTinyInteger('attack')->default(0);
             $table->unsignedTinyInteger('defense')->default(0);
-            $table->unsignedTinyInteger('experience')->default(0);
+            $table->decimal('experience', 4, 1)->default(0);
             $table->unsignedTinyInteger('lock')->default(0);
             $table->timestamps();
             // Zawodnik w kolejce tylko w jednym typie rozgrywek danego klubu.
@@ -107,7 +102,6 @@ return new class extends Migration
     {
         Schema::dropIfExists('designation_settings');
         Schema::dropIfExists('designated_players');
-        Schema::dropIfExists('match_goals');
         Schema::dropIfExists('match_appearances');
         Schema::dropIfExists('lech_players');
     }

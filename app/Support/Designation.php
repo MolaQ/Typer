@@ -11,55 +11,53 @@ use Illuminate\Support\Facades\Schema;
  */
 class Designation
 {
-    /** Czyste konto: Lech nie stracił gola w całym meczu (zawodnik musiał zagrać). */
-    public const CLEAN_MATCH = 0;
-
-    /** Czyste konto: Lech nie stracił gola do zejścia zawodnika. */
-    public const CLEAN_UNTIL_OFF = 1;
-
-    /** Czyste konto: Lech nie stracił gola od wejścia zawodnika. */
-    public const CLEAN_FROM_ON = 2;
-
     public const DEFAULTS = [
         // R1: najwyżej tylu zawodników w jednym typie rozgrywek na kolejkę.
         'max_players' => 6,
         // R7: bot wystawia w każdym typie rozgrywek losowo od min do max dostępnych zawodników.
         'bot_players_min' => 0,
         'bot_players_max' => 2,
-        // R4: tyle punktów ataku rywala zabiera czyste konto bramkarza i obrońcy.
+        // R4: tyle punktów ataku rywala zabiera czyste konto bramkarza i obrońcy (Lech nie stracił gola w meczu, zawodnik zagrał).
         'clean_sheet_goalkeeper' => 1,
         'clean_sheet_defender' => 1,
-        // R4: sposób liczenia czystego konta (CLEAN_*).
-        'clean_sheet_mode' => self::CLEAN_MATCH,
-        // R6: czy niecała połowa też daje kolejkę blokady (0 = nie).
+        // R6: czy część połowy też daje kolejkę blokady (0 = nie).
         'partial_half_lock' => 0,
-        // Doświadczenie: cała połowa, niecała połowa, wyjściowa jedenastka.
-        'exp_full_half' => 2,
-        'exp_partial_half' => 1,
+        // Doświadczenie, premia za skład: wyjściowa jedenastka, wejście z ławki.
         'exp_start' => 1,
-        // Doświadczenie: „mecz zawodnika” (bramki Lecha i rywala w czasie jego gry) jak mecz 3/1/0.
-        'exp_win' => 3,
-        'exp_draw' => 1,
-        'exp_loss' => 0,
+        'exp_sub' => 0.5,
+        // Doświadczenie, premia za czas gry: cała połowa, część połowy (dogrywka to dwie kolejne połowy).
+        'exp_full_half' => 1,
+        'exp_partial_half' => 0.5,
+        // Doświadczenie, premia za dokonania: czyste konto (bramkarz, obrońca), gol (także w serii karnych), asysta.
+        'exp_clean_sheet' => 1,
+        'exp_goal' => 1,
+        'exp_assist' => 1,
     ];
 
-    /** @var array<string, int>|null */
+    /** @var array<string, float>|null */
     private static ?array $values = null;
 
+    /** Ustawienie całkowite (limity, punkty obrony, blokada). */
     public static function value(string $key): int
     {
-        return self::values()[$key] ?? 0;
+        return (int) (self::values()[$key] ?? 0);
     }
 
-    /** @return array<string, int> */
+    /** Ustawienie z ułamkiem (punkty doświadczenia, np. 0,5). */
+    public static function number(string $key): float
+    {
+        return self::values()[$key] ?? 0.0;
+    }
+
+    /** @return array<string, float> */
     public static function values(): array
     {
         if (self::$values === null) {
             $saved = Schema::hasTable('designation_settings')
-                ? DB::table('designation_settings')->pluck('value', 'key')->map(fn ($v) => (int) $v)->all()
+                ? DB::table('designation_settings')->pluck('value', 'key')->map(fn ($v) => (float) $v)->all()
                 : [];
 
-            self::$values = array_map('intval', array_merge(self::DEFAULTS, array_intersect_key($saved, self::DEFAULTS)));
+            self::$values = array_map('floatval', array_merge(self::DEFAULTS, array_intersect_key($saved, self::DEFAULTS)));
         }
 
         return self::$values;

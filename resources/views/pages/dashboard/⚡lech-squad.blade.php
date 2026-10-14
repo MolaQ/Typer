@@ -14,7 +14,8 @@ use Livewire\Component;
 
 /**
  * Kadra Lecha: zawodnicy z pozycją, numerem, wychowankiem i statusem (zmiana statusu od razu z listy).
- * Z tej kadry gracze będą desygnować zawodników do gry. Podgląd: season-list, zmiany: season-edit.
+ * Z tej kadry gracze desygnują zawodników do gry. Obok sumy dokonań z raportów meczów (mecze, skład, czas gry, gole,
+ * asysty, samobóje, czyste konta, kartki, doświadczenie). Podgląd: season-list, zmiany: season-edit.
  */
 new class extends Component {
     #[Url(except: '')]
@@ -67,6 +68,13 @@ new class extends Component {
             ->get()
             ->sortBy(fn($p) => [array_search($p->position->value, $order, true), $p->number ?? 999, $p->name])
             ->values();
+    }
+
+    /** Dorobek zawodników ze wszystkich raportów meczów (także archiwalnych), Support\MatchReport::playerTotals. */
+    #[Computed]
+    public function totals(): array
+    {
+        return \App\Support\MatchReport::playerTotals();
     }
 
     /** Liczba zawodników w każdym statusie (kafelki nad tabelą). */
@@ -239,11 +247,30 @@ new class extends Component {
         </flux:select>
     </div>
 
+    @php
+        // Sumy z raportów meczów: skrót kolumny i opis w podpowiedzi.
+        $statCols = [
+            'matches' => [__('M'), __('Matches')],
+            'starts' => [__('XI'), __('Starting eleven')],
+            'subs' => [__('Sub'), __('Came off the bench')],
+            'play_time' => [__('Time'), __('Playing time in halves')],
+            'goals' => ['G', __('Goals')],
+            'assists' => ['A', __('Assists')],
+            'own_goals' => [__('OG'), __('Own goals')],
+            'clean_sheets' => [__('CS'), __('Clean sheets')],
+            'experience' => [__('Exp.'), __('Experience')],
+        ];
+    @endphp
+
     <flux:table>
         <flux:table.columns>
             <flux:table.column class="w-12">#</flux:table.column>
             <flux:table.column>{{ __('Player') }}</flux:table.column>
             <flux:table.column>{{ __('Position') }}</flux:table.column>
+            @foreach ($statCols as [$short, $long])
+                <flux:table.column align="center"><span title="{{ $long }}">{{ $short }}</span></flux:table.column>
+            @endforeach
+            <flux:table.column align="center">{{ __('Cards') }}</flux:table.column>
             <flux:table.column>{{ __('Status') }}</flux:table.column>
             <flux:table.column />
         </flux:table.columns>
@@ -261,6 +288,17 @@ new class extends Component {
                         </div>
                     </flux:table.cell>
                     <flux:table.cell>{{ $player->position->label() }}</flux:table.cell>
+                    @php
+                        $total = $this->totals[$player->id] ?? null;
+                    @endphp
+                    @foreach (array_keys($statCols) as $col)
+                        <flux:table.cell align="center" class="tabular-nums {{ $col === 'experience' ? 'font-semibold' : '' }} {{ ($total[$col] ?? 0) ? '' : 'text-zinc-300 dark:text-zinc-600' }}">
+                            {{ \App\Support\ClubStats::format($total[$col] ?? 0) }}
+                        </flux:table.cell>
+                    @endforeach
+                    <flux:table.cell align="center" class="text-xs tabular-nums">
+                        @include('partials.card-counts', ['yellow' => $total['yellow'] ?? 0, 'red' => $total['red'] ?? 0])
+                    </flux:table.cell>
                     <flux:table.cell>
                         <flux:select size="sm" wire:model.live="statuses.{{ $player->id }}" class="min-w-44"
                             :disabled="! auth()->user()->can(\App\Enums\Permission::SeasonEdit->value)">
@@ -280,7 +318,7 @@ new class extends Component {
                 </flux:table.row>
             @empty
                 <flux:table.row>
-                    <flux:table.cell colspan="5">
+                    <flux:table.cell colspan="15">
                         <flux:text>{{ __('No players. Add them here or run the squad seeder.') }}</flux:text>
                         <code class="mt-1 block text-xs">php artisan db:seed --class=LechSquadSeeder</code>
                     </flux:table.cell>

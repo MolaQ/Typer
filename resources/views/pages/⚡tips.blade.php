@@ -28,7 +28,7 @@ new #[Layout('layouts::public')] class extends Component {
     /** Zakładki w adresie po polsku: /tips/kolejka-3/statystyki (typowanie bez części zakładki). */
     private const TAB_SLUGS = [
         'tip' => 'typ', 'competitions' => 'rozgrywki',
-        'stats' => 'statystyki', 'club' => 'moj-klub', 'history' => 'historia', 'scalps' => 'skalpy', 'blacklist' => 'czarna-lista',
+        'stats' => 'statystyki', 'club' => 'moja-kadra', 'history' => 'historia', 'scalps' => 'skalpy', 'blacklist' => 'czarna-lista',
     ];
 
     /** Wpisany wynik (teksty, bo pole formularza może być puste). */
@@ -466,7 +466,7 @@ new #[Layout('layouts::public')] class extends Component {
             'tip' => ['pencil-square', __('Tipping')],
             'competitions' => ['trophy', __('Competitions')],
             'stats' => ['chart-bar', __('Statistics')],
-            'club' => ['user-group', __('My club')],
+            'club' => ['user-group', __('My squad')],
             'history' => ['clock', __('History and records')],
             'scalps' => ['fire', __('My scalps')],
             'blacklist' => ['no-symbol', __('Blacklist')],

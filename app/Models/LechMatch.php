@@ -6,6 +6,7 @@ use App\Enums\MatchCompetition;
 use App\Enums\MatchdayStatus;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Carbon;
 
@@ -20,10 +21,21 @@ use Illuminate\Support\Carbon;
  * @property Carbon|null $kickoff_at
  * @property bool $postponed
  * @property string|null $note
+ * @property int|null $lech_goals wynik po 90 minutach (raport meczu)
+ * @property int|null $opponent_goals
+ * @property bool $extra_time
+ * @property int $et_lech_goals gole w dogrywce
+ * @property int $et_opponent_goals
+ * @property bool $penalties seria rzutów karnych (informacyjnie)
+ * @property int|null $pen_lech_goals
+ * @property int|null $pen_opponent_goals
  */
 class LechMatch extends Model
 {
-    protected $fillable = ['opponent', 'is_home', 'competition', 'kickoff_at', 'postponed', 'note'];
+    protected $fillable = [
+        'opponent', 'is_home', 'competition', 'kickoff_at', 'postponed', 'note',
+        'lech_goals', 'opponent_goals', 'extra_time', 'et_lech_goals', 'et_opponent_goals', 'penalties', 'pen_lech_goals', 'pen_opponent_goals',
+    ];
 
     protected function casts(): array
     {
@@ -31,6 +43,14 @@ class LechMatch extends Model
             'is_home' => 'boolean',
             'kickoff_at' => 'datetime',
             'postponed' => 'boolean',
+            'lech_goals' => 'integer',
+            'opponent_goals' => 'integer',
+            'extra_time' => 'boolean',
+            'et_lech_goals' => 'integer',
+            'et_opponent_goals' => 'integer',
+            'penalties' => 'boolean',
+            'pen_lech_goals' => 'integer',
+            'pen_opponent_goals' => 'integer',
         ];
     }
 
@@ -42,6 +62,22 @@ class LechMatch extends Model
     public function matchday(): HasOne
     {
         return $this->hasOne(Matchday::class);
+    }
+
+    /**
+     * Raport meczu: występy zawodników Lecha.
+     *
+     * @return HasMany<MatchAppearance, $this>
+     */
+    public function appearances(): HasMany
+    {
+        return $this->hasMany(MatchAppearance::class);
+    }
+
+    /** Gole stracone przez Lecha w całym meczu (z dogrywką): do czystego konta. */
+    public function conceded(): int
+    {
+        return (int) $this->opponent_goals + ($this->extra_time ? $this->et_opponent_goals : 0);
     }
 
     /**

@@ -39,6 +39,17 @@ return new class extends Migration
             // Przełożony: kolejka z tym meczem jest przełożona, typy zostają.
             $table->boolean('postponed')->default(false);
             $table->string('note', 120)->nullable();
+            // Wynik po 90 minutach (Lech : rywal) do raportu meczu; dla meczu kolejki kopia wyniku kolejki.
+            $table->unsignedTinyInteger('lech_goals')->nullable();
+            $table->unsignedTinyInteger('opponent_goals')->nullable();
+            // Dogrywka: dwie dodatkowe połowy w raporcie (czas gry, blokady, doświadczenie) i jej gole (do czystego konta).
+            $table->boolean('extra_time')->default(false);
+            $table->unsignedTinyInteger('et_lech_goals')->default(0);
+            $table->unsignedTinyInteger('et_opponent_goals')->default(0);
+            // Seria rzutów karnych (informacyjnie) i jej wynik.
+            $table->boolean('penalties')->default(false);
+            $table->unsignedTinyInteger('pen_lech_goals')->nullable();
+            $table->unsignedTinyInteger('pen_opponent_goals')->nullable();
             $table->timestamps();
         });
 
@@ -61,8 +72,6 @@ return new class extends Migration
             // Wynik po 90 minutach (Lech : rywal), wpisuje admin w dashboard/results.
             $table->unsignedTinyInteger('lech_goals')->nullable();
             $table->unsignedTinyInteger('opponent_goals')->nullable();
-            // Mecz z dogrywką: dwie dodatkowe połowy (minuty 91-120) w raporcie meczu (blokady, doświadczenie).
-            $table->boolean('extra_time')->default(false);
             $table->timestamps();
             $table->unique(['season_id', 'number']);
         });

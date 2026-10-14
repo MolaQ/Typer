@@ -211,7 +211,7 @@
     </div>
 @elseif ($tab === 'club')
     {{-- Mój klub: zawodnicy Lecha w klubie gracza i ich dorobek (desygnowanie) --}}
-    @include('partials.club-players', ['clubPlayers' => $this->myClub, 'clubTitle' => __('My club')])
+    @include('partials.club-players', ['clubPlayers' => $this->myClub, 'clubTitle' => __('My squad')])
 @elseif ($tab === 'history')
     @php
         $history = $this->myHistory;

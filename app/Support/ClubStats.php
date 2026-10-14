@@ -9,16 +9,16 @@ use App\Models\Matchday;
 
 /**
  * Zawodnicy klubu (gracz albo bot) i ich dorobek z kolejek, w których klub ich wystawił (desygnowanie, Support\Squad):
- * sumy w sezonie i w karierze oraz lista meczów do szczegółów („Mój klub” na /tips, profil bota).
+ * bieżący sezon, każdy wcześniejszy sezon osobno, cała kariera i lista meczów („Moja kadra” na /tips, profil bota).
  */
 class ClubStats
 {
-    private const SUMS = ['fielded', 'played', 'minutes', 'goals', 'assists', 'own_goals', 'clean_sheets', 'yellow', 'red', 'attack', 'defense', 'experience', 'forfeited'];
+    public const SUMS = ['fielded', 'played', 'play_time', 'goals', 'assists', 'own_goals', 'clean_sheets', 'yellow', 'red', 'attack', 'defense', 'experience', 'forfeited'];
 
     /**
      * Kadra klubu z dorobkiem: cała kadra bez niedostępnych plus niedostępni, którzy już coś mają.
      *
-     * @return array<int, array{player: LechPlayer, lock: int, next: int|null, season: array<string, int>, career: array<string, int>, matches: array<int, array<string, mixed>>}>
+     * @return array<int, array{player: LechPlayer, lock: int, next: int|null, season: array<string, int|float>, seasons: array<string, array<string, int|float>>, career: array<string, int|float>, matches: array<int, array<string, mixed>>}>
      */
     public static function players(?int $userId, ?int $botId, ?int $seasonId): array
     {
@@ -43,29 +43,38 @@ class ClubStats
         $out = [];
 
         foreach ($squad->concat($extra) as $player) {
-            $season = array_fill_keys(self::SUMS, 0);
+            $season = self::empty();
             $career = $season;
+            $seasons = [];
             $matches = [];
 
             foreach ($picks->get($player->id, collect()) as $pick) {
                 $row = self::sums($pick);
+                $md = $pick->matchday;
+                $current = $md?->season_id === $seasonId;
+                $title = (string) $md?->season?->title;
+
+                if (! $current) {
+                    $seasons[$title] ??= self::empty();
+                }
 
                 foreach (self::SUMS as $key) {
                     $career[$key] += $row[$key];
-                    if ($pick->matchday?->season_id === $seasonId) {
+                    if ($current) {
                         $season[$key] += $row[$key];
+                    } else {
+                        $seasons[$title][$key] += $row[$key];
                     }
                 }
 
-                $md = $pick->matchday;
                 $matches[] = [
-                    'this_season' => $md?->season_id === $seasonId,
-                    'season' => $md?->season?->title,
+                    'this_season' => $current,
+                    'season' => $title,
                     'matchday' => $md?->number,
                     'fixture' => $md ? $md->fixture.($md->lech_goals !== null ? ' '.$md->lech_goals.':'.$md->opponent_goals : '') : '',
                     'set' => $pick->score_set->scoreSetLabel(),
                     'counted' => (bool) $pick->counted,
-                    'minutes' => $pick->minutes,
+                    'play_time' => $pick->play_time,
                     'goals' => $pick->goals,
                     'assists' => $pick->assists,
                     'own_goals' => $pick->own_goals,
@@ -77,31 +86,51 @@ class ClubStats
                 ];
             }
 
-            $out[] = ['player' => $player, 'lock' => $locks[$player->id] ?? 0, 'next' => $next?->number, 'season' => $season, 'career' => $career, 'matches' => $matches];
+            $out[] = [
+                'player' => $player,
+                'lock' => $locks[$player->id] ?? 0,
+                'next' => $next?->number,
+                'season' => $season,
+                'seasons' => $seasons,
+                'career' => $career,
+                'matches' => $matches,
+            ];
         }
 
         return $out;
     }
 
-    /** @return array<string, int> */
+    /** @return array<string, int|float> */
+    private static function empty(): array
+    {
+        return array_fill_keys(self::SUMS, 0);
+    }
+
+    /** @return array<string, int|float> */
     private static function sums(DesignatedPlayer $pick): array
     {
         $counted = (bool) $pick->counted;
 
         return [
             'fielded' => $counted ? 1 : 0,
-            'played' => $counted && $pick->minutes > 0 ? 1 : 0,
-            'minutes' => $pick->minutes,
+            'played' => $counted && $pick->play_time > 0 ? 1 : 0,
+            'play_time' => $pick->play_time,
             'goals' => $pick->goals,
             'assists' => $pick->assists,
             'own_goals' => $pick->own_goals,
             'clean_sheets' => $pick->clean_sheet === true ? 1 : 0,
-            'yellow' => (int) $pick->yellow,
+            'yellow' => $pick->yellow,
             'red' => (int) $pick->red,
             'attack' => $pick->attack,
             'defense' => $pick->defense,
             'experience' => $pick->experience,
             'forfeited' => $counted ? 0 : 1,
         ];
+    }
+
+    /** Liczba do tabeli: całkowita bez przecinka, ułamek z jednym miejscem po przecinku (3,5). */
+    public static function format(int|float $value): string
+    {
+        return fmod((float) $value, 1.0) === 0.0 ? (string) (int) $value : number_format((float) $value, 1, ',', '');
     }
 }

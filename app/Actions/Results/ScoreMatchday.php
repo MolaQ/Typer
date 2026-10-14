@@ -195,8 +195,8 @@ class ScoreMatchday
                 } elseif ($competition->type->decidedByTime($fixture->round)) {
                     // Remis w pucharze („po karnych”): najpierw doświadczenie wystawionych zawodników, potem czas zapisu typu.
                     $byTime = true;
-                    $homeExp = $home['experience'] ?? 0;
-                    $awayExp = $away['experience'] ?? 0;
+                    $homeExp = round((float) ($home['experience'] ?? 0), 1);
+                    $awayExp = round((float) ($away['experience'] ?? 0), 1);
                     $homeWins = $homeExp !== $awayExp
                         ? $homeExp > $awayExp
                         : Scoring::homeWinsOnTime($home['tip_order'] ?? null, $away['tip_order'] ?? null);

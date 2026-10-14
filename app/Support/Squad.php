@@ -66,7 +66,7 @@ class Squad
     {
         $previous = Matchday::where('season_id', $matchday->season_id)
             ->where('number', '<', $matchday->number)
-            ->get(['id', 'season_id', 'number', 'extra_time'])
+            ->get(['id', 'season_id', 'number', 'lech_match_id'])
             ->keyBy('id');
 
         if ($previous->isEmpty() || ($userIds === [] && $botIds === [])) {
@@ -94,13 +94,13 @@ class Squad
     }
 
     /**
-     * Rozliczenie meczu kolejki (pamięć podręczna na czas żądania).
+     * Rozliczenie meczu kolejki z raportu meczu Lecha (pamięć podręczna na czas żądania).
      *
      * @return array<int, array<string, mixed>>
      */
     public static function report(Matchday $matchday): array
     {
-        return self::$reports[$matchday->id] ??= MatchReport::forMatchday($matchday);
+        return self::$reports[$matchday->id] ??= MatchReport::forMatch($matchday->lech_match_id);
     }
 
     /** Po zmianie raportu meczu albo w testach. */
@@ -237,7 +237,7 @@ class Squad
      * i zwraca sumy klubu w typie rozgrywek. Wybór zawodnika z blokadą przepada (counted = false).
      * Doświadczenie do remisów = doświadczenie wystawionych zawodników zebrane w klubie (cała kariera) z tym meczem.
      *
-     * @return array<string, array<string, array{attack: int, defense: int, own_goals: int, experience: int, yellow: int, red: int}>>
+     * @return array<string, array<string, array{attack: int, defense: int, own_goals: int, experience: float, yellow: int, red: int}>>
      */
     public static function settle(Matchday $matchday): array
     {
@@ -266,29 +266,29 @@ class Squad
 
             $values = [
                 'counted' => ! $locked,
-                'minutes' => $played ? (int) $r['minutes'] : 0,
+                'play_time' => $played ? (float) $r['play_time'] : 0,
                 'goals' => $played ? (int) $r['goals'] : 0,
                 'assists' => $played ? (int) $r['assists'] : 0,
                 'own_goals' => $played ? (int) $r['own_goals'] : 0,
                 'clean_sheet' => $played ? $r['clean_sheet'] : null,
-                'yellow' => $played && $r['yellow'],
+                'yellow' => $played ? (int) $r['yellow'] : 0,
                 'red' => $played && $r['red'],
                 'attack' => $played ? (int) $r['goals'] + (int) $r['assists'] : 0,
                 'defense' => $played && $r['clean_sheet'] === true ? ($goalkeeper ? $cleanGk : $cleanDf) : 0,
-                'experience' => $played ? (int) $r['experience'] : 0,
+                'experience' => $played ? (float) $r['experience'] : 0,
                 'lock' => $played ? (int) $r['lock'] : 0,
             ];
             $pick->update($values);
 
             $set = $pick->score_set->value;
-            $total = $totals[$club][$set] ?? ['attack' => 0, 'defense' => 0, 'own_goals' => 0, 'experience' => 0, 'yellow' => 0, 'red' => 0];
+            $total = $totals[$club][$set] ?? ['attack' => 0, 'defense' => 0, 'own_goals' => 0, 'experience' => 0.0, 'yellow' => 0, 'red' => 0];
 
             if (! $locked) {
                 $total['attack'] += $values['attack'];
                 $total['defense'] += $values['defense'];
                 $total['own_goals'] += $values['own_goals'];
                 $total['experience'] += ($before[$club][$pick->lech_player_id] ?? 0) + $values['experience'];
-                $total['yellow'] += (int) $values['yellow'];
+                $total['yellow'] += $values['yellow'];
                 $total['red'] += (int) $values['red'];
             }
             $totals[$club][$set] = $total;
@@ -302,7 +302,7 @@ class Squad
      *
      * @param  array<int, int>  $userIds
      * @param  array<int, int>  $botIds
-     * @return array<string, array<int, int>> klucz klubu => [lech_player_id => doświadczenie]
+     * @return array<string, array<int, float>> klucz klubu => [lech_player_id => doświadczenie]
      */
     public static function experienceBefore(Matchday $matchday, array $userIds, array $botIds): array
     {
@@ -318,7 +318,7 @@ class Squad
 
         $out = [];
         foreach ($rows as $row) {
-            $out[self::clubKey($row->user_id, $row->bot_id)][(int) $row->lech_player_id] = (int) $row->getAttribute('total');
+            $out[self::clubKey($row->user_id, $row->bot_id)][(int) $row->lech_player_id] = (float) $row->getAttribute('total');
         }
 
         return $out;

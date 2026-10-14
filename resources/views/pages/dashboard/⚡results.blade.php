@@ -2,20 +2,18 @@
 
 use App\Actions\Results\SaveMatchdayResult;
 use App\Enums\MatchdayStatus;
-use App\Enums\Permission;
 use App\Models\Matchday;
 use App\Models\Season;
-use Flux\Flux;
 use Illuminate\Contracts\View\View;
 use Livewire\Attributes\Computed;
+use Livewire\Attributes\On;
 use Livewire\Attributes\Url;
 use Livewire\Component;
 
 /**
- * Wyniki kolejek (regulamin, punkt 11): admin wpisuje wynik meczu Lecha po 90 minutach.
- * Wynik zapisuje się od razu. Po jego wpisaniu pojawia się
- * przycisk „Przelicz wyniki” (status „rozegrana”, punkty, mecze, awanse w pucharze), a kolejka już przeliczona
- * przelicza się od nowa po każdej zmianie, z informacją w toście. Podgląd: season-list, zapis: season-edit.
+ * Wyniki kolejek (regulamin, punkt 11): wybór sezonu i kolejki, a pod spodem wynik i raport meczu Lecha
+ * (pages::dashboard.match-report: tablica wyniku, skład, zdarzenia, przycisk „Przelicz wyniki”).
+ * Podgląd: season-list, zapis: season-edit.
  * Uwaga: nie nazywaj własności "slots" ani "rows" – Livewire rezerwuje część nazw.
  */
 new class extends Component {
@@ -25,9 +23,6 @@ new class extends Component {
     #[Url(as: 'matchday', except: 0)]
     public int $number = 0;
 
-    public string $lech = '';
-    public string $opponent = '';
-
     public function mount(): void
     {
         if (!Season::whereKey($this->seasonId)->exists()) {
@@ -35,7 +30,6 @@ new class extends Component {
         }
 
         $this->pickDefaultMatchday();
-        $this->loadResult();
     }
 
     public function render(): View
@@ -48,13 +42,11 @@ new class extends Component {
         unset($this->matchdays, $this->matchday, $this->season);
         $this->number = 0;
         $this->pickDefaultMatchday();
-        $this->loadResult();
     }
 
     public function updatedNumber(): void
     {
         unset($this->matchday);
-        $this->loadResult();
     }
 
     /** Domyślnie pierwsza kolejka bez wyniku (a gdy wszystkie mają wynik, ostatnia). */
@@ -66,14 +58,6 @@ new class extends Component {
 
         $pending = $this->matchdays->first(fn($m) => $m->status !== MatchdayStatus::Played);
         $this->number = $pending?->number ?? ($this->matchdays->last()?->number ?? 0);
-    }
-
-    private function loadResult(): void
-    {
-        $matchday = $this->matchday;
-
-        $this->lech = $matchday?->lech_goals !== null ? (string) $matchday->lech_goals : '';
-        $this->opponent = $matchday?->opponent_goals !== null ? (string) $matchday->opponent_goals : '';
     }
 
     /* ==================================================================
@@ -120,95 +104,9 @@ new class extends Component {
         return null;
     }
 
-    /* ==================================================================
-     | AKCJE
-     * ================================================================*/
-
-    /** Wynik zapisuje się sam chwilę po wpisaniu liczby (oba pola muszą być wypełnione). */
-    public function updatedLech(): void
-    {
-        $this->saveScore();
-    }
-
-    public function updatedOpponent(): void
-    {
-        $this->saveScore();
-    }
-
-    private function saveScore(): void
-    {
-        if (!$this->authorizedMatchday() || $this->lech === '' || $this->opponent === '') {
-            return;
-        }
-
-        $this->attempt(function (SaveMatchdayResult $action): void {
-            $action->saveScore($this->matchday, $this->lech, $this->opponent);
-        }, __('Result saved.'));
-    }
-
-    /** Przycisk „Przelicz wyniki”. */
-    public function recalculate(SaveMatchdayResult $action): void
-    {
-        if (!$this->authorizedMatchday()) {
-            return;
-        }
-
-        try {
-            $stats = $action->recalculate($this->matchday);
-        } catch (DomainException $e) {
-            Flux::toast(variant: 'danger', text: $e->getMessage());
-
-            return;
-        }
-
-        $this->refreshMatchday();
-        $text = __('Matchday recalculated. Matches settled: :count.', ['count' => $stats['fixtures']]);
-
-        // Liga podwórkowa losuje się sama po przeliczeniu (SaveMatchdayResult::recalculate).
-        if (($stats['swiss'] ?? 0) > 0) {
-            $text .= ' ' . __('Liga podwórkowa: the next round has been drawn (:count matches).', ['count' => $stats['swiss']]);
-        }
-
-        Flux::toast(variant: 'success', text: $text);
-    }
-
-    /**
-     * Zapis zmiany, a gdy kolejka była już przeliczona, od razu przeliczenie od nowa (z informacją w toście).
-     */
-    private function attempt(callable $change, ?string $message = null): void
-    {
-        $action = app(SaveMatchdayResult::class);
-
-        try {
-            $change($action);
-
-            if ($this->matchday->fresh()->status === MatchdayStatus::Played) {
-                $stats = $action->recalculate($this->matchday->fresh());
-                $message = __('Saved and the matchday recalculated. Matches settled: :count.', ['count' => $stats['fixtures']]);
-            }
-        } catch (DomainException $e) {
-            $this->refreshMatchday();
-            $this->loadResult();
-            Flux::toast(variant: 'danger', text: $e->getMessage());
-
-            return;
-        }
-
-        $this->refreshMatchday();
-
-        if ($message) {
-            Flux::toast(variant: 'success', text: $message);
-        }
-    }
-
-    private function authorizedMatchday(): bool
-    {
-        abort_unless(auth()->user()?->can(Permission::SeasonEdit->value), 403);
-
-        return $this->matchday !== null;
-    }
-
-    private function refreshMatchday(): void
+    /** Po zapisie wyniku albo przeliczeniu w raporcie meczu (status kolejki w nagłówku). */
+    #[On('match-report-saved')]
+    public function refreshMatchday(): void
     {
         unset($this->matchdays, $this->matchday, $this->blocker);
     }
@@ -221,7 +119,7 @@ new class extends Component {
         <div>
             <flux:heading size="xl" level="1">{{ __('Results') }}</flux:heading>
             <flux:subheading>
-                {{ __('Enter the Lech score after 90 minutes. Every change is saved at once, then recalculate the matchday.') }}
+                {{ __('Enter the Lech score, the line-up and the events. Every click is saved at once, then recalculate the matchday.') }}
             </flux:subheading>
         </div>
 
@@ -260,72 +158,19 @@ new class extends Component {
             </div>
         </flux:card>
     @else
-        @php
-            $canSave = $this->blocker === null && auth()->user()->can(\App\Enums\Permission::SeasonEdit->value);
-        @endphp
-
-        <flux:card class="space-y-5">
-            <div class="flex flex-wrap items-start justify-between gap-3">
-                <div class="space-y-1">
-                    <flux:heading size="lg">{{ __('Matchday :number', ['number' => $this->matchday->number]) }}:
-                        {{ $this->matchday->fixture }}</flux:heading>
-                    <flux:text>
-                        {{ $this->matchday->kickoff_at ? $this->matchday->kickoff_at->translatedFormat('j F Y, H:i') : __('not set yet') }}
-                    </flux:text>
-                </div>
-                <flux:badge :color="$this->matchday->status->color()">{{ $this->matchday->status->label() }}</flux:badge>
+        <div class="flex flex-wrap items-center justify-between gap-3">
+            <div class="space-y-1">
+                <flux:heading size="lg">{{ __('Matchday :number', ['number' => $this->matchday->number]) }}: {{ $this->matchday->fixture }}</flux:heading>
+                <flux:text>{{ $this->matchday->kickoff_at ? $this->matchday->kickoff_at->translatedFormat('j F Y, H:i') : __('not set yet') }}</flux:text>
             </div>
+            <flux:badge :color="$this->matchday->status->color()">{{ $this->matchday->status->label() }}</flux:badge>
+        </div>
 
-            @if ($this->blocker)
-                <flux:callout variant="warning" icon="lock-closed" :heading="$this->blocker" />
-            @endif
-
-            {{-- Wynik zawsze z perspektywy Lecha (Lech : rywal), po 90 minutach. --}}
-            <div class="flex flex-wrap items-end gap-3">
-                <div class="w-28">
-                    <flux:input type="number" min="0" max="{{ \App\Support\TipRules::MAX_GOALS }}" wire:model.live.debounce.600ms="lech"
-                        :label="'Lech Poznań'" :disabled="! $canSave" />
-                </div>
-                <span class="pb-2 text-lg font-semibold">:</span>
-                <div class="w-28">
-                    <flux:input type="number" min="0" max="{{ \App\Support\TipRules::MAX_GOALS }}" wire:model.live.debounce.600ms="opponent"
-                        :label="$this->matchday->opponent ?? __('Opponent')" :disabled="! $canSave" />
-                </div>
-            </div>
-        </flux:card>
-
-        @if ($canSave)
-            @php
-                $played = $this->matchday->status === \App\Enums\MatchdayStatus::Played;
-                $hasScore = $this->matchday->lech_goals !== null;
-            @endphp
-
-            @if (!$hasScore)
-                <flux:text class="text-sm">{{ __('Enter the score: it saves itself, then recalculate the matchday.') }}</flux:text>
-            @elseif (!$played)
-                <flux:callout variant="warning" icon="exclamation-triangle">
-                    <flux:callout.heading>{{ __('The result is saved, but the matchday is not recalculated yet.') }}</flux:callout.heading>
-                    <flux:callout.text>
-                        {{ __('Recalculate the matchday to settle the points and matches.') }}
-                    </flux:callout.text>
-                </flux:callout>
-            @else
-                <flux:text class="text-sm">{{ __('The matchday is recalculated. Every change recalculates it again automatically.') }}</flux:text>
-            @endif
-
-            <div>
-                <flux:button :variant="$played ? 'filled' : 'primary'" icon="calculator" wire:click="recalculate" wire:loading.attr="disabled"
-                    :disabled="! $hasScore">
-                    <span wire:loading.remove wire:target="recalculate">{{ $played ? __('Recalculate again') : __('Recalculate results') }}</span>
-                    <span wire:loading wire:target="recalculate">{{ __('Recalculating...') }}</span>
-                </flux:button>
-            </div>
+        @if ($this->blocker)
+            <flux:callout variant="warning" icon="lock-closed" :heading="$this->blocker" />
         @endif
 
-        {{-- Raport meczu do desygnowania zawodników (pojawia się po wpisaniu wyniku, przy zmianie wyniku ładuje się od nowa). --}}
-        @if ($this->matchday->lech_goals !== null)
-            <livewire:pages::dashboard.match-report :matchday-id="$this->matchday->id"
-                :key="'report-' . $this->matchday->id . '-' . $this->matchday->lech_goals . '-' . $this->matchday->opponent_goals" />
-        @endif
+        <livewire:pages::dashboard.match-report :lech-match-id="(int) $this->matchday->lech_match_id" :matchday-id="$this->matchday->id"
+            :key="'report-' . $this->matchday->id" />
     @endif
 </div>

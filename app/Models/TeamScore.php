@@ -29,7 +29,7 @@ use Illuminate\Support\Carbon;
  * @property int $defense_bonus
  * @property int $offense
  * @property int $own_goals samobóje wystawionych zawodników (punkty ataku dla rywala)
- * @property int $experience doświadczenie wystawionych zawodników w klubie (remisy w pucharach)
+ * @property float $experience doświadczenie wystawionych zawodników w klubie (remisy w pucharach)
  * @property int $yellow_cards
  * @property int $red_cards
  */
@@ -59,6 +59,7 @@ class TeamScore extends Model
             'exact_hit' => 'boolean',
             'offense_bonus' => 'integer',
             'defense_bonus' => 'integer',
+            'experience' => 'float',
             'offense' => 'integer',
         ];
     }
