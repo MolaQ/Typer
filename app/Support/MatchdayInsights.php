@@ -2,6 +2,8 @@
 
 namespace App\Support;
 
+use App\Enums\CompetitionType;
+use App\Models\DesignatedPlayer;
 use App\Models\Matchday;
 use App\Models\Tip;
 
@@ -46,6 +48,42 @@ final class MatchdayInsights
             $out['exact'] = self::percent($out['exact_count'], $count);
             $out['outcome'] = self::percent($results->where('outcome', true)->count(), $count);
             $out['diff'] = self::percent($results->where('diff', true)->count(), $count);
+        }
+
+        return $out;
+    }
+
+    /**
+     * Najczęściej wybierani zawodnicy w kolejce, osobno w każdym typie rozgrywek (tylko składy graczy, bez botów):
+     * do trzech na typ, z liczbą klubów i procentem graczy, którzy coś wystawili w tym typie.
+     *
+     * @return array<string, array{label: string, clubs: int, top: array<int, array{name: string, position: string, count: int, percent: ?int}>}>
+     */
+    public static function players(Matchday $matchday): array
+    {
+        $picks = DesignatedPlayer::with('player:id,name,position')->where('matchday_id', $matchday->id)->whereNotNull('user_id')
+            ->get(['user_id', 'score_set', 'lech_player_id']);
+        $out = [];
+
+        foreach ([CompetitionType::League, CompetitionType::Cup, CompetitionType::Champions, CompetitionType::Legends] as $set) {
+            $inSet = $picks->filter(fn (DesignatedPlayer $p) => $p->score_set === $set);
+            $clubs = $inSet->pluck('user_id')->unique()->count();
+
+            $out[$set->value] = [
+                'label' => $set->scoreSetLabel(),
+                'clubs' => $clubs,
+                'top' => $inSet->groupBy('lech_player_id')
+                    ->sortByDesc(fn ($group) => $group->count())
+                    ->take(3)
+                    ->map(fn ($group) => [
+                        'name' => (string) $group->first()->player?->name,
+                        'position' => (string) $group->first()->player?->position->short(),
+                        'count' => $group->count(),
+                        'percent' => self::percent($group->count(), $clubs),
+                    ])
+                    ->values()
+                    ->all(),
+            ];
         }
 
         return $out;

@@ -2,6 +2,7 @@
 
 namespace App\Support;
 
+use App\Enums\CompetitionType;
 use App\Enums\PlayerPosition;
 use App\Models\Competition;
 use App\Models\CompetitionEntry;
@@ -71,6 +72,19 @@ class MatchSheet
         $before = Squad::experienceBefore($matchday, $userIds, $botIds);
         $order = array_flip(PlayerPosition::values());
 
+        // Liga Legend: zespół gra w kolejce dwa pojedynki, wybór liczy się jak dwa występy. Doświadczenie po pierwszym
+        // pojedynku = przed + raz dorobek, po drugim = przed + dwa razy (wpis => kolejne pojedynki według id meczu).
+        $legendsDuels = [];
+        foreach ($competitions->filter(fn (Competition $c) => $c->type === CompetitionType::Legends) as $legends) {
+            foreach (Fixture::where('competition_id', $legends->id)->where('round', $round)->orderBy('id')->get(['id', 'home_entry_id', 'away_entry_id']) as $duel) {
+                foreach ([$duel->home_entry_id, $duel->away_entry_id] as $duelEntry) {
+                    if ($duelEntry !== null) {
+                        $legendsDuels[$duelEntry][] = $duel->id;
+                    }
+                }
+            }
+        }
+
         $out = [];
         foreach ($fixtures as $fixture) {
             $competition = $competitions[$fixture->competition_id];
@@ -84,6 +98,10 @@ class MatchSheet
                 $virtual = $index === 1 && $fixture->isBye();
                 $score = $seasonTeam ? $scores->get($seasonTeam->id)?->first(fn (TeamScore $s) => $s->score_set->value === $set) : null;
                 $club = $score ? Squad::clubKey($score->user_id, $score->bot_id) : null;
+                // Który to występ zawodnika w kolejce (Liga Legend: 1 albo 2, reszta 1).
+                $times = Squad::appearances($set) > 1 && $entryId !== null
+                    ? (int) array_search($fixture->id, $legendsDuels[$entryId] ?? [$fixture->id], true) + 1
+                    : 1;
 
                 $rows = [];
                 foreach ($club ? $picks->get($club.'|'.$set, collect()) : [] as $pick) {
@@ -102,8 +120,8 @@ class MatchSheet
                         'red' => (bool) $pick->red,
                         'played' => (bool) $pick->counted && $pick->play_time > 0,
                         'counted' => (bool) $pick->counted,
-                        // Doświadczenie zawodnika w klubie po tym meczu (Liga Legend liczy się jak dwa występy).
-                        'experience' => round(($before[$club][$pick->lech_player_id] ?? 0) + $pick->experience * Squad::appearances($set), 1),
+                        // Doświadczenie zawodnika w klubie po tym meczu (w Lidze Legend po pierwszym albo drugim pojedynku).
+                        'experience' => round(($before[$club][$pick->lech_player_id] ?? 0) + $pick->experience * $times, 1),
                     ];
                 }
                 usort($rows, fn ($a, $b) => [$b['played'], $order[$a['position']->value]] <=> [$a['played'], $order[$b['position']->value]]);

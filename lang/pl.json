@@ -1524,5 +1524,8 @@
     "The number next to a player is his experience in your club. A player can be in only one competition type per matchday: clicking him with another type selected moves him there.": "Liczba przy zawodniku to jego doświadczenie w Twoim klubie. W kolejce zawodnik może być tylko w jednym typie rozgrywek: kliknięcie go przy innym wybranym typie przenosi go tam.",
     "experience in the club after the match": "doświadczenie w klubie po meczu",
     "Experience in the club after the match": "Doświadczenie w klubie po meczu",
-    "Attack point (goal, assist)": "Punkt ataku (gol, asysta)"
+    "Attack point (goal, assist)": "Punkt ataku (gol, asysta)",
+    "Show the line-up": "Pokaż skład",
+    "Clubs with a line-up": "Kluby ze składem",
+    "Nobody fielded yet.": "Nikt jeszcze nie wystawił."
 }

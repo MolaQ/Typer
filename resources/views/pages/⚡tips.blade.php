@@ -671,6 +671,8 @@ new #[Layout('layouts::public')] class extends Component {
             @php
                 $crowd = $this->crowd;
                 $crowdPct = fn (int $part) => $crowd['count'] > 0 ? (int) round($part / $crowd['count'] * 100) : 0;
+                $crowdPlayers = \App\Support\MatchdayInsights::players($this->matchday);
+                $crowdColors = ['league' => 'league_1', 'cup' => 'cup', 'champions' => 'champions', 'legends' => 'legends'];
             @endphp
             <div class="space-y-2 rounded-xl border border-purple-200 bg-purple-50/60 p-3 dark:border-purple-500/30 dark:bg-purple-500/10">
                 <div class="flex flex-wrap items-center justify-between gap-2 text-xs font-semibold uppercase tracking-wide text-purple-700 dark:text-purple-300">
@@ -695,6 +697,29 @@ new #[Layout('layouts::public')] class extends Component {
                         </span>
                     </div>
                 @endif
+
+                {{-- Najczęściej wybierani zawodnicy: cztery bloki typów rozgrywek, po trzech zawodników --}}
+                <div class="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                    @foreach ($crowdPlayers as $crowdSet => $crowdBlock)
+                        <div class="comp-banner rounded-lg p-2" style="{{ \App\Support\CompetitionColors::style($crowdColors[$crowdSet]) }}">
+                            <div class="relative z-10 flex items-center justify-between gap-2 text-[10px] font-black uppercase tracking-wide">
+                                <span class="truncate">{{ $crowdBlock['label'] }}</span>
+                                <span class="shrink-0 font-semibold opacity-80" title="{{ __('Clubs with a line-up') }}">{{ $crowdBlock['clubs'] }}</span>
+                            </div>
+                            <ol class="relative z-10 mt-1.5 space-y-1">
+                                @forelse ($crowdBlock['top'] as $crowdPlayer)
+                                    <li class="flex items-center gap-1.5 rounded bg-white/90 px-1.5 py-0.5 text-[11px] text-zinc-900">
+                                        <span class="w-3 shrink-0 text-[9px] font-semibold opacity-60">{{ $crowdPlayer['position'] }}</span>
+                                        <span class="min-w-0 flex-1 truncate font-semibold">{{ $crowdPlayer['name'] }}</span>
+                                        <span class="shrink-0 tabular-nums opacity-70">{{ $crowdPlayer['percent'] }}%</span>
+                                    </li>
+                                @empty
+                                    <li class="text-[11px] opacity-80">{{ __('Nobody fielded yet.') }}</li>
+                                @endforelse
+                            </ol>
+                        </div>
+                    @endforeach
+                </div>
             </div>
         @elseif (!$this->premium)
             <x-premium-lock :title="__('How the others tip')"
