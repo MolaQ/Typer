@@ -539,7 +539,7 @@ new class extends Component {
                                             @if ($a)
                                                 <span class="{{ $a->started ? 'bg-lech-700 text-white' : 'bg-zinc-300 text-zinc-800 dark:bg-zinc-600 dark:text-white' }} w-6 shrink-0 rounded text-center text-[10px] font-bold leading-4">{{ $a->started ? __('XI') : __('Sub') }}</span>
                                             @else
-                                                <span class="w-6 shrink-0 text-right text-[10px] tabular-nums text-zinc-400" title="{{ __('Experience') }}">{{ $fmt($totals[$player->id] ?? 0) }}</span>
+                                                <span class="w-8 shrink-0 text-right text-[10px] tabular-nums text-zinc-400" title="{{ __('Experience') }}">{{ \App\Support\ClubStats::experience($totals[$player->id] ?? 0) }}</span>
                                             @endif
                                         </button>
                                     </li>
@@ -677,7 +677,7 @@ new class extends Component {
                                                     <span class="{{ \App\Support\Squad::lockColor($a->rest_hours) }} inline-block rounded px-1 text-[11px] font-bold tabular-nums">{{ $a->rest_hours }} h</span>
                                                 @endif
                                             </td>
-                                            <td class="px-2 py-1.5 text-center font-bold tabular-nums text-lech-700 dark:text-lech-300">{{ $fmt($a->experience) }}</td>
+                                            <td class="px-2 py-1.5 text-center font-bold tabular-nums text-lech-700 dark:text-lech-300">{{ \App\Support\ClubStats::experience($a->experience) }}</td>
                                             <td class="px-1 py-1.5 text-center">
                                                 @if ($editable)
                                                     <flux:button size="xs" variant="ghost" icon="x-mark" wire:click="togglePlayer({{ $a->lech_player_id }})" :aria-label="__('Remove')" />

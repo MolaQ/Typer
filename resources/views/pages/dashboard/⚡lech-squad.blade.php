@@ -293,7 +293,7 @@ new class extends Component {
                     @endphp
                     @foreach (array_keys($statCols) as $col)
                         <flux:table.cell align="center" class="tabular-nums {{ $col === 'experience' ? 'font-semibold' : '' }} {{ ($total[$col] ?? 0) ? '' : 'text-zinc-300 dark:text-zinc-600' }}">
-                            {{ \App\Support\ClubStats::format($total[$col] ?? 0) }}
+                            {{ $col === 'experience' ? \App\Support\ClubStats::experience($total[$col] ?? 0) : \App\Support\ClubStats::format($total[$col] ?? 0) }}
                         </flux:table.cell>
                     @endforeach
                     <flux:table.cell align="center" class="text-xs tabular-nums">

@@ -53,7 +53,7 @@
                             </div>
                         </td>
                         @foreach (array_keys($statCols) as $col)
-                            <td class="px-2 py-1.5 text-center tabular-nums {{ $col === 'experience' ? 'font-semibold' : '' }} {{ $club['season'][$col] ? '' : 'text-zinc-300 dark:text-zinc-600' }}">{{ $fmt($club['season'][$col]) }}</td>
+                            <td class="px-2 py-1.5 text-center tabular-nums {{ $col === 'experience' ? 'font-semibold' : '' }} {{ $club['season'][$col] ? '' : 'text-zinc-300 dark:text-zinc-600' }}">{{ $col === 'experience' ? \App\Support\ClubStats::experience($club['season'][$col]) : $fmt($club['season'][$col]) }}</td>
                         @endforeach
                         <td class="px-2 py-1.5 text-center text-xs tabular-nums">
                             @include('partials.card-counts', ['yellow' => $club['season']['yellow'], 'red' => $club['season']['red']])
@@ -65,7 +65,7 @@
                         <tr x-show="open === {{ $p->id }}" x-cloak class="{{ $loop->last ? 'font-semibold' : '' }} bg-zinc-50 text-xs dark:bg-white/5">
                             <td class="px-3 py-1 ps-14 text-zinc-600 dark:text-zinc-300">{{ $historyTitle }}</td>
                             @foreach (array_keys($statCols) as $col)
-                                <td class="px-2 py-1 text-center tabular-nums {{ $historySums[$col] ? '' : 'text-zinc-300 dark:text-zinc-600' }}">{{ $fmt($historySums[$col]) }}</td>
+                                <td class="px-2 py-1 text-center tabular-nums {{ $historySums[$col] ? '' : 'text-zinc-300 dark:text-zinc-600' }}">{{ $col === 'experience' ? \App\Support\ClubStats::experience($historySums[$col]) : $fmt($historySums[$col]) }}</td>
                             @endforeach
                             <td class="px-2 py-1 text-center tabular-nums">
                                 @include('partials.card-counts', ['yellow' => $historySums['yellow'], 'red' => $historySums['red']])
@@ -89,7 +89,7 @@
                                                 <span class="rounded bg-red-600 px-1.5 py-0.5 text-[10px] font-bold text-white">{{ __('Forfeited (rest)') }}</span>
                                             @elseif ($m['play_time'] <= 0)
                                                 <span class="text-zinc-500">{{ __('Did not play') }}</span>
-                                                @if ($m['experience'] > 0)<span class="text-zinc-500">{{ __('Exp.') }} {{ $fmt($m['experience']) }}</span>@endif
+                                                @if ($m['experience'] > 0)<span class="text-zinc-500">{{ __('Exp.') }} {{ \App\Support\ClubStats::experience($m['experience']) }}</span>@endif
                                             @else
                                                 <span class="tabular-nums" title="{{ __('Playing time in halves') }}">{{ __('Time') }} {{ $fmt($m['play_time']) }}</span>
                                                 @if ($m['goals'])<span>⚽ {{ $m['goals'] }}</span>@endif
@@ -97,7 +97,7 @@
                                                 @if ($m['own_goals'])<span class="text-red-600">{{ __('Own goal') }} {{ $m['own_goals'] }}</span>@endif
                                                 @if ($m['clean_sheet'] === true)<span class="text-green-600">{{ __('Clean sheet') }}</span>@endif
                                                 @include('partials.card-counts', ['yellow' => $m['yellow'], 'red' => (int) $m['red']])
-                                                <span class="text-zinc-500">{{ __('Exp.') }} {{ $fmt($m['experience']) }}</span>
+                                                <span class="text-zinc-500">{{ __('Exp.') }} {{ \App\Support\ClubStats::experience($m['experience']) }}</span>
                                                 @if ($m['rest_hours'])<span class="text-zinc-500">{{ __('Rest: :count h', ['count' => $m['rest_hours']]) }}</span>@endif
                                             @endif
                                         </li>

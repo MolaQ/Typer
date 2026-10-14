@@ -149,7 +149,7 @@ new class extends Component {
             $resting = $squad->filter(fn ($p) => isset($locks[$p->id]))->sortBy(fn ($p) => $locks[$p->id]);
             $open = $this->isOpen;
             $active = $sets->get($this->active);
-            $fmt = fn ($v) => \App\Support\ClubStats::format($v);
+            $fmt = fn ($v) => \App\Support\ClubStats::experience($v);
         @endphp
 
         <div class="space-y-4">
@@ -177,7 +177,7 @@ new class extends Component {
                             @endphp
                             <button type="button" wire:click="selectSet('{{ $setValue }}')" wire:key="pick-set-{{ $setValue }}"
                                 style="{{ \App\Support\CompetitionColors::style($colors[$setValue] ?? 'league_1') }}"
-                                class="{{ $isActive ? 'comp-chip shadow-md ring-2 ring-offset-2 ring-lech-600 ring-offset-white dark:ring-offset-zinc-900' : 'comp-chip opacity-60 hover:opacity-100' }} flex items-center justify-between gap-2 rounded-xl px-3 py-2 text-left transition">
+                                class="{{ $isActive ? 'comp-chip shadow-md ring-2 ring-offset-2 ring-lech-600 ring-offset-white dark:ring-offset-zinc-900' : 'comp-chip opacity-60 hover:opacity-100' }} flex items-center justify-between gap-2 rounded-lg px-2.5 py-1 text-left transition">
                                 <span class="truncate text-xs font-black uppercase tracking-wide">{{ $set->scoreSetLabel() }}</span>
                                 <span class="shrink-0 text-xs font-bold tabular-nums">{{ $count }}/{{ $max }}</span>
                             </button>
@@ -201,7 +201,7 @@ new class extends Component {
                     </div>
                 </div>
 
-                <div class="grid grid-cols-1 gap-1.5 sm:grid-cols-2 xl:grid-cols-3">
+                <div class="grid grid-cols-2 gap-1 sm:grid-cols-3 xl:grid-cols-4">
                     @foreach ($available as $player)
                         @php
                             $in = $pickedIn[$player->id] ?? null;
@@ -212,9 +212,9 @@ new class extends Component {
                         <button type="button" wire:click="toggle({{ $player->id }})" wire:key="avail-{{ $player->id }}" @disabled(!$open || $full)
                             x-show="pos === '' || pos === '{{ $player->position->value }}'" title="{{ $title }}"
                             @if ($in) style="{{ \App\Support\CompetitionColors::style($colors[$in] ?? 'league_1') }}" @endif
-                            class="{{ $in ? 'comp-chip font-bold shadow-sm' : 'border border-zinc-200 hover:border-lech-400 hover:bg-lech-50 dark:border-zinc-700 dark:hover:bg-white/5' }} {{ $full && !$in ? 'opacity-50' : '' }} flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-sm transition disabled:cursor-default">
+                            class="{{ $in ? 'comp-chip font-bold shadow-sm' : 'border border-zinc-200 hover:border-lech-400 hover:bg-lech-50 dark:border-zinc-700 dark:hover:bg-white/5' }} {{ $full && !$in ? 'opacity-50' : '' }} flex min-w-0 items-center gap-1.5 rounded-md px-2 py-1 text-left text-xs transition disabled:cursor-default">
                             <span class="w-4 shrink-0 text-[10px] font-semibold uppercase opacity-70">{{ $player->position->short() }}</span>
-                            <span class="w-5 shrink-0 text-right text-xs tabular-nums opacity-60">{{ $player->number }}</span>
+                            <span class="w-4 shrink-0 text-right text-[10px] tabular-nums opacity-60">{{ $player->number }}</span>
                             <span class="min-w-0 flex-1 truncate">
                                 {{ $player->name }}
                                 @if ($player->is_academy)
@@ -224,47 +224,11 @@ new class extends Component {
                             @if ($inSet)
                                 <flux:icon.check-circle variant="micro" class="shrink-0" />
                             @endif
-                            <span class="shrink-0 text-xs tabular-nums opacity-70" title="{{ __('Experience') }}">{{ $fmt($player->total_experience) }}</span>
+                            <span class="shrink-0 text-[10px] tabular-nums opacity-70" title="{{ __('Experience') }}">{{ $fmt($player->total_experience) }}</span>
                         </button>
                     @endforeach
                 </div>
             </section>
-
-            {{-- Odpoczywający: kolor według godzin do końca odpoczynku --}}
-            @if ($resting->isNotEmpty())
-                <section class="space-y-2 rounded-2xl border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-700 dark:bg-white/5">
-                    <flux:heading>{{ __('Resting players') }} <span class="font-normal text-zinc-500">({{ $resting->count() }})</span></flux:heading>
-                    <div class="flex flex-wrap gap-1.5">
-                        @foreach ($resting as $player)
-                            @php
-                                $freeAt = $locks[$player->id];
-                                $in = $pickedIn[$player->id] ?? null;
-                            @endphp
-                            <div class="flex max-w-full items-center gap-2 rounded-lg border border-zinc-200 bg-white px-2.5 py-1.5 text-sm text-zinc-500 dark:border-zinc-700 dark:bg-zinc-900" wire:key="rest-{{ $player->id }}">
-                                <span class="w-4 shrink-0 text-[10px] font-semibold uppercase">{{ $player->position->short() }}</span>
-                                <span class="min-w-0 truncate">{{ $player->name }}</span>
-                                @if ($in && $open)
-                                    {{-- Wystawiony, a potem odpoczywający (raport wpisany później): wybór przepada, można zdjąć. --}}
-                                    <button type="button" wire:click="toggle({{ $player->id }}, '{{ $in }}')" class="shrink-0 rounded bg-red-600 px-1.5 py-0.5 text-[10px] font-bold text-white"
-                                        title="{{ __('This player rests now: the pick does not count.') }}">{{ __('Remove') }}</button>
-                                @endif
-                                <span class="{{ \App\Support\Squad::lockColor(\App\Support\Squad::hoursLeft($freeAt)) }} shrink-0 rounded px-1.5 py-0.5 text-[10px] font-bold tabular-nums"
-                                    title="{{ __(':count h left', ['count' => \App\Support\Squad::hoursLeft($freeAt)]) }}">
-                                    {{ __('free from :date', ['date' => \Illuminate\Support\Carbon::createFromTimestamp($freeAt, config('app.timezone'))->format('d.m, H:i')]) }}
-                                </span>
-                            </div>
-                        @endforeach
-                    </div>
-                    <div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-zinc-500">
-                        @foreach (\App\Support\Squad::REST_LEGEND as $upTo => $sample)
-                            <span class="flex items-center gap-1.5">
-                                <span class="{{ \App\Support\Squad::lockColor($sample) }} inline-block h-3 w-5 rounded"></span>
-                                {{ __('up to :count h', ['count' => $upTo]) }}
-                            </span>
-                        @endforeach
-                    </div>
-                </section>
-            @endif
 
             {{-- Karty typów rozgrywek: tylko wystawieni (klik w kartę wybiera typ, klik w zawodnika zdejmuje) --}}
             <div class="grid gap-3 sm:grid-cols-2">
@@ -302,6 +266,42 @@ new class extends Component {
                     </section>
                 @endforeach
             </div>
+
+            {{-- Odpoczywający: kolor według godzin do końca odpoczynku --}}
+            @if ($resting->isNotEmpty())
+                <section class="space-y-2 rounded-2xl border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-700 dark:bg-white/5">
+                    <flux:heading>{{ __('Resting players') }} <span class="font-normal text-zinc-500">({{ $resting->count() }})</span></flux:heading>
+                    <div class="flex flex-wrap gap-1.5">
+                        @foreach ($resting as $player)
+                            @php
+                                $freeAt = $locks[$player->id];
+                                $in = $pickedIn[$player->id] ?? null;
+                            @endphp
+                            <div class="flex max-w-full items-center gap-1.5 rounded-md border border-zinc-200 bg-white px-2 py-1 text-xs text-zinc-500 dark:border-zinc-700 dark:bg-zinc-900" wire:key="rest-{{ $player->id }}">
+                                <span class="w-4 shrink-0 text-[10px] font-semibold uppercase">{{ $player->position->short() }}</span>
+                                <span class="min-w-0 truncate">{{ $player->name }}</span>
+                                @if ($in && $open)
+                                    {{-- Wystawiony, a potem odpoczywający (raport wpisany później): wybór przepada, można zdjąć. --}}
+                                    <button type="button" wire:click="toggle({{ $player->id }}, '{{ $in }}')" class="shrink-0 rounded bg-red-600 px-1.5 py-0.5 text-[10px] font-bold text-white"
+                                        title="{{ __('This player rests now: the pick does not count.') }}">{{ __('Remove') }}</button>
+                                @endif
+                                <span class="{{ \App\Support\Squad::lockColor(\App\Support\Squad::hoursLeft($freeAt)) }} shrink-0 rounded px-1.5 py-0.5 text-[10px] font-bold tabular-nums"
+                                    title="{{ __(':count h left', ['count' => \App\Support\Squad::hoursLeft($freeAt)]) }}">
+                                    {{ __('free from :date', ['date' => \Illuminate\Support\Carbon::createFromTimestamp($freeAt, config('app.timezone'))->format('d.m, H:i')]) }}
+                                </span>
+                            </div>
+                        @endforeach
+                    </div>
+                    <div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-zinc-500">
+                        @foreach (\App\Support\Squad::REST_LEGEND as $upTo => $sample)
+                            <span class="flex items-center gap-1.5">
+                                <span class="{{ \App\Support\Squad::lockColor($sample) }} inline-block h-3 w-5 rounded"></span>
+                                {{ __('up to :count h', ['count' => $upTo]) }}
+                            </span>
+                        @endforeach
+                    </div>
+                </section>
+            @endif
 
             <flux:text class="text-xs">{{ __('A fielded player who played rests in your club for some hours from the kickoff (from 40 h for part of the first half to 250 h for the whole match with extra time). A player can be in only one competition type per matchday: clicking him with another type selected moves him there.') }}</flux:text>
         </div>

@@ -127,6 +127,12 @@ class ClubStats
         ];
     }
 
+    /** Doświadczenie: zawsze jedno miejsce po przecinku (4,0; 3,5). */
+    public static function experience(int|float $value): string
+    {
+        return number_format((float) $value, 1, ',', '');
+    }
+
     /** Liczba do tabeli: całkowita bez przecinka, ułamek z jednym miejscem po przecinku (3,5). */
     public static function format(int|float $value): string
     {
