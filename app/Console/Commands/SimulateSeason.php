@@ -79,8 +79,11 @@ class SimulateSeason extends Command
 
     private const EUROPE = ['Manchester United', 'Borussia Dortmund'];
 
-    /** Typy graczy: zawsze wygrana Lecha, jeden z tych wyników (Lech : rywal). */
+    /** Typy wygranej Lecha (Lech : rywal): admin zawsze, gracze w połowie przypadków. */
     private const TIPS = [[1, 0], [2, 0], [2, 1], [3, 1]];
+
+    /** Typy remisu: gracze w drugiej połowie przypadków (boty typują losowo 0-3 : 0-3 w ScoreMatchday). */
+    private const DRAW_TIPS = [[0, 0], [1, 1], [2, 2]];
 
     /** Wyjściowa jedenastka Lecha w każdym meczu (nazwiska z kadry). */
     private const LINEUP = ['Lis', 'Pereira', 'Mońka', 'Yegbe', 'Gurgul', 'Wålemark', 'Rodríguez', 'Palma', 'Sayyadmanesh', 'Gholizadeh', 'Ishak'];
@@ -287,7 +290,8 @@ class SimulateSeason extends Command
         $kickoff = $matchday->kickoff_at?->copy() ?? now();
         $europe = in_array($matchday->competition, [MatchCompetition::ChampionsLeague->value, MatchCompetition::EuropaLeague->value, MatchCompetition::ConferenceLeague->value], true);
 
-        // Typy: 98-100% graczy z listy sezonu, w kolejności zapisu (wcześniejszy zapis = mniejszy numer), zawsze wygrana Lecha,
+        // Typy: 98-100% graczy z listy sezonu, w kolejności zapisu (wcześniejszy zapis = mniejszy numer); admin zawsze wygrana Lecha,
+        // gracze wygrana albo remis (po połowie),
         // i 1-4 losowych dostępnych zawodników w każdym typie rozgrywek gracza.
         $players = User::whereIn('id', SeasonTeam::where('season_id', $matchday->season_id)->whereNotNull('user_id')->pluck('user_id'))->get();
         $share = mt_rand(98, 100) / 100;
@@ -301,7 +305,8 @@ class SimulateSeason extends Command
         foreach ($tippers->values() as $index => $user) {
             /** @var User $user */
             Date::setTestNow($kickoff->copy()->subMinutes((int) $leads[$index]));
-            [$lech, $opponent] = self::TIPS[array_rand(self::TIPS)];
+            $pool = $user->hasRole(RoleName::Admin->value) || mt_rand(0, 1) === 0 ? self::TIPS : self::DRAW_TIPS;
+            [$lech, $opponent] = $pool[array_rand($pool)];
 
             try {
                 $saveTip->handle($user, $matchday, $lech, $opponent);
