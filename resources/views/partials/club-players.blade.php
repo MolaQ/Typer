@@ -1,5 +1,5 @@
 {{--
-    Zawodnicy klubu (Support\ClubStats::players): tabela dorobku w bieżącym sezonie (doświadczenie malejąco, filtr pozycji B/O/P/N),
+    Zawodnicy klubu (Support\ClubStats::players): doświadczenie w klubie łącznie (kolejność, pierwsza kolumna) i dorobek w bieżącym sezonie (filtr pozycji B/O/P/N),
     klik w wiersz pokazuje sumę wszystkich sezonów, a pod nią sezony od ostatniego, każdy rozwijany z meczami od pierwszej kolejki.
     Używane w zakładce „Moja kadra” na /tips i na profilu bota.
     Zmienne: $clubPlayers, opcjonalnie $clubTitle.
@@ -34,9 +34,10 @@
         <table class="w-full text-sm">
             <thead class="bg-zinc-50 text-xs text-zinc-500 dark:bg-white/5">
                 <tr>
-                    <th class="px-3 py-2 text-left font-medium">{{ __('Player') }} <span class="font-normal">({{ __('this season') }})</span></th>
+                    <th class="px-3 py-2 text-left font-medium">{{ __('Player') }}</th>
+                    <th class="bg-lech-50 px-2 py-2 text-center font-semibold text-lech-800 dark:bg-lech-500/10 dark:text-lech-200" title="{{ __('Experience in the club, all seasons') }}">{{ __('Total exp.') }}</th>
                     @foreach ($statCols as [$short, $long])
-                        <th class="px-2 py-2 text-center font-medium" title="{{ $long }}">{{ $short }}</th>
+                        <th class="px-2 py-2 text-center font-medium" title="{{ $long }} ({{ __('this season') }})">{{ $short }}</th>
                     @endforeach
                     <th class="px-2 py-2 text-center font-medium">{{ __('Cards') }}</th>
                 </tr>
@@ -60,6 +61,7 @@
                                 <flux:icon.chevron-down variant="micro" class="ms-auto shrink-0 text-zinc-400 transition" x-bind:class="open === {{ $p->id }} && 'rotate-180'" />
                             </div>
                         </td>
+                        <td class="bg-lech-50 px-2 py-1.5 text-center font-bold tabular-nums text-lech-800 dark:bg-lech-500/10 dark:text-lech-200">{{ \App\Support\ClubStats::experience($club['career']['experience']) }}</td>
                         @foreach (array_keys($statCols) as $col)
                             <td class="px-2 py-1.5 text-center tabular-nums {{ $col === 'experience' ? 'font-semibold' : '' }} {{ $club['season'][$col] ? '' : 'text-zinc-300 dark:text-zinc-600' }}">{{ $col === 'experience' ? \App\Support\ClubStats::experience($club['season'][$col]) : $fmt($club['season'][$col]) }}</td>
                         @endforeach
@@ -71,6 +73,7 @@
                     {{-- Suma wszystkich sezonów --}}
                     <tr x-show="open === {{ $p->id }}" x-cloak class="bg-zinc-50 text-xs font-semibold dark:bg-white/5">
                         <td class="px-3 py-1 ps-14 text-zinc-600 dark:text-zinc-300">{{ __('All seasons') }}</td>
+                        <td class="bg-lech-50 dark:bg-lech-500/10"></td>
                         @foreach (array_keys($statCols) as $col)
                             <td class="px-2 py-1 text-center tabular-nums {{ $club['career'][$col] ? '' : 'text-zinc-300 dark:text-zinc-600' }}">{{ $col === 'experience' ? \App\Support\ClubStats::experience($club['career'][$col]) : $fmt($club['career'][$col]) }}</td>
                         @endforeach
@@ -81,7 +84,7 @@
 
                     @if (count($club['seasons']) === 0)
                         <tr x-show="open === {{ $p->id }}" x-cloak>
-                            <td colspan="{{ count($statCols) + 2 }}" class="bg-zinc-50 px-3 py-2 ps-14 dark:bg-white/5">
+                            <td colspan="{{ count($statCols) + 3 }}" class="bg-zinc-50 px-3 py-2 ps-14 dark:bg-white/5">
                                 <flux:text class="text-xs">{{ __('Not fielded yet.') }}</flux:text>
                             </td>
                         </tr>
@@ -103,6 +106,7 @@
                                     @endif
                                 </span>
                             </td>
+                            <td class="bg-lech-50 dark:bg-lech-500/10"></td>
                             @foreach (array_keys($statCols) as $col)
                                 <td class="px-2 py-1 text-center tabular-nums {{ $seasonBlock['sums'][$col] ? '' : 'text-zinc-300 dark:text-zinc-600' }}">{{ $col === 'experience' ? \App\Support\ClubStats::experience($seasonBlock['sums'][$col]) : $fmt($seasonBlock['sums'][$col]) }}</td>
                             @endforeach
@@ -111,7 +115,7 @@
                             </td>
                         </tr>
                         <tr x-show="open === {{ $p->id }} && season === '{{ $seasonKey }}'" x-cloak>
-                            <td colspan="{{ count($statCols) + 2 }}" class="bg-white px-3 py-2 ps-14 dark:bg-zinc-900">
+                            <td colspan="{{ count($statCols) + 3 }}" class="bg-white px-3 py-2 ps-14 dark:bg-zinc-900">
                                 <ul class="space-y-1 text-xs">
                                     @foreach ($seasonBlock['matches'] as $m)
                                         <li class="flex flex-wrap items-center gap-x-3 gap-y-1">

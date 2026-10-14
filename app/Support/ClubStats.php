@@ -18,7 +18,7 @@ class ClubStats
 
     /**
      * Kadra klubu z dorobkiem: cała kadra bez niedostępnych plus niedostępni, którzy już coś mają.
-     * Kolejność: doświadczenie w bieżącym sezonie malejąco, potem w całej karierze w klubie, potem pozycja i numer.
+     * Kolejność: doświadczenie w całej karierze w klubie malejąco, potem w bieżącym sezonie, potem pozycja i numer.
      * „seasons” to sezony od ostatniego (także bieżący) z sumą i meczami od pierwszej kolejki do ostatniej.
      *
      * @return array<int, array{player: LechPlayer, free_at: int|null, season: array<string, int|float>, career: array<string, int|float>, seasons: array<int, array{title: string, current: bool, sums: array<string, int|float>, matches: array<int, array<string, mixed>>}>}>
@@ -95,7 +95,7 @@ class ClubStats
             ];
         }
 
-        usort($out, fn ($a, $b) => [$b['season']['experience'], $b['career']['experience'], $order[$a['player']->position->value], $a['player']->number ?? 999]
+        usort($out, fn ($a, $b) => [$b['career']['experience'], $b['season']['experience'], $order[$a['player']->position->value], $a['player']->number ?? 999]
             <=> [$a['season']['experience'], $a['career']['experience'], $order[$b['player']->position->value], $b['player']->number ?? 999]);
 
         return $out;

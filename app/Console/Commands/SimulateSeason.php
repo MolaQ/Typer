@@ -23,6 +23,7 @@ use App\Models\Season;
 use App\Models\SeasonTeam;
 use App\Models\User;
 use App\Support\Audit;
+use App\Support\Designation;
 use App\Support\HallOfFame;
 use App\Support\MatchReport;
 use App\Support\PlayerCompetitions;
@@ -52,7 +53,7 @@ use Illuminate\Support\Str;
  *  2. SetUpSeason (lista z poprzedniego sezonu z awansami, spadkami i czyszczeniem z botów, nowi gracze do podwórkowej,
  *     zatwierdzenie), potem aktywacja,
  *  3. w każdej kolejce: typy 98-100% graczy (SaveTip, zawsze wygrana Lecha: 1:0, 2:0, 2:1 albo 3:1) i 1-4 losowych dostępnych
- *     zawodników w każdym typie rozgrywek gracza (Squad::toggle); boty wystawiają według ustawień desygnowania (bot_players_min/max),
+ *     zawodników w każdym typie rozgrywek gracza (Squad::toggle; admin zawsze najwięcej, od Ligi Legend, przez Europę i ligi, do PP); boty wystawiają według ustawień desygnowania (bot_players_min/max),
  *  4. mecz Lecha z protokołem (match_events): stała jedenastka (LINEUP), 10 rezerwowych (w tym bramkarz), 5 zmian w przerwie
  *     albo w 2. połowie, Lech wygrywa (w Europie wygrywa albo remisuje), gole 65% napastnicy / 30% pomocnicy / 5% obrońcy,
  *     90% goli z asystą (70% pomocnicy / 20% obrońcy / 10% napastnicy), 1-5 żółtych kartek (każda 8% na drugą żółtą),
@@ -346,6 +347,7 @@ class SimulateSeason extends Command
 
     /**
      * Gracz wystawia 1-4 losowych dostępnych (nieodpoczywających) zawodników w każdym swoim typie rozgrywek, każdego raz.
+     * Admin zawsze wystawia najwięcej (max_players) w kolejności: Liga Legend, puchary europejskie, ligi, Puchar Polski.
      *
      * @param  array<int, int>  $squad  id dostępnych zawodników
      */
@@ -354,9 +356,16 @@ class SimulateSeason extends Command
         $free = array_values(array_diff($squad, array_keys(Squad::locks($user->id, null, $matchday))));
         shuffle($free);
         $picked = 0;
+        $admin = $user->hasRole(RoleName::Admin->value);
+        $sets = PlayerCompetitions::types($user->id, $matchday->season_id, $matchday->number);
 
-        foreach (PlayerCompetitions::types($user->id, $matchday->season_id, $matchday->number) as $set) {
-            foreach (array_splice($free, 0, mt_rand(1, 4)) as $playerId) {
+        if ($admin) {
+            $priority = array_flip([CompetitionType::Legends->value, CompetitionType::Champions->value, CompetitionType::League->value, CompetitionType::Cup->value]);
+            usort($sets, fn (CompetitionType $a, CompetitionType $b) => ($priority[$a->value] ?? 9) <=> ($priority[$b->value] ?? 9));
+        }
+
+        foreach ($sets as $set) {
+            foreach (array_splice($free, 0, $admin ? Designation::value('max_players') : mt_rand(1, 4)) as $playerId) {
                 try {
                     Squad::toggle($user, $matchday, $set, $playerId);
                     $picked++;
