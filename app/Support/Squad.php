@@ -261,7 +261,9 @@ class Squad
             $club = self::clubKey($pick->user_id, $pick->bot_id);
             $locked = isset($locks[$club][$pick->lech_player_id]);
             $r = $report[$pick->lech_player_id] ?? null;
-            $played = ! $locked && $r !== null && $r['played'];
+            // W kadrze meczowej (jedenastka albo ławka): doświadczenie za powołanie i kartki; zagrał: reszta dorobku.
+            $inSquad = ! $locked && $r !== null;
+            $played = $inSquad && $r['played'];
             $goalkeeper = $pick->player?->position === PlayerPosition::Goalkeeper;
 
             $values = [
@@ -271,11 +273,11 @@ class Squad
                 'assists' => $played ? (int) $r['assists'] : 0,
                 'own_goals' => $played ? (int) $r['own_goals'] : 0,
                 'clean_sheet' => $played ? $r['clean_sheet'] : null,
-                'yellow' => $played ? (int) $r['yellow'] : 0,
-                'red' => $played && $r['red'],
+                'yellow' => $inSquad ? (int) $r['yellow'] : 0,
+                'red' => $inSquad && $r['red'],
                 'attack' => $played ? (int) $r['goals'] + (int) $r['assists'] : 0,
                 'defense' => $played && $r['clean_sheet'] === true ? ($goalkeeper ? $cleanGk : $cleanDf) : 0,
-                'experience' => $played ? (float) $r['experience'] : 0,
+                'experience' => $inSquad ? (float) $r['experience'] : 0,
                 'lock' => $played ? (int) $r['lock'] : 0,
             ];
             $pick->update($values);

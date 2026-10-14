@@ -252,7 +252,7 @@ new class extends Component {
         $statCols = [
             'matches' => [__('M'), __('Matches')],
             'starts' => [__('XI'), __('Starting eleven')],
-            'subs' => [__('Sub'), __('Came off the bench')],
+            'subs' => [__('Sub'), __('On the bench')],
             'play_time' => [__('Time'), __('Playing time in halves')],
             'goals' => ['G', __('Goals')],
             'assists' => ['A', __('Assists')],

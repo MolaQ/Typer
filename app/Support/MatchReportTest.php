@@ -73,11 +73,14 @@ it('gives no clean sheet when Lech conceded', function () {
         ->and($r['experience'])->toBe(3.0);
 });
 
-it('skips a substitute without the entry marked', function () {
-    $r = MatchReport::compute([reportAppearance(1, PlayerPosition::Forward, started: false, on: null)], 0, false, reportSettings())[1];
+it('gives a bench player who did not come on only the bench points', function () {
+    $r = MatchReport::compute([reportAppearance(1, PlayerPosition::Defender, started: false, on: null)], 0, false, reportSettings())[1];
 
     expect($r['played'])->toBeFalse()
-        ->and($r['experience'])->toBe(0.0);
+        ->and($r['play_time'])->toBe(0.0)
+        ->and($r['lock'])->toBe(0)
+        ->and($r['clean_sheet'])->toBeNull()
+        ->and($r['experience'])->toBe(0.5);
 });
 
 it('normalizes the exit before the entry', function () {

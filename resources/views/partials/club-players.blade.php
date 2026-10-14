@@ -89,6 +89,7 @@
                                                 <span class="rounded bg-red-600 px-1.5 py-0.5 text-[10px] font-bold text-white">{{ __('Forfeited (rest)') }}</span>
                                             @elseif ($m['play_time'] <= 0)
                                                 <span class="text-zinc-500">{{ __('Did not play') }}</span>
+                                                @if ($m['experience'] > 0)<span class="text-zinc-500">{{ __('Exp.') }} {{ $fmt($m['experience']) }}</span>@endif
                                             @else
                                                 <span class="tabular-nums" title="{{ __('Playing time in halves') }}">{{ __('Time') }} {{ $fmt($m['play_time']) }}</span>
                                                 @if ($m['goals'])<span>⚽ {{ $m['goals'] }}</span>@endif

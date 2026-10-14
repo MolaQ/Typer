@@ -14,7 +14,7 @@ use App\Models\MatchAppearance;
  * nieparzyste to „w trakcie” połowy. Połowa k (0-3) zajmuje punkty 2k…2k+2: cała, gdy zawodnik był od 2k do 2k+2,
  * część, gdy był w niej tylko przez chwilę.
  *
- * Doświadczenie (ustawienia Support\Designation): wyjściowa jedenastka albo wejście z ławki, cała połowa i część połowy,
+ * Doświadczenie (ustawienia Support\Designation): powołanie do wyjściowej jedenastki albo na ławkę (także bez wejścia), cała połowa i część połowy,
  * czyste konto (bramkarz, obrońca), gole (także w serii karnych) i asysty.
  */
 class MatchReport
@@ -86,11 +86,12 @@ class MatchReport
         $result = [];
 
         foreach ($appearances as $a) {
-            // Rezerwowy bez zaznaczonego wejścia jeszcze się nie liczy.
+            // Ławka bez wejścia: tylko premia za powołanie przez trenera, bez czasu gry, blokady i czystego konta.
             if (! $a['started'] && $a['on'] === null) {
                 $result[$a['id']] = [
                     'played' => false, 'full_halves' => 0, 'partial_halves' => 0, 'play_time' => 0.0, 'lock' => 0,
-                    'goals' => 0, 'assists' => 0, 'own_goals' => 0, 'clean_sheet' => null, 'experience' => 0.0, 'yellow' => 0, 'red' => false,
+                    'goals' => 0, 'assists' => 0, 'own_goals' => 0, 'clean_sheet' => null,
+                    'experience' => round((float) ($settings['exp_sub'] ?? 0.5), 1), 'yellow' => $a['yellow'], 'red' => $a['red'],
                 ];
 
                 continue;

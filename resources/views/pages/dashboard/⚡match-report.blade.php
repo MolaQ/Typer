@@ -20,10 +20,10 @@ use Livewire\Component;
  * Wynik i raport meczu Lecha (desygnowanie zawodników), wszystko klikane, pod telefon:
  *  - 1/3: tablica wyniku jak w /tips (+ / −, szybkie wyniki), dogrywka z golami, seria karnych (informacyjnie),
  *    przy kolejce przeliczenie wyników,
- *  - 2/3: kadra w czterech kolumnach (B, O, P, N) według doświadczenia ze wszystkich raportów; klik dodaje zawodnika,
- *    pierwsze 11 do wyjściowej jedenastki, kolejni jako rezerwowi,
- *  - pod spodem lista meczu: wejście i zejście (punkty osi meczu, MatchReport::ON_LABELS/OFF_LABELS), gole, asysty,
- *    samobóje (+ / −), kartki (żółta, dwie żółte, czerwona), czyste konto, czas gry, blokada i doświadczenie liczone same.
+ *  - 2/3: kadra w czterech kolumnach (B, O, P, N) według doświadczenia ze wszystkich raportów; klik dodaje zawodnika
+ *    w kolejności trenera: pierwsze 11 do wyjściowej jedenastki, kolejni na ławkę (także ci, którzy nie weszli),
+ *  - pod spodem tabela meczu na całą szerokość: wejście (ławka) i zejście (punkty osi meczu, MatchReport::ON_LABELS/OFF_LABELS),
+ *    gole, asysty, samobóje (+ / −), kartki (żółta, dwie żółte, czerwona), czyste konto, czas gry, blokada i doświadczenie liczone same.
  *
  * Kolejka: wynik zapisuje SaveMatchdayResult (przeliczona kolejka przelicza się od razu), zmiany raportu po przycisku
  * „Przelicz ponownie”. Mecz archiwalny z kalendarza (matchdayId = 0): wynik tylko w raporcie.
@@ -118,11 +118,6 @@ new class extends Component {
 
         if ($this->appearances->isNotEmpty() && $starters !== $this::STARTERS) {
             $list[] = __('The starting eleven has :count players.', ['count' => $starters]);
-        }
-
-        $noEntry = $this->appearances->where('started', false)->whereNull('on_slot')->count();
-        if ($noEntry > 0) {
-            $list[] = trans_choice('Mark when :count substitute came on.|Mark when :count substitutes came on.', $noEntry, ['count' => $noEntry]);
         }
 
         return $list;
@@ -282,7 +277,7 @@ new class extends Component {
                 'lech_match_id' => $this->lechMatchId,
                 'lech_player_id' => $playerId,
                 'started' => $started,
-                // Rezerwowy: wejście zaznacza admin (nie wiadomo, kiedy wszedł). Zejście domyślnie koniec meczu.
+                // Ławka: wejście zaznacza admin tylko, gdy zawodnik wszedł. Zejście domyślnie koniec meczu.
                 'on_slot' => $started ? 0 : null,
                 'off_slot' => $this->end(),
             ]);
@@ -419,8 +414,6 @@ new class extends Component {
 
             $boardBtn = 'flex h-10 w-16 items-center justify-center rounded-xl border border-zinc-300 bg-white text-xl font-black text-lech-800 shadow-sm transition active:scale-95 hover:bg-lech-50 disabled:opacity-40 dark:border-zinc-600 dark:bg-zinc-800 dark:text-lech-200 dark:hover:bg-zinc-700';
             $miniBtn = 'flex size-7 items-center justify-center rounded-lg border border-zinc-300 bg-white text-sm font-bold text-zinc-700 transition active:scale-95 hover:bg-zinc-50 disabled:opacity-30 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-200';
-            // Przyciski osi meczu: stała szerokość.
-            $slotBtn = 'h-8 w-full shrink-0 sm:w-11 rounded-md border text-xs font-bold tabular-nums transition active:scale-95 disabled:cursor-default disabled:opacity-30';
             $slotOn = 'border-lech-700 bg-lech-700 text-white';
             $slotOff = 'border-zinc-300 bg-white text-zinc-700 hover:border-lech-400 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-200';
             $quickScores = [[0, 0], [1, 0], [2, 0], [2, 1], [3, 1], [1, 1], [2, 2], [0, 1], [1, 2]];
@@ -517,35 +510,36 @@ new class extends Component {
                         {{ __('Starting eleven') }}: {{ $starters->count() }}/{{ $this::STARTERS }}
                     </span>
                     <span class="rounded-full bg-zinc-100 px-3 py-1 text-sm font-bold tabular-nums text-zinc-700 dark:bg-zinc-800 dark:text-zinc-200">
-                        {{ __('Substitutes') }}: {{ $subs->count() }}
+                        {{ __('Bench') }}: {{ $subs->count() }}
                     </span>
-                    <flux:text class="text-xs">{{ __('Click players in order: the first eleven start, the next ones came off the bench.') }}</flux:text>
+                    <flux:text class="text-xs">{{ __('Click players in the coach\'s order: the first eleven start, the next ones sit on the bench.') }}</flux:text>
                 </div>
 
-                <div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                <div class="grid grid-cols-2 gap-3 2xl:grid-cols-4">
                     @foreach ($this->columns as $positionValue => $columnPlayers)
                         @php
                             $position = \App\Enums\PlayerPosition::from($positionValue);
                         @endphp
                         <div class="overflow-hidden rounded-xl border border-zinc-200 bg-white dark:border-zinc-700 dark:bg-zinc-900" wire:key="col-{{ $positionValue }}">
-                            <div class="lech-bar flex items-center justify-between px-3 py-1.5 text-xs font-bold uppercase tracking-wide">
+                            <div class="flex items-center justify-between border-b border-zinc-200 bg-zinc-50 px-3 py-1.5 text-xs font-bold uppercase tracking-wide text-zinc-600 dark:border-zinc-700 dark:bg-white/5 dark:text-zinc-300">
                                 <span>{{ $position->label() }}</span>
                                 <span class="tabular-nums">{{ $appearances->filter(fn ($a) => ($players[$a->lech_player_id] ?? null)?->position === $position)->count() }}</span>
                             </div>
-                            <ul class="divide-y divide-zinc-100 dark:divide-zinc-800">
+                            <ul>
                                 @foreach ($columnPlayers as $player)
                                     @php
                                         $a = $appearances->get($player->id);
                                     @endphp
                                     <li wire:key="pick-{{ $player->id }}">
+                                        {{-- Wybrany: jasne tło i znacznik XI (jedenastka) albo Ł (ławka) --}}
                                         <button type="button" wire:click="togglePlayer({{ $player->id }})" @disabled(!$editable)
-                                            class="{{ $a ? 'bg-lech-700 text-white' : 'hover:bg-zinc-50 dark:hover:bg-white/5' }} flex w-full items-center gap-1.5 px-2 py-1.5 text-left text-sm transition disabled:cursor-default">
-                                            <span class="w-5 shrink-0 text-right text-xs tabular-nums {{ $a ? 'text-lech-100' : 'text-zinc-400' }}">{{ $player->number }}</span>
-                                            <span class="min-w-0 flex-1 truncate {{ $a ? 'font-bold' : '' }}">{{ $player->name }}</span>
+                                            class="{{ $a ? 'border-lech-600 bg-lech-50 font-semibold text-lech-900 dark:bg-lech-500/10 dark:text-lech-100' : 'border-transparent text-zinc-700 hover:bg-zinc-50 dark:text-zinc-200 dark:hover:bg-white/5' }} flex w-full items-center gap-2 border-l-4 px-2 py-1.5 text-left text-sm transition disabled:cursor-default">
+                                            <span class="w-5 shrink-0 text-right text-xs tabular-nums text-zinc-400">{{ $player->number }}</span>
+                                            <span class="min-w-0 flex-1 truncate">{{ $player->name }}</span>
                                             @if ($a)
-                                                <span class="shrink-0 rounded bg-white/20 px-1 text-[10px] font-bold">{{ $a->started ? __('XI') : __('Sub') }}</span>
+                                                <span class="{{ $a->started ? 'bg-lech-700 text-white' : 'bg-zinc-300 text-zinc-800 dark:bg-zinc-600 dark:text-white' }} w-6 shrink-0 rounded text-center text-[10px] font-bold leading-4">{{ $a->started ? __('XI') : __('Sub') }}</span>
                                             @else
-                                                <span class="shrink-0 text-[10px] tabular-nums text-zinc-400" title="{{ __('Experience') }}">{{ $fmt($totals[$player->id] ?? 0) }}</span>
+                                                <span class="w-6 shrink-0 text-right text-[10px] tabular-nums text-zinc-400" title="{{ __('Experience') }}">{{ $fmt($totals[$player->id] ?? 0) }}</span>
                                             @endif
                                         </button>
                                     </li>
@@ -557,108 +551,143 @@ new class extends Component {
             </div>
         </div>
 
-        {{-- Lista meczu: wyjściowa jedenastka, przerwa, rezerwowi --}}
+        {{--
+            Tabela meczu na całą szerokość: jedna belka nagłówkowa, wyjściowa jedenastka, potem ławka.
+            Czas gry: rezerwowy ma rząd „wszedł” (puste = nie wszedł) i rząd „zszedł”, wyjściowy tylko „zszedł”.
+        --}}
         @if ($appearances->isNotEmpty())
-            <div class="mt-6 space-y-6">
-                @foreach ([[__('Starting eleven'), $starters], [__('Substitutes'), $subs]] as [$groupTitle, $group])
-                    @if ($group->isNotEmpty())
-                        <section class="space-y-2">
-                            <flux:heading size="lg">{{ $groupTitle }} <span class="text-sm font-normal tabular-nums text-zinc-500">({{ $group->count() }})</span></flux:heading>
-
-                            @foreach ($group as $a)
-                                @php
-                                    $player = $players[$a->lech_player_id] ?? null;
-                                @endphp
-                                @if ($player)
-                                    <div class="space-y-2 rounded-xl border border-zinc-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900" wire:key="row-{{ $a->id }}">
-                                        {{-- Zawodnik, wyliczenia i akcje --}}
-                                        <div class="flex flex-wrap items-center gap-2">
-                                            <span class="w-6 text-right text-xs tabular-nums text-zinc-400">{{ $player->number }}</span>
-                                            <span class="w-5 text-[10px] font-semibold uppercase text-zinc-500">{{ $player->position->short() }}</span>
-                                            <span class="font-semibold">{{ $player->name }}</span>
-                                            @if ($a->clean_sheet !== null)
-                                                <span class="{{ $a->clean_sheet ? 'bg-green-100 text-green-800 dark:bg-green-500/15 dark:text-green-300' : 'bg-zinc-100 text-zinc-500 dark:bg-zinc-800' }} rounded px-1.5 py-0.5 text-[10px] font-bold"
-                                                    title="{{ __('Clean sheet') }}">{{ __('CS') }} {{ $a->clean_sheet ? 1 : 0 }}</span>
-                                            @endif
-                                            <span class="ms-auto flex items-center gap-2 text-xs tabular-nums text-zinc-500">
-                                                <span title="{{ __('Playing time in halves') }}">{{ __('Time') }} <b class="text-zinc-800 dark:text-zinc-100">{{ $fmt($a->play_time) }}</b></span>
-                                                @if ($a->lock)
-                                                    <span class="{{ \App\Support\Squad::lockColor($a->lock) }} rounded px-1.5 py-0.5 text-[10px] font-bold" title="{{ __('Rest after the match') }}">{{ trans_choice(':count matchday|:count matchdays', $a->lock, ['count' => $a->lock]) }}</span>
-                                                @endif
-                                                <span title="{{ __('Experience') }}">{{ __('Exp.') }} <b class="text-lech-700 dark:text-lech-300">{{ $fmt($a->experience) }}</b></span>
-                                            </span>
-                                            @if ($editable)
-                                                <flux:button size="xs" variant="ghost" wire:click="toggleRole({{ $a->lech_player_id }})">{{ $a->started ? __('To the bench') : __('To the eleven') }}</flux:button>
-                                                <flux:button size="xs" variant="ghost" icon="x-mark" wire:click="togglePlayer({{ $a->lech_player_id }})" :aria-label="__('Remove')" />
-                                            @endif
-                                        </div>
-
-                                        {{-- Wejście (rezerwowi) i zejście --}}
-                                        @if (!$a->started)
-                                            <div class="flex items-center gap-2">
-                                                <span class="w-12 shrink-0 text-xs font-semibold text-zinc-500">{{ __('Came on') }}</span>
-                                                <div class="grid flex-1 grid-cols-4 gap-1 sm:flex sm:flex-none">
-                                                    @foreach (\App\Support\MatchReport::ON_LABELS as $slot => $slotLabel)
-                                                        @continue($slot >= $end)
-                                                        <button type="button" wire:click="setOn({{ $a->lech_player_id }}, {{ $slot }})" @disabled(!$editable)
-                                                            class="{{ $slotBtn }} {{ $a->on_slot === $slot ? $slotOn : $slotOff }}">{{ $slotLabel }}</button>
+            @php
+                $slotBtn = 'h-6 w-9 shrink-0 rounded border text-[11px] font-bold tabular-nums transition active:scale-95 disabled:cursor-default disabled:opacity-30';
+                $miniBtn = 'flex size-6 items-center justify-center rounded border border-zinc-300 bg-white text-xs font-bold text-zinc-700 transition active:scale-95 hover:bg-zinc-50 disabled:opacity-30 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-200';
+                $th = 'px-2 py-2 text-center font-semibold';
+            @endphp
+            <div class="mt-6 overflow-x-auto rounded-xl border border-zinc-200 bg-white dark:border-zinc-700 dark:bg-zinc-900">
+                <table class="w-full min-w-[68rem] text-sm">
+                    <thead class="lech-bar text-xs uppercase tracking-wide">
+                        <tr>
+                            <th class="{{ $th }} w-8">#</th>
+                            <th class="px-2 py-2 text-left font-semibold">{{ __('Player') }}</th>
+                            <th class="px-2 py-2 text-left font-semibold">{{ __('Playing time') }}</th>
+                            <th class="{{ $th }}">{{ __('Goals') }}</th>
+                            <th class="{{ $th }}">{{ __('Assists') }}</th>
+                            <th class="{{ $th }}">{{ __('OG') }}</th>
+                            <th class="{{ $th }}">{{ __('Cards') }}</th>
+                            <th class="{{ $th }}" title="{{ __('Clean sheet') }}">{{ __('CS') }}</th>
+                            <th class="{{ $th }}" title="{{ __('Playing time in halves') }}">{{ __('Time') }}</th>
+                            <th class="{{ $th }}" title="{{ __('Rest after the match') }}">{{ __('Rest') }}</th>
+                            <th class="{{ $th }}">{{ __('Exp.') }}</th>
+                            <th class="w-8"></th>
+                        </tr>
+                    </thead>
+                    @foreach ([[__('Starting eleven'), $starters], [__('Bench'), $subs]] as [$groupTitle, $group])
+                        @if ($group->isNotEmpty())
+                            <tbody class="divide-y divide-zinc-100 dark:divide-zinc-800">
+                                <tr class="bg-zinc-50 dark:bg-white/5">
+                                    <td colspan="12" class="px-3 py-1 text-xs font-bold uppercase tracking-wide text-zinc-500">{{ $groupTitle }} ({{ $group->count() }})</td>
+                                </tr>
+                                @foreach ($group as $a)
+                                    @php
+                                        $player = $players[$a->lech_player_id] ?? null;
+                                        $on = $a->started ? 0 : $a->on_slot;
+                                    @endphp
+                                    @if ($player)
+                                        <tr wire:key="row-{{ $a->id }}" class="{{ !$a->started && $a->on_slot === null ? 'text-zinc-500' : '' }}">
+                                            <td class="px-2 py-1.5 text-right text-xs tabular-nums text-zinc-400">{{ $player->number }}</td>
+                                            <td class="px-2 py-1.5">
+                                                <div class="flex items-center gap-1.5 whitespace-nowrap">
+                                                    <span class="w-4 text-[10px] font-semibold uppercase text-zinc-400">{{ $player->position->short() }}</span>
+                                                    <span class="font-medium">{{ $player->name }}</span>
+                                                    @if ($editable)
+                                                        <button type="button" wire:click="toggleRole({{ $a->lech_player_id }})" class="rounded px-1 text-[10px] font-semibold text-lech-700 hover:bg-lech-50 dark:text-lech-300"
+                                                            title="{{ $a->started ? __('To the bench') : __('To the eleven') }}">{{ $a->started ? '↓' . __('Sub') : '↑' . __('XI') }}</button>
+                                                    @endif
+                                                </div>
+                                            </td>
+                                            <td class="px-2 py-1">
+                                                <div class="space-y-1">
+                                                    @if (!$a->started)
+                                                        <div class="flex items-center gap-1">
+                                                            <span class="w-16 shrink-0 whitespace-nowrap text-[10px] font-semibold uppercase text-zinc-400">{{ __('Came on') }}</span>
+                                                            @foreach (\App\Support\MatchReport::ON_LABELS as $slot => $slotLabel)
+                                                                @continue($slot >= $end)
+                                                                <button type="button" wire:click="setOn({{ $a->lech_player_id }}, {{ $slot }})" @disabled(!$editable)
+                                                                    class="{{ $slotBtn }} {{ $a->on_slot === $slot ? $slotOn : $slotOff }}">{{ $slotLabel }}</button>
+                                                            @endforeach
+                                                        </div>
+                                                    @endif
+                                                    @if ($on !== null)
+                                                        <div class="flex items-center gap-1">
+                                                            <span class="w-16 shrink-0 whitespace-nowrap text-[10px] font-semibold uppercase text-zinc-400">{{ __('Came off') }}</span>
+                                                            @foreach (\App\Support\MatchReport::OFF_LABELS as $slot => $slotLabel)
+                                                                @continue($slot > $end)
+                                                                @php
+                                                                    $valid = $slot > $on || ($slot === $on && $on % 2 === 1);
+                                                                @endphp
+                                                                <button type="button" wire:click="setOff({{ $a->lech_player_id }}, {{ $slot }})" @disabled(!$editable || !$valid)
+                                                                    class="{{ $slotBtn }} {{ $a->off_slot === $slot ? $slotOn : $slotOff }}">{{ $slotLabel }}</button>
+                                                            @endforeach
+                                                        </div>
+                                                    @endif
+                                                </div>
+                                            </td>
+                                            @foreach (['goals', 'assists', 'own_goals'] as $field)
+                                                <td class="px-1 py-1.5">
+                                                    @if ($on !== null)
+                                                        <div class="flex items-center justify-center gap-1">
+                                                            <button type="button" wire:click="bumpStat({{ $a->lech_player_id }}, '{{ $field }}', -1)" @disabled(!$editable || $a->{$field} === 0) class="{{ $miniBtn }}" aria-label="−">−</button>
+                                                            <span class="w-4 text-center font-bold tabular-nums {{ $a->{$field} ? ($field === 'own_goals' ? 'text-red-600' : 'text-lech-700 dark:text-lech-300') : 'text-zinc-300 dark:text-zinc-600' }}">{{ $a->{$field} }}</span>
+                                                            <button type="button" wire:click="bumpStat({{ $a->lech_player_id }}, '{{ $field }}', 1)" @disabled(!$editable) class="{{ $miniBtn }}" aria-label="+">+</button>
+                                                        </div>
+                                                    @endif
+                                                </td>
+                                            @endforeach
+                                            <td class="px-1 py-1.5">
+                                                {{-- Kartki: żółta, dwie żółte (wyłącza pojedynczą), czerwona --}}
+                                                <div class="flex items-center justify-center gap-1">
+                                                    @php
+                                                        $cards = [
+                                                            'yellow' => [__('Yellow card'), $a->yellow === 1, '<span class="inline-block h-3.5 w-2.5 rounded-[2px] bg-yellow-400"></span>'],
+                                                            'double' => [__('Two yellow cards'), $a->yellow === 2, '<span class="relative inline-block h-3.5 w-3.5"><span class="absolute left-0 top-0 h-3.5 w-2.5 rounded-[2px] bg-yellow-400"></span><span class="absolute left-1 top-0 h-3.5 w-2.5 rounded-[2px] bg-red-500 ring-1 ring-white dark:ring-zinc-900"></span></span>'],
+                                                            'red' => [__('Red card'), $a->red, '<span class="inline-block h-3.5 w-2.5 rounded-[2px] bg-red-500"></span>'],
+                                                        ];
+                                                    @endphp
+                                                    @foreach ($cards as $kind => [$cardLabel, $cardOn, $cardIcon])
+                                                        <button type="button" wire:click="card({{ $a->lech_player_id }}, '{{ $kind }}')" @disabled(!$editable) title="{{ $cardLabel }}" aria-label="{{ $cardLabel }}"
+                                                            class="{{ $cardOn ? 'border-lech-700 ring-2 ring-lech-600' : 'border-zinc-300 opacity-40 hover:opacity-100 dark:border-zinc-600' }} flex size-7 items-center justify-center rounded border bg-white transition dark:bg-zinc-800">
+                                                            {!! $cardIcon !!}
+                                                        </button>
                                                     @endforeach
                                                 </div>
-                                            </div>
-                                        @endif
-                                        <div class="flex items-center gap-2">
-                                            <span class="w-12 shrink-0 text-xs font-semibold text-zinc-500">{{ __('Came off') }}</span>
-                                            <div class="grid flex-1 grid-cols-4 gap-1 sm:flex sm:flex-none">
-                                                @foreach (\App\Support\MatchReport::OFF_LABELS as $slot => $slotLabel)
-                                                    @continue($slot > $end)
-                                                    @php
-                                                        $on = $a->started ? 0 : $a->on_slot;
-                                                        $valid = $on === null || $slot > $on || ($slot === $on && $on % 2 === 1);
-                                                    @endphp
-                                                    <button type="button" wire:click="setOff({{ $a->lech_player_id }}, {{ $slot }})" @disabled(!$editable || !$valid)
-                                                        class="{{ $slotBtn }} {{ $a->off_slot === $slot ? $slotOn : $slotOff }}">{{ $slotLabel }}</button>
-                                                @endforeach
-                                            </div>
-                                        </div>
-
-                                        {{-- Gole, asysty, samobóje i kartki --}}
-                                        <div class="flex flex-wrap items-center gap-x-4 gap-y-2">
-                                            @foreach (['goals' => __('Goals'), 'assists' => __('Assists'), 'own_goals' => __('Own goals')] as $field => $fieldLabel)
-                                                <div class="flex items-center gap-1">
-                                                    <span class="text-xs font-semibold text-zinc-500">{{ $fieldLabel }}</span>
-                                                    <button type="button" wire:click="bumpStat({{ $a->lech_player_id }}, '{{ $field }}', -1)" @disabled(!$editable || $a->{$field} === 0) class="{{ $miniBtn }}" aria-label="−">−</button>
-                                                    <span class="w-5 text-center text-sm font-bold tabular-nums {{ $a->{$field} ? ($field === 'own_goals' ? 'text-red-600' : 'text-lech-700 dark:text-lech-300') : 'text-zinc-400' }}">{{ $a->{$field} }}</span>
-                                                    <button type="button" wire:click="bumpStat({{ $a->lech_player_id }}, '{{ $field }}', 1)" @disabled(!$editable) class="{{ $miniBtn }}" aria-label="+">+</button>
-                                                </div>
-                                            @endforeach
-
-                                            <div class="flex items-center gap-1" role="group" aria-label="{{ __('Cards') }}">
-                                                @php
-                                                    $cards = [
-                                                        'yellow' => [__('Yellow card'), $a->yellow === 1, '<span class="inline-block h-4 w-3 rounded-[2px] bg-yellow-400"></span>'],
-                                                        'double' => [__('Two yellow cards'), $a->yellow === 2, '<span class="relative inline-block h-4 w-4"><span class="absolute left-0 top-0 h-4 w-3 rounded-[2px] bg-yellow-400"></span><span class="absolute left-1.5 top-0 h-4 w-3 rounded-[2px] bg-red-500 ring-1 ring-white dark:ring-zinc-900"></span></span>'],
-                                                        'red' => [__('Red card'), $a->red, '<span class="inline-block h-4 w-3 rounded-[2px] bg-red-500"></span>'],
-                                                    ];
-                                                @endphp
-                                                @foreach ($cards as $kind => [$cardLabel, $cardOn, $cardIcon])
-                                                    <button type="button" wire:click="card({{ $a->lech_player_id }}, '{{ $kind }}')" @disabled(!$editable) title="{{ $cardLabel }}" aria-label="{{ $cardLabel }}"
-                                                        class="{{ $cardOn ? 'border-lech-700 bg-lech-50 ring-2 ring-lech-600 dark:bg-lech-500/10' : 'border-zinc-300 bg-white opacity-50 hover:opacity-100 dark:border-zinc-600 dark:bg-zinc-800' }} flex h-8 w-10 items-center justify-center rounded-md border transition">
-                                                        {!! $cardIcon !!}
-                                                    </button>
-                                                @endforeach
-                                            </div>
-                                        </div>
-                                    </div>
-                                @endif
-                            @endforeach
-                        </section>
-                    @endif
-                @endforeach
-
-                <flux:text class="text-xs">
-                    {{ __('Experience: starting eleven 1 or substitute 0.5, a whole half 1 and part of a half 0.5, a clean sheet (goalkeeper, defender) 1, each goal (also in a penalty shootout) and assist 1. Points are set in the line-up settings.') }}
-                </flux:text>
+                                            </td>
+                                            <td class="px-2 py-1.5 text-center text-xs font-bold">
+                                                @if ($a->clean_sheet !== null)
+                                                    <span class="{{ $a->clean_sheet ? 'text-green-600' : 'text-zinc-400' }}">{{ $a->clean_sheet ? 1 : 0 }}</span>
+                                                @endif
+                                            </td>
+                                            <td class="px-2 py-1.5 text-center tabular-nums">{{ $fmt($a->play_time) }}</td>
+                                            <td class="px-2 py-1.5 text-center">
+                                                @if ($a->lock)
+                                                    <span class="{{ \App\Support\Squad::lockColor($a->lock) }} inline-block w-6 rounded text-[11px] font-bold">{{ $a->lock }}</span>
+                                                @endif
+                                            </td>
+                                            <td class="px-2 py-1.5 text-center font-bold tabular-nums text-lech-700 dark:text-lech-300">{{ $fmt($a->experience) }}</td>
+                                            <td class="px-1 py-1.5 text-center">
+                                                @if ($editable)
+                                                    <flux:button size="xs" variant="ghost" icon="x-mark" wire:click="togglePlayer({{ $a->lech_player_id }})" :aria-label="__('Remove')" />
+                                                @endif
+                                            </td>
+                                        </tr>
+                                    @endif
+                                @endforeach
+                            </tbody>
+                        @endif
+                    @endforeach
+                </table>
             </div>
+
+            <flux:text class="mt-2 text-xs">
+                {{ __('Experience: starting eleven 1, bench 0.5 (also without coming on), a whole half 1 and part of a half 0.5, a clean sheet (goalkeeper, defender who played) 1, each goal (also in a penalty shootout) and assist 1. Points are set in the line-up settings.') }}
+            </flux:text>
         @endif
     @endif
 </div>
