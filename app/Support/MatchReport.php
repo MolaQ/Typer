@@ -8,7 +8,7 @@ use App\Models\MatchAppearance;
 
 /**
  * Rozliczenie meczu Lecha z raportu (dashboard/results, kalendarz Lecha). Admin klika fakty: skład, wejście i zejście,
- * gole, asysty, samobóje, kartki. Resztę liczymy tutaj: czas gry, blokadę (R6), czyste konto (R4) i doświadczenie.
+ * gole, asysty, samobóje, kartki. Resztę liczymy tutaj: czas gry, godziny odpoczynku (R6), czyste konto (R4) i doświadczenie.
  *
  * Bez minut: wejście i zejście to punkty osi meczu (SLOTS). Parzyste punkty to granice połów (0, 45, 90, 105, 120),
  * nieparzyste to „w trakcie” połowy. Połowa k (0-3) zajmuje punkty 2k…2k+2: cała, gdy zawodnik był od 2k do 2k+2,
@@ -79,17 +79,17 @@ class MatchReport
      * @param  array<int, array{id: int, position: PlayerPosition, started: bool, on: int|null, off: int, goals: int, assists: int, own_goals: int, yellow: int, red: bool}>  $appearances
      * @param  int  $conceded  gole stracone przez Lecha w całym meczu (z dogrywką)
      * @param  array<string, float>  $settings  Designation::values()
-     * @return array<int, array{played: bool, full_halves: int, partial_halves: int, play_time: float, lock: int, goals: int, assists: int, own_goals: int, clean_sheet: bool|null, experience: float, yellow: int, red: bool}>
+     * @return array<int, array{played: bool, full_halves: int, partial_halves: int, play_time: float, rest_hours: int, goals: int, assists: int, own_goals: int, clean_sheet: bool|null, experience: float, yellow: int, red: bool}>
      */
     public static function compute(array $appearances, int $conceded, bool $extraTime, array $settings): array
     {
         $result = [];
 
         foreach ($appearances as $a) {
-            // Ławka bez wejścia: tylko premia za powołanie przez trenera, bez czasu gry, blokady i czystego konta.
+            // Ławka bez wejścia: tylko premia za powołanie przez trenera, bez czasu gry, odpoczynku i czystego konta.
             if (! $a['started'] && $a['on'] === null) {
                 $result[$a['id']] = [
-                    'played' => false, 'full_halves' => 0, 'partial_halves' => 0, 'play_time' => 0.0, 'lock' => 0,
+                    'played' => false, 'full_halves' => 0, 'partial_halves' => 0, 'play_time' => 0.0, 'rest_hours' => 0,
                     'goals' => 0, 'assists' => 0, 'own_goals' => 0, 'clean_sheet' => null,
                     'experience' => round((float) ($settings['exp_sub'] ?? 0.5), 1), 'yellow' => $a['yellow'], 'red' => $a['red'],
                 ];
@@ -117,8 +117,8 @@ class MatchReport
                 'full_halves' => $full,
                 'partial_halves' => $partial,
                 'play_time' => round($playTime, 1),
-                // R6: każda cała połowa = jedna kolejka blokady (część połowy według ustawienia).
-                'lock' => $full + (($settings['partial_half_lock'] ?? 0) ? $partial : 0),
+                // R6: godziny odpoczynku od gwizdka (część połowy liczy się jako pół połowy).
+                'rest_hours' => self::restHours($full, $partial, $settings),
                 'goals' => $a['goals'],
                 'assists' => $a['assists'],
                 'own_goals' => $a['own_goals'],
@@ -130,6 +130,20 @@ class MatchReport
         }
 
         return $result;
+    }
+
+    /**
+     * Godziny odpoczynku po występie (R6): podstawa + godziny za każdą połowę, część połowy jako pół.
+     *
+     * @param  array<string, float>  $settings
+     */
+    public static function restHours(int $full, int $partial, array $settings): int
+    {
+        if ($full + $partial === 0) {
+            return 0;
+        }
+
+        return (int) round(($settings['rest_base_hours'] ?? 10) + ($full + $partial / 2) * ($settings['rest_hours_per_half'] ?? 60));
     }
 
     /**
@@ -163,7 +177,7 @@ class MatchReport
                 'off_slot' => $off,
                 'clean_sheet' => $r['clean_sheet'],
                 'play_time' => $r['play_time'],
-                'lock' => $r['lock'],
+                'rest_hours' => $r['rest_hours'],
                 'experience' => $r['experience'],
             ]);
         }
@@ -174,7 +188,7 @@ class MatchReport
     /**
      * Rozliczenie zapisanego meczu, klucz = id zawodnika (kolumny wyliczane z bazy).
      *
-     * @return array<int, array{played: bool, play_time: float, lock: int, goals: int, assists: int, own_goals: int, clean_sheet: bool|null, experience: float, yellow: int, red: bool}>
+     * @return array<int, array{played: bool, play_time: float, rest_hours: int, goals: int, assists: int, own_goals: int, clean_sheet: bool|null, experience: float, yellow: int, red: bool}>
      */
     public static function forMatch(?int $lechMatchId): array
     {
@@ -186,7 +200,7 @@ class MatchReport
             ->mapWithKeys(fn (MatchAppearance $a) => [$a->lech_player_id => [
                 'played' => $a->started || $a->on_slot !== null,
                 'play_time' => $a->play_time,
-                'lock' => $a->lock,
+                'rest_hours' => $a->rest_hours,
                 'goals' => $a->goals,
                 'assists' => $a->assists,
                 'own_goals' => $a->own_goals,

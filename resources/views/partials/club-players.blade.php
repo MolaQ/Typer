@@ -44,9 +44,9 @@
                                 <span class="w-5 shrink-0 text-right text-xs tabular-nums text-zinc-400">{{ $p->number }}</span>
                                 <span class="w-4 shrink-0 text-[10px] font-semibold uppercase text-zinc-500">{{ $p->position->short() }}</span>
                                 <span class="truncate font-medium">{{ $p->name }}</span>
-                                @if ($club['lock'] > 0)
-                                    <span class="{{ \App\Support\Squad::lockColor($club['lock']) }} shrink-0 rounded px-1.5 py-0.5 text-[10px] font-bold">
-                                        {{ __('free from :number', ['number' => $club['next'] + $club['lock']]) }}
+                                @if ($club['free_at'])
+                                    <span class="{{ \App\Support\Squad::lockColor(\App\Support\Squad::hoursLeft($club['free_at'])) }} shrink-0 rounded px-1.5 py-0.5 text-[10px] font-bold">
+                                        {{ __('free from :date', ['date' => \Illuminate\Support\Carbon::createFromTimestamp($club['free_at'], config('app.timezone'))->format('d.m, H:i')]) }}
                                     </span>
                                 @endif
                                 <flux:icon.chevron-down variant="micro" class="ms-auto shrink-0 text-zinc-400 transition" x-bind:class="open === {{ $p->id }} && 'rotate-180'" />
@@ -98,7 +98,7 @@
                                                 @if ($m['clean_sheet'] === true)<span class="text-green-600">{{ __('Clean sheet') }}</span>@endif
                                                 @include('partials.card-counts', ['yellow' => $m['yellow'], 'red' => (int) $m['red']])
                                                 <span class="text-zinc-500">{{ __('Exp.') }} {{ $fmt($m['experience']) }}</span>
-                                                @if ($m['lock'])<span class="text-zinc-500">{{ __('Rest: :count', ['count' => $m['lock']]) }}</span>@endif
+                                                @if ($m['rest_hours'])<span class="text-zinc-500">{{ __('Rest: :count h', ['count' => $m['rest_hours']]) }}</span>@endif
                                             @endif
                                         </li>
                                     @endforeach

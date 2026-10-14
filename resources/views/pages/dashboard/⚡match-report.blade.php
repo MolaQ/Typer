@@ -558,7 +558,6 @@ new class extends Component {
         @if ($appearances->isNotEmpty())
             @php
                 $slotBtn = 'h-6 w-9 shrink-0 rounded border text-[11px] font-bold tabular-nums transition active:scale-95 disabled:cursor-default disabled:opacity-30';
-                $miniBtn = 'flex size-6 items-center justify-center rounded border border-zinc-300 bg-white text-xs font-bold text-zinc-700 transition active:scale-95 hover:bg-zinc-50 disabled:opacity-30 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-200';
                 $th = 'px-2 py-2 text-center font-semibold';
             @endphp
             <div class="mt-6 overflow-x-auto rounded-xl border border-zinc-200 bg-white dark:border-zinc-700 dark:bg-zinc-900">
@@ -591,7 +590,7 @@ new class extends Component {
                                         $on = $a->started ? 0 : $a->on_slot;
                                     @endphp
                                     @if ($player)
-                                        <tr wire:key="row-{{ $a->id }}" class="{{ !$a->started && $a->on_slot === null ? 'text-zinc-500' : '' }}">
+                                        <tr wire:key="row-{{ $a->id }}" class="group {{ !$a->started && $a->on_slot === null ? 'text-zinc-500' : '' }}">
                                             <td class="px-2 py-1.5 text-right text-xs tabular-nums text-zinc-400">{{ $player->number }}</td>
                                             <td class="px-2 py-1.5">
                                                 <div class="flex items-center gap-1.5 whitespace-nowrap">
@@ -632,11 +631,19 @@ new class extends Component {
                                             </td>
                                             @foreach (['goals', 'assists', 'own_goals'] as $field)
                                                 <td class="px-1 py-1.5">
+                                                    {{-- Lekko: zero = blady „+” (wyraźny po najechaniu na wiersz), liczba = klik dodaje, małe „−” obok odejmuje. --}}
                                                     @if ($on !== null)
-                                                        <div class="flex items-center justify-center gap-1">
-                                                            <button type="button" wire:click="bumpStat({{ $a->lech_player_id }}, '{{ $field }}', -1)" @disabled(!$editable || $a->{$field} === 0) class="{{ $miniBtn }}" aria-label="−">−</button>
-                                                            <span class="w-4 text-center font-bold tabular-nums {{ $a->{$field} ? ($field === 'own_goals' ? 'text-red-600' : 'text-lech-700 dark:text-lech-300') : 'text-zinc-300 dark:text-zinc-600' }}">{{ $a->{$field} }}</span>
-                                                            <button type="button" wire:click="bumpStat({{ $a->lech_player_id }}, '{{ $field }}', 1)" @disabled(!$editable) class="{{ $miniBtn }}" aria-label="+">+</button>
+                                                        <div class="flex items-center justify-center gap-0.5">
+                                                            @if ($a->{$field} > 0)
+                                                                @if ($editable)
+                                                                    <button type="button" wire:click="bumpStat({{ $a->lech_player_id }}, '{{ $field }}', -1)" class="flex size-5 items-center justify-center rounded text-xs font-bold text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-white/10" aria-label="−">−</button>
+                                                                @endif
+                                                                <button type="button" wire:click="bumpStat({{ $a->lech_player_id }}, '{{ $field }}', 1)" @disabled(!$editable) title="+1"
+                                                                    class="{{ $field === 'own_goals' ? 'bg-red-600' : 'bg-lech-700' }} flex size-6 items-center justify-center rounded-full text-xs font-bold tabular-nums text-white">{{ $a->{$field} }}</button>
+                                                            @elseif ($editable)
+                                                                <button type="button" wire:click="bumpStat({{ $a->lech_player_id }}, '{{ $field }}', 1)" aria-label="+"
+                                                                    class="flex size-6 items-center justify-center rounded-full border border-dashed border-zinc-200 text-xs text-zinc-300 transition group-hover:border-zinc-400 group-hover:text-zinc-600 hover:bg-lech-50 dark:border-zinc-700 dark:text-zinc-600 dark:group-hover:text-zinc-300">+</button>
+                                                            @endif
                                                         </div>
                                                     @endif
                                                 </td>
@@ -666,8 +673,8 @@ new class extends Component {
                                             </td>
                                             <td class="px-2 py-1.5 text-center tabular-nums">{{ $fmt($a->play_time) }}</td>
                                             <td class="px-2 py-1.5 text-center">
-                                                @if ($a->lock)
-                                                    <span class="{{ \App\Support\Squad::lockColor($a->lock) }} inline-block w-6 rounded text-[11px] font-bold">{{ $a->lock }}</span>
+                                                @if ($a->rest_hours)
+                                                    <span class="{{ \App\Support\Squad::lockColor($a->rest_hours) }} inline-block rounded px-1 text-[11px] font-bold tabular-nums">{{ $a->rest_hours }} h</span>
                                                 @endif
                                             </td>
                                             <td class="px-2 py-1.5 text-center font-bold tabular-nums text-lech-700 dark:text-lech-300">{{ $fmt($a->experience) }}</td>

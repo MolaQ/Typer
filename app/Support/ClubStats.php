@@ -18,7 +18,7 @@ class ClubStats
     /**
      * Kadra klubu z dorobkiem: cała kadra bez niedostępnych plus niedostępni, którzy już coś mają.
      *
-     * @return array<int, array{player: LechPlayer, lock: int, next: int|null, season: array<string, int|float>, seasons: array<string, array<string, int|float>>, career: array<string, int|float>, matches: array<int, array<string, mixed>>}>
+     * @return array<int, array{player: LechPlayer, free_at: int|null, season: array<string, int|float>, seasons: array<string, array<string, int|float>>, career: array<string, int|float>, matches: array<int, array<string, mixed>>}>
      */
     public static function players(?int $userId, ?int $botId, ?int $seasonId): array
     {
@@ -34,7 +34,7 @@ class ClubStats
             ->sortByDesc(fn (DesignatedPlayer $p) => (int) $p->matchday?->kickoff_at?->getTimestamp())
             ->groupBy('lech_player_id');
 
-        // Blokady na najbliższą kolejkę bez wyniku w sezonie (do „wolny od kolejki N”).
+        // Odpoczynek przed najbliższą kolejką bez wyniku w sezonie (do „wolny od”).
         $next = $seasonId ? Matchday::where('season_id', $seasonId)->where('status', '!=', MatchdayStatus::Played->value)->orderBy('number')->first() : null;
         $locks = $next ? Squad::locks($userId, $botId, $next) : [];
 
@@ -82,14 +82,13 @@ class ClubStats
                     'yellow' => $pick->yellow,
                     'red' => $pick->red,
                     'experience' => $pick->experience,
-                    'lock' => $pick->lock,
+                    'rest_hours' => $pick->rest_hours,
                 ];
             }
 
             $out[] = [
                 'player' => $player,
-                'lock' => $locks[$player->id] ?? 0,
-                'next' => $next?->number,
+                'free_at' => $locks[$player->id] ?? null,
                 'season' => $season,
                 'seasons' => $seasons,
                 'career' => $career,

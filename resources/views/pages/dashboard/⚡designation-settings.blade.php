@@ -40,6 +40,10 @@ new class extends Component {
                 'clean_sheet_goalkeeper' => [__('Goalkeeper'), __('Attack points taken from the rival when Lech concedes no goal and the player played.'), 0, 10, 1],
                 'clean_sheet_defender' => [__('Defender'), null, 0, 10, 1],
             ],
+            __('Rest') => [
+                'rest_base_hours' => [__('Base hours'), __('A fielded player who played rests in this club for these hours from the kickoff of that matchday (all competition types).'), 0, 500, 1],
+                'rest_hours_per_half' => [__('Hours per half'), __('Added for every half played, part of a half counts as half.'), 0, 200, 1],
+            ],
             __('Experience') => [
                 'exp_start' => [__('Starting eleven'), __('Experience decides drawn cup ties before the tip time.'), 0, 10, 0.5],
                 'exp_sub' => [__('Substitute'), null, 0, 10, 0.5],
@@ -56,7 +60,7 @@ new class extends Component {
     {
         abort_unless(auth()->user()?->can(Permission::SeasonEdit->value), 403);
 
-        $rules = ['values.partial_half_lock' => ['required', 'in:0,1']];
+        $rules = [];
         $names = [];
         foreach ($this->fields() as $fields) {
             foreach ($fields as $key => [$label, , $min, $max, $step]) {
@@ -101,7 +105,7 @@ new class extends Component {
 <div class="flex h-full w-full flex-1 flex-col gap-6">
     <div>
         <flux:heading size="xl" level="1">{{ __('Line-ups') }}</flux:heading>
-        <flux:subheading>{{ __('Rules for fielding Lech players: line-up size, bots, clean sheets, locks and experience.') }}</flux:subheading>
+        <flux:subheading>{{ __('Rules for fielding Lech players: line-up size, bots, clean sheets, rest and experience.') }}</flux:subheading>
     </div>
 
     @php
@@ -122,7 +126,7 @@ new class extends Component {
                                     <flux:text class="text-xs">{{ $hint }}</flux:text>
                                 @endif
                             </div>
-                            <flux:input type="number" wire:model="values.{{ $key }}" min="{{ $min }}" max="{{ $max }}" step="{{ $step }}" :disabled="! $canEdit" />
+                            <flux:input type="number" wire:model.live.debounce.500ms="values.{{ $key }}" min="{{ $min }}" max="{{ $max }}" step="{{ $step }}" :disabled="! $canEdit" />
                         </div>
                         <flux:error name="values.{{ $key }}" />
                     @endforeach
@@ -130,13 +134,26 @@ new class extends Component {
                 </flux:card>
             @endforeach
 
-            <flux:card class="space-y-4">
-                <flux:heading size="lg">{{ __('Locks') }}</flux:heading>
-                <flux:text>{{ __('A fielded player who played a whole half rests for one matchday per half in this club (all competition types). A full match with extra time is four matchdays.') }}</flux:text>
-                <flux:radio.group wire:model="values.partial_half_lock" :label="__('Part of a half')" :disabled="! $canEdit">
-                    <flux:radio value="0" :label="__('No lock')" />
-                    <flux:radio value="1" :label="__('One matchday, like a whole half')" />
-                </flux:radio.group>
+            {{-- Podgląd: godziny odpoczynku dla przycisków zejścia w raporcie meczu (zawodnik od początku meczu). --}}
+            <flux:card class="space-y-3">
+                <flux:heading size="lg">{{ __('Rest after the match') }}</flux:heading>
+                @php
+                    $base = (float) str_replace(',', '.', (string) ($values['rest_base_hours'] ?? 0));
+                    $perHalf = (float) str_replace(',', '.', (string) ($values['rest_hours_per_half'] ?? 0));
+                @endphp
+                <div class="grid grid-cols-4 gap-2 text-center text-sm">
+                    @foreach (\App\Support\MatchReport::OFF_LABELS as $slot => $label)
+                        @php
+                            [$full, $partial] = \App\Support\MatchReport::halves(0, $slot);
+                            $hours = (int) round($base + ($full + $partial / 2) * $perHalf);
+                        @endphp
+                        <div class="rounded-lg border border-zinc-200 p-2 dark:border-zinc-700">
+                            <div class="text-xs text-zinc-500">{{ $label }}</div>
+                            <div class="{{ \App\Support\Squad::lockColor($hours) }} mt-1 whitespace-nowrap rounded px-1 font-bold tabular-nums">{{ $hours }} h</div>
+                        </div>
+                    @endforeach
+                </div>
+                <flux:text class="text-xs">{{ __('Counted from the kickoff of the matchday in which the club fielded the player. A bench player who did not come on does not rest.') }}</flux:text>
             </flux:card>
         </div>
 

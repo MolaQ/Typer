@@ -10,6 +10,7 @@ use App\Models\LechPlayer;
 use App\Models\Matchday;
 use App\Models\User;
 use DomainException;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Random\Engine\Mt19937;
 use Random\Randomizer;
@@ -18,8 +19,8 @@ use Random\Randomizer;
  * Kadra klubu i desygnowanie zawodników (notatka desygnowanie.md). Każdy klub (gracz albo bot) ma całą kadrę Lecha
  * bez niedostępnych, ale dorobek zawodnika liczy się osobno w każdym klubie: tylko z kolejek, w których klub go wystawił.
  *
- * Blokada (R6): zawodnik wystawiony w kolejce m, który zagrał L całych połów (MatchReport, `lock`), odpoczywa
- * w tym klubie kolejki m+1 … m+L tego sezonu, we wszystkich typach rozgrywek. Klub to klucz 'u{id}' albo 'b{id}'.
+ * Odpoczynek (R6): zawodnik wystawiony w kolejce odpoczywa w tym klubie przez godziny z raportu meczu (MatchReport, `rest_hours`)
+ * liczone od gwizdka tej kolejki, we wszystkich typach rozgrywek. Klub to klucz 'u{id}' albo 'b{id}'.
  */
 class Squad
 {
@@ -46,7 +47,8 @@ class Squad
     }
 
     /**
-     * Blokady klubu w kolejce: lech_player_id => ile kolejek blokady zostało (licząc tę), np. 2 = ta i następna.
+     * Odpoczynek klubu przed kolejką: lech_player_id => chwila (timestamp), od której zawodnik znów jest do wyboru.
+     * Zawiera tylko zawodników, którzy w chwili gwizdka tej kolejki jeszcze odpoczywają.
      *
      * @return array<int, int>
      */
@@ -56,41 +58,65 @@ class Squad
     }
 
     /**
-     * Blokady wielu klubów naraz (np. wszystkich botów przy przeliczeniu kolejki).
+     * Odpoczynek wielu klubów naraz (np. wszystkich botów przy przeliczeniu kolejki). R6: zawodnik wystawiony w kolejce
+     * odpoczywa w tym klubie przez godziny z raportu meczu (`rest_hours`), liczone od gwizdka tej kolejki (koniec typowania),
+     * we wszystkich typach rozgrywek i bez względu na sezon. Wybór, który przepadł przez odpoczynek, nie przedłuża go.
      *
      * @param  array<int, int>  $userIds
      * @param  array<int, int>  $botIds
-     * @return array<string, array<int, int>> klucz klubu => [lech_player_id => kolejki blokady]
+     * @return array<string, array<int, int>> klucz klubu => [lech_player_id => wolny od (timestamp)]
      */
     public static function locksForClubs(Matchday $matchday, array $userIds, array $botIds): array
     {
-        $previous = Matchday::where('season_id', $matchday->season_id)
-            ->where('number', '<', $matchday->number)
-            ->get(['id', 'season_id', 'number', 'lech_match_id'])
+        if ($userIds === [] && $botIds === []) {
+            return [];
+        }
+
+        $kickoff = $matchday->kickoff_at ?? now();
+        $longest = self::restHoursFor(4, 0);
+
+        $previous = Matchday::where('id', '!=', $matchday->id)
+            ->whereNotNull('kickoff_at')
+            ->where('kickoff_at', '<', $kickoff)
+            ->where('kickoff_at', '>=', $kickoff->copy()->subHours($longest))
+            ->get(['id', 'season_id', 'number', 'kickoff_at', 'lech_match_id'])
             ->keyBy('id');
 
-        if ($previous->isEmpty() || ($userIds === [] && $botIds === [])) {
+        if ($previous->isEmpty()) {
             return [];
         }
 
         $picks = DesignatedPlayer::whereIn('matchday_id', $previous->keys())
             ->where(fn ($q) => $q->whereIn('user_id', $userIds)->orWhereIn('bot_id', $botIds))
+            ->where(fn ($q) => $q->whereNull('counted')->orWhere('counted', true))
             ->get(['matchday_id', 'user_id', 'bot_id', 'lech_player_id']);
 
         $locks = [];
 
         foreach ($picks as $pick) {
             $played = $previous[$pick->matchday_id];
-            $lock = (int) (self::report($played)[$pick->lech_player_id]['lock'] ?? 0);
-            $left = $played->number + $lock - $matchday->number + 1;
+            $hours = (int) (self::report($played)[$pick->lech_player_id]['rest_hours'] ?? 0);
+            $freeAt = $played->kickoff_at->getTimestamp() + $hours * 3600;
 
-            if ($lock > 0 && $left > 0) {
+            if ($hours > 0 && $freeAt > $kickoff->getTimestamp()) {
                 $club = self::clubKey($pick->user_id, $pick->bot_id);
-                $locks[$club][$pick->lech_player_id] = max($locks[$club][$pick->lech_player_id] ?? 0, $left);
+                $locks[$club][$pick->lech_player_id] = max($locks[$club][$pick->lech_player_id] ?? 0, $freeAt);
             }
         }
 
         return $locks;
+    }
+
+    /** Godziny odpoczynku za całe i niecałe połowy według bieżących ustawień. */
+    public static function restHoursFor(int $full, int $partial): int
+    {
+        return MatchReport::restHours($full, $partial, Designation::values());
+    }
+
+    /** Ile pełnych godzin (w górę) zostało do chwili, od której zawodnik jest znów do wyboru. */
+    public static function hoursLeft(int $freeAt): int
+    {
+        return max(0, (int) ceil(($freeAt - now()->getTimestamp()) / 3600));
     }
 
     /**
@@ -126,14 +152,15 @@ class Squad
     }
 
     /**
-     * Gracz wystawia zawodnika w typie rozgrywek albo go zdejmuje (drugie kliknięcie). Zasady: typowanie otwarte,
-     * gracz gra w tym typie rozgrywek, zawodnik dostępny i bez blokady, w kolejce tylko w jednym typie, najwyżej max_players.
+     * Gracz wystawia zawodnika w typie rozgrywek, przenosi go z innego typu albo zdejmuje (klik w tym samym typie).
+     * Zasady: typowanie otwarte, gracz gra w tym typie rozgrywek, zawodnik dostępny i nie odpoczywa,
+     * w kolejce tylko w jednym typie (przeniesienie zmienia typ), najwyżej max_players w typie.
      *
-     * @return bool true = wystawiony, false = zdjęty
+     * @return string 'added' | 'moved' | 'removed'
      *
      * @throws DomainException
      */
-    public static function toggle(User $user, Matchday $matchday, CompetitionType $set, int $playerId): bool
+    public static function toggle(User $user, Matchday $matchday, CompetitionType $set, int $playerId): string
     {
         if (! $matchday->isOpenForTips() || ! $matchday->isFilled()) {
             throw new DomainException(__('The line-up can be changed only until kickoff.'));
@@ -149,11 +176,7 @@ class Squad
         if ($existing && $existing->score_set === $set) {
             $existing->delete();
 
-            return false;
-        }
-
-        if ($existing) {
-            throw new DomainException(__('This player is already in your line-up for :set.', ['set' => $existing->score_set->scoreSetLabel()]));
+            return 'removed';
         }
 
         if (! in_array($set, PlayerCompetitions::types($user->id, $matchday->season_id, $matchday->number), true)) {
@@ -164,8 +187,8 @@ class Squad
             throw new DomainException(__('This player is unavailable.'));
         }
 
-        if ($left = self::locks($user->id, null, $matchday)[$playerId] ?? 0) {
-            throw new DomainException(trans_choice('This player rests for :count more matchday.|This player rests for :count more matchdays.', $left, ['count' => $left]));
+        if ($freeAt = self::locks($user->id, null, $matchday)[$playerId] ?? 0) {
+            throw new DomainException(__('This player rests until :date.', ['date' => Carbon::createFromTimestamp($freeAt, config('app.timezone'))->format('d.m, H:i')]));
         }
 
         $max = Designation::value('max_players');
@@ -175,6 +198,12 @@ class Squad
             throw new DomainException(__('You can field at most :count players here.', ['count' => $max]));
         }
 
+        if ($existing) {
+            $existing->update(['score_set' => $set->value]);
+
+            return 'moved';
+        }
+
         DesignatedPlayer::create([
             'matchday_id' => $matchday->id,
             'user_id' => $user->id,
@@ -182,7 +211,7 @@ class Squad
             'lech_player_id' => $playerId,
         ]);
 
-        return true;
+        return 'added';
     }
 
     /**
@@ -278,7 +307,7 @@ class Squad
                 'attack' => $played ? (int) $r['goals'] + (int) $r['assists'] : 0,
                 'defense' => $played && $r['clean_sheet'] === true ? ($goalkeeper ? $cleanGk : $cleanDf) : 0,
                 'experience' => $inSquad ? (float) $r['experience'] : 0,
-                'lock' => $played ? (int) $r['lock'] : 0,
+                'rest_hours' => $played ? (int) $r['rest_hours'] : 0,
             ];
             $pick->update($values);
 
@@ -326,14 +355,18 @@ class Squad
         return $out;
     }
 
-    /** Kolor blokady według liczby pozostałych kolejek: 4+ bordowy, 3 czerwony, 2 pomarańczowy, 1 żółty. */
-    public static function lockColor(int $left): string
+    /** Kolor odpoczynku według pozostałych godzin: do 36 jasnożółty, do 72 żółty, do 144 pomarańczowy, do 216 czerwony, dalej bordowy. */
+    public static function lockColor(int $hours): string
     {
         return match (true) {
-            $left >= 4 => 'bg-red-900 text-white',
-            $left === 3 => 'bg-red-600 text-white',
-            $left === 2 => 'bg-orange-500 text-white',
-            default => 'bg-yellow-400 text-zinc-900',
+            $hours < 36 => 'bg-yellow-200 text-zinc-900',
+            $hours < 72 => 'bg-yellow-400 text-zinc-900',
+            $hours < 144 => 'bg-orange-500 text-white',
+            $hours < 216 => 'bg-red-600 text-white',
+            default => 'bg-red-900 text-white',
         };
     }
+
+    /** Progi kolorów odpoczynku (legenda): górna granica w godzinach => przykładowa wartość do koloru. */
+    public const REST_LEGEND = [36 => 20, 72 => 50, 144 => 100, 216 => 180, 288 => 250];
 }

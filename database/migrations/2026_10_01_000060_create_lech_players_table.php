@@ -46,17 +46,17 @@ return new class extends Migration
             // Żółte kartki (0, 1 albo 2 = dwie żółte) i czerwona.
             $table->unsignedTinyInteger('yellow')->default(0);
             $table->boolean('red')->default(false);
-            // Wyliczane: czyste konto (bramkarz i obrońca, null = nie dotyczy), czas gry w połowach (np. 1,5), kolejki blokady, doświadczenie.
+            // Wyliczane: czyste konto (bramkarz i obrońca, null = nie dotyczy), czas gry w połowach (np. 1,5), godziny odpoczynku, doświadczenie.
             $table->boolean('clean_sheet')->nullable();
             $table->decimal('play_time', 3, 1)->default(0);
-            $table->unsignedTinyInteger('lock')->default(0);
+            $table->unsignedSmallInteger('rest_hours')->default(0);
             $table->decimal('experience', 4, 1)->default(0);
             $table->timestamps();
             $table->unique(['lech_match_id', 'lech_player_id']);
         });
 
         // Desygnowanie: zawodnicy wystawieni przez klub (gracz albo bot) w kolejce do jednego typu rozgrywek.
-        // Każdy klub ma całą kadrę Lecha; dorobek zawodnika w klubie (gole, asysty, kartki, doświadczenie, blokady)
+        // Każdy klub ma całą kadrę Lecha; dorobek zawodnika w klubie (gole, asysty, kartki, doświadczenie, odpoczynek)
         // liczy się tylko z kolejek, w których klub go wystawił (Support\Squad).
         Schema::create('designated_players', function (Blueprint $table) {
             $table->id();
@@ -78,11 +78,11 @@ return new class extends Migration
             $table->boolean('clean_sheet')->nullable();
             $table->unsignedTinyInteger('yellow')->default(0);
             $table->boolean('red')->default(false);
-            // Punkty ataku (gole + asysty) i obrony (czyste konto) dla klubu, doświadczenie i kolejki blokady z tego meczu.
+            // Punkty ataku (gole + asysty) i obrony (czyste konto) dla klubu, doświadczenie i godziny odpoczynku z tego meczu.
             $table->unsignedTinyInteger('attack')->default(0);
             $table->unsignedTinyInteger('defense')->default(0);
             $table->decimal('experience', 4, 1)->default(0);
-            $table->unsignedTinyInteger('lock')->default(0);
+            $table->unsignedSmallInteger('rest_hours')->default(0);
             $table->timestamps();
             // Zawodnik w kolejce tylko w jednym typie rozgrywek danego klubu.
             $table->unique(['matchday_id', 'user_id', 'lech_player_id']);

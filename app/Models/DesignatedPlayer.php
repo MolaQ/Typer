@@ -25,13 +25,13 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property int $attack
  * @property int $defense
  * @property float $experience
- * @property int $lock
+ * @property int $rest_hours
  */
 class DesignatedPlayer extends Model
 {
     protected $fillable = [
         'matchday_id', 'user_id', 'bot_id', 'score_set', 'lech_player_id',
-        'counted', 'play_time', 'goals', 'assists', 'own_goals', 'clean_sheet', 'yellow', 'red', 'attack', 'defense', 'experience', 'lock',
+        'counted', 'play_time', 'goals', 'assists', 'own_goals', 'clean_sheet', 'yellow', 'red', 'attack', 'defense', 'experience', 'rest_hours',
     ];
 
     protected function casts(): array

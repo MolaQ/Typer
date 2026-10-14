@@ -20,8 +20,10 @@ class Designation
         // R4: tyle punktów ataku rywala zabiera czyste konto bramkarza i obrońcy (Lech nie stracił gola w meczu, zawodnik zagrał).
         'clean_sheet_goalkeeper' => 1,
         'clean_sheet_defender' => 1,
-        // R6: czy część połowy też daje kolejkę blokady (0 = nie).
-        'partial_half_lock' => 0,
+        // R6: odpoczynek w godzinach od gwizdka kolejki, w której klub wystawił zawodnika: podstawa + godziny za połowę gry
+        // (część połowy liczy się jako pół): <45 = 40 h, 45 = 70 h, <90 = 100 h, 90 = 130 h … 120 = 250 h. Ławka bez wejścia: 0.
+        'rest_base_hours' => 10,
+        'rest_hours_per_half' => 60,
         // Doświadczenie, premia za skład: wyjściowa jedenastka, wejście z ławki.
         'exp_start' => 1,
         'exp_sub' => 0.5,
@@ -37,7 +39,7 @@ class Designation
     /** @var array<string, float>|null */
     private static ?array $values = null;
 
-    /** Ustawienie całkowite (limity, punkty obrony, blokada). */
+    /** Ustawienie całkowite (limity, punkty obrony, godziny odpoczynku). */
     public static function value(string $key): int
     {
         return (int) (self::values()[$key] ?? 0);
