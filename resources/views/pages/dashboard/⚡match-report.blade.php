@@ -701,9 +701,10 @@ new class extends Component {
                                         @foreach (\App\Support\MatchReport::OFF_LABELS as $slot => $slotLabel)
                                             @continue($slot > $end)
                                             <button type="button" wire:click="$set('eventSlot', {{ $slot }})" title="{{ \App\Support\MatchReport::phase($slot, long: true) }}"
-                                                class="{{ $chip }} px-2 {{ $this->eventSlot === $slot ? $chipOn : $chipOff }}">{{ \App\Support\MatchReport::phase($slot) }}</button>
+                                                class="{{ $chip }} px-2 {{ $this->eventSlot === $slot ? $chipOn : $chipOff }}"><x-match-clock :to="$slot" /></button>
                                         @endforeach
                                     </div>
+                                    @include('partials.match-clock-legend')
                                 </div>
                             @endif
 
@@ -751,7 +752,8 @@ new class extends Component {
                                         @foreach ($group as $a)
                                             @php
                                                 $player = $players[$a->lech_player_id] ?? null;
-                                                $span = \App\Support\MatchReport::spanLabel($a->started ? 0 : $a->on_slot, $a->off_slot);
+                                                $on = $a->started ? 0 : $a->on_slot;
+                                                $span = \App\Support\MatchReport::spanLabel($on, $a->off_slot);
                                             @endphp
                                             @if ($player)
                                                 <tr wire:key="row-{{ $a->id }}" class="{{ $span === null ? 'text-zinc-400' : '' }}">
@@ -766,7 +768,7 @@ new class extends Component {
                                                             @endif
                                                         </div>
                                                     </td>
-                                                    <td class="whitespace-nowrap px-2 py-1.5 text-center text-xs">{{ $span ?? __('did not come on') }}</td>
+                                                    <td class="px-2 py-1.5 text-center"><x-match-clock :from="$on ?? -1" :to="$a->off_slot" :title="$span ?? __('did not come on')" /></td>
                                                     @foreach (['goals', 'assists', 'own_goals'] as $field)
                                                         <td class="px-2 py-1.5 text-center tabular-nums">
                                                             @if ($a->{$field} > 0)

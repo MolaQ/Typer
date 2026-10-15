@@ -1,7 +1,7 @@
 {{--
     Protokół meczu Lecha (match_events): tylko zawodnicy Lecha, zawsze uporządkowany: gole z asystami, samobóje, kartki, zmiany
     (MatchReport::EVENT_ORDER), w każdej grupie według czasu i kolejności wpisu.
-    Czas jako etap meczu (MatchReport::phase, bez minut) tylko przy zmianie, drugiej żółtej i czerwonej kartce.
+    Czas jako zegar czasu gry (x-match-clock, bez minut, opis w podpowiedzi) tylko przy zmianie, drugiej żółtej i czerwonej kartce.
     Zmienne: $events (MatchEvent z player i other), $deletable (przycisk usuwania wpisu, panel admina).
 --}}
 @php
@@ -12,7 +12,7 @@
 <ol class="divide-y divide-zinc-100 text-sm dark:divide-zinc-800">
     @foreach ($events as $event)
         <li class="flex items-center gap-2 py-1.5" wire:key="event-{{ $event->id }}">
-            <span class="w-24 shrink-0 text-right text-[11px] font-semibold text-zinc-500" title="{{ $event->slot !== null ? \App\Support\MatchReport::phase($event->slot, long: true) : '' }}">{{ $event->slot !== null ? \App\Support\MatchReport::phase($event->slot) : '' }}</span>
+            <span class="flex w-8 shrink-0 justify-end">@if ($event->slot !== null)<x-match-clock :to="$event->slot" :title="\App\Support\MatchReport::phase($event->slot, long: true)" />@endif</span>
             <span class="flex w-5 shrink-0 justify-center">
                 @switch($event->type)
                     @case(\App\Support\MatchReport::EVENT_GOAL)
@@ -56,3 +56,6 @@
         </li>
     @endforeach
 </ol>
+@if ($events->whereNotNull('slot')->isNotEmpty())
+    @include('partials.match-clock-legend')
+@endif

@@ -1695,5 +1695,9 @@
     "from ET 2nd half": "od 2. poł. dogr.",
     "end of ET 1st half": "koniec 1. poł. dogr.",
     "ET 2nd half": "dogr. 2. poł.",
-    "end of ET": "koniec dogr."
+    "end of ET": "koniec dogr.",
+    "did not play": "nie grał",
+    "half-time": "przerwa",
+    "until the end (incl. stoppage time)": "do końca (z doliczonym czasem)",
+    "extra time": "dogrywka"
 }

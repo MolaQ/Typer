@@ -1,6 +1,6 @@
 {{--
     Protokół meczu Lecha w kolumnach (okno pojedynku): gole z asystami, samobóje, kartki, zmiany. Kolumna jest tylko wtedy,
-    gdy ma wpisy. Czas jako etap meczu (MatchReport::phase) przy zmianach, drugiej żółtej i czerwonej kartce.
+    gdy ma wpisy. Czas jako zegar czasu gry (x-match-clock, opis w podpowiedzi) przy zmianach, drugiej żółtej i czerwonej kartce.
     Zmienne: $events (MatchEvent z player i other).
 --}}
 @php
@@ -63,11 +63,14 @@
                         </span>
                         @endif
                         @if ($event->slot !== null)
-                            <span class="shrink-0 text-[10px] text-zinc-500" title="{{ \App\Support\MatchReport::phase($event->slot, long: true) }}">{{ \App\Support\MatchReport::phase($event->slot) }}</span>
+                            <x-match-clock :to="$event->slot" :title="\App\Support\MatchReport::phase($event->slot, long: true)" />
                         @endif
                     </div>
                 @endforeach
             </div>
         @endforeach
     </div>
+    @if ($events->whereNotNull('slot')->isNotEmpty())
+        @include('partials.match-clock-legend')
+    @endif
 @endif

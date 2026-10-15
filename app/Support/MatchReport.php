@@ -160,14 +160,14 @@ class MatchReport
         return $out;
     }
 
-    /** Czas na boisku do tabeli etapami meczu („start – koniec 2. poł.”), null = nie zagrał. */
+    /** Opis czasu na boisku (podpowiedź zegara x-match-clock), null = nie zagrał. */
     public static function spanLabel(?int $on, int $off): ?string
     {
         if ($on === null) {
             return null;
         }
 
-        return self::phase($on, true).' – '.self::phase($off);
+        return self::phase($on, true, true).' – '.self::phase($off, long: true);
     }
 
     /**
