@@ -810,6 +810,7 @@ final class PlayerStats
 
             $competitions[] = [
                 'label' => $label,
+                'key' => $competition->trophyKey(),
                 'type' => $competition->type,
                 'tier' => $competition->tier ?? 0,
                 'seasons' => $rows->count(),

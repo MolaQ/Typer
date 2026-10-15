@@ -33,6 +33,9 @@
                 wire:navigate>
                 {{ __('History and records') }}
             </flux:sidebar.item>
+            <flux:sidebar.item icon="sparkles" :href="route('stars')" :current="request()->routeIs('stars')" wire:navigate>
+                {{ __('Game stars') }}
+            </flux:sidebar.item>
             <flux:sidebar.item icon="heart" :href="route('support')" :current="request()->routeIs('support')"
                 wire:navigate>
                 {{ __('Premium and support') }}

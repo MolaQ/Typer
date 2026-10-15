@@ -20,6 +20,7 @@ Route::livewire('results/{season_slug?}/{competition_slug?}/{round_slug?}', 'pag
     ->name('results');
 Route::livewire('hall-of-fame', 'pages::hall-of-fame')->name('hall-of-fame');
 Route::livewire('history/{key_slug?}', 'pages::history')->name('history');
+Route::livewire('stars', 'pages::stars')->name('stars');
 Route::livewire('teams/{user}', 'pages::team-profile')->name('team.show');
 Route::livewire('bots/{bot}', 'pages::bot-profile')->name('bot.show');
 

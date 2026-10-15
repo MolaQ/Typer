@@ -1,7 +1,9 @@
 {{--
-    Zawodnicy klubu (Support\ClubStats::players) jako karty: numer, pozycja, doświadczenie w klubie łącznie (kolejność, pasek względem najlepszego)
-    i dorobek w bieżącym sezonie (filtr pozycji B/O/P/N). Klik w kartę otwiera okno: suma wszystkich sezonów, a pod nią sezony od ostatniego,
-    każdy rozwijany z meczami od pierwszej kolejki. Używane w zakładce „Moja kadra” na /tips i na profilu bota.
+    Zawodnicy klubu (Support\ClubStats::players) jako tabela do porównań (15.10.2026, wcześniej karty): numer, zawodnik, pozycja,
+    doświadczenie w klubie łącznie (pasek względem najlepszego) i dorobek w bieżącym sezonie albo w całej karierze (przełącznik).
+    Statystyki kluczowe dla pozycji są pogrubione, pozostałe wyciszone (B, O: czyste konta i obrona, O też gole; P, N: gole, asysty, atak).
+    Sortowanie kliknięciem w nagłówek (Alpine, atrybuty data-*), filtr pozycji B/O/P/N. Klik w wiersz otwiera okno: suma wszystkich sezonów,
+    a pod nią sezony od ostatniego, każdy rozwijany z meczami od pierwszej kolejki. Używane w zakładce „Moja kadra” na /tips i na profilu bota.
     Zmienne: $clubPlayers, opcjonalnie $clubTitle.
 --}}
 @php
@@ -15,8 +17,15 @@
         'defense' => [__('Def.'), __('Defence points')],
         'experience' => [__('Exp.'), __('Experience')],
     ];
-    // Kafelki na karcie: najważniejsze liczby sezonu
-    $cardCols = ['fielded', 'play_time', 'goals', 'assists', 'clean_sheets'];
+    // Kolumny tabeli (sezon albo kariera), bez doświadczenia łącznie, które ma osobną kolumnę
+    $tableCols = ['fielded', 'play_time', 'goals', 'assists', 'clean_sheets', 'attack', 'defense', 'experience'];
+    // Statystyki kluczowe dla pozycji (pogrubione w tabeli)
+    $keyStats = [
+        'goalkeeper' => ['clean_sheets', 'defense'],
+        'defender' => ['clean_sheets', 'defense', 'goals'],
+        'midfielder' => ['goals', 'assists', 'attack'],
+        'forward' => ['goals', 'assists', 'attack'],
+    ];
     $fmt = fn ($v) => \App\Support\ClubStats::format($v);
     $exp = fn ($v) => \App\Support\ClubStats::experience($v);
     $maxExp = max(1, collect($clubPlayers)->max(fn ($c) => $c['career']['experience']) ?: 1);
@@ -27,88 +36,139 @@
         'midfielder' => 'bg-emerald-400 text-emerald-950',
         'forward' => 'bg-rose-400 text-rose-950',
     ];
+    $posOrder = array_flip(\App\Enums\PlayerPosition::values());
 @endphp
-<div class="space-y-4" x-data="{ open: null, season: null, pos: 'all' }" x-on:keydown.escape.window="open = null">
-    <div class="flex flex-wrap items-center justify-between gap-3">
-        <div>
-            <flux:heading size="lg">{{ $clubTitle ?? __('Club players') }}</flux:heading>
-            <flux:text class="text-xs">{{ __('Ordered by experience in the club') }}</flux:text>
-        </div>
+<div class="space-y-3" x-on:keydown.escape.window="open = null"
+    x-data="{
+        open: null, season: null, pos: 'all', scope: 'season', sort: 'total', dir: -1,
+        {{-- Sortowanie wierszy według atrybutu data-*: total, number, name, pos albo season-/career- + kolumna --}}
+        sortBy(key) {
+            if (this.sort === key) { this.dir = -this.dir } else { this.sort = key; this.dir = ['name', 'number', 'pos'].includes(key) ? 1 : -1 }
+            this.apply();
+        },
+        attr(key) { return ['total', 'name', 'number', 'pos'].includes(key) ? key : this.scope + '-' + key },
+        apply() {
+            const body = this.$refs.body, attr = 'data-' + this.attr(this.sort), dir = this.dir;
+            [...body.children].sort((a, b) => {
+                const x = a.getAttribute(attr), y = b.getAttribute(attr);
+                const cmp = isNaN(parseFloat(x)) ? x.localeCompare(y, 'pl') : parseFloat(x) - parseFloat(y);
+                return cmp * dir || parseFloat(b.dataset.total) - parseFloat(a.dataset.total);
+            }).forEach(row => body.appendChild(row));
+        },
+    }" x-effect="scope; $nextTick(() => apply())">
+    <x-lech-panel :title="$clubTitle ?? __('Club players')" :subtitle="__('Click a column to sort, click a player to see all seasons and matches.')" icon="user-group" flush>
+        <x-slot:actions>
+            {{-- Sezon albo kariera --}}
+            <div class="inline-flex rounded-full bg-white/10 p-1">
+                @foreach (['season' => __('This season'), 'career' => __('All seasons')] as $scopeKey => $scopeLabel)
+                    <button type="button" x-on:click="scope = '{{ $scopeKey }}'"
+                        x-bind:class="scope === '{{ $scopeKey }}' ? 'bg-white text-lech-800 shadow' : 'text-white/80 hover:text-white'"
+                        class="rounded-full px-3 py-1 text-xs font-bold transition">{{ $scopeLabel }}</button>
+                @endforeach
+            </div>
+        </x-slot:actions>
+
         {{-- Filtr pozycji --}}
-        <div class="inline-flex rounded-full bg-zinc-100 p-1 dark:bg-white/10">
-            @foreach (['all' => __('Everyone')] + collect(\App\Enums\PlayerPosition::cases())->mapWithKeys(fn ($pos) => [$pos->value => $pos->short()])->all() as $posKey => $posLabel)
-                <button type="button" x-on:click="pos = '{{ $posKey }}'" title="{{ $posKey === 'all' ? $posLabel : \App\Enums\PlayerPosition::from($posKey)->label() }}"
-                    x-bind:class="pos === '{{ $posKey }}' ? 'bg-lech-700 text-white shadow' : 'text-zinc-600 hover:text-lech-700 dark:text-zinc-300'"
-                    class="min-w-9 rounded-full px-3 py-1 text-xs font-bold transition">{{ $posLabel }}</button>
-            @endforeach
+        <div class="flex flex-wrap items-center justify-between gap-2 border-b border-zinc-200 px-4 py-2.5 dark:border-zinc-700">
+            <div class="inline-flex rounded-full bg-zinc-100 p-1 dark:bg-white/10">
+                @foreach (['all' => __('Everyone')] + collect(\App\Enums\PlayerPosition::cases())->mapWithKeys(fn ($pos) => [$pos->value => $pos->short()])->all() as $posKey => $posLabel)
+                    <button type="button" x-on:click="pos = '{{ $posKey }}'" title="{{ $posKey === 'all' ? $posLabel : \App\Enums\PlayerPosition::from($posKey)->label() }}"
+                        x-bind:class="pos === '{{ $posKey }}' ? 'bg-lech-700 text-white shadow' : 'text-zinc-600 hover:text-lech-700 dark:text-zinc-300'"
+                        class="min-w-9 rounded-full px-3 py-1 text-xs font-bold transition">{{ $posLabel }}</button>
+                @endforeach
+            </div>
+            <span class="text-xs text-zinc-500">{{ __('Key statistics for the position are in bold.') }}</span>
         </div>
-    </div>
 
-    <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-        @foreach ($clubPlayers as $club)
-            @php
-                $p = $club['player'];
-                $s = $club['season'];
-                $careerExp = $club['career']['experience'];
-                $share = (int) round(100 * $careerExp / $maxExp);
-                $idle = $club['career']['fielded'] == 0;
-            @endphp
-            <button type="button" data-club-player wire:key="club-player-{{ $p->id }}" x-show="pos === 'all' || pos === '{{ $p->position->value }}'"
-                x-on:click="open = {{ $p->id }}; season = null"
-                class="{{ $idle ? 'opacity-60 hover:opacity-100' : '' }} group flex flex-col overflow-hidden rounded-2xl border border-zinc-200 bg-white text-left shadow-sm transition duration-200 hover:-translate-y-1 hover:shadow-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-lech-500 dark:border-zinc-700 dark:bg-zinc-900">
-                {{-- Nagłówek karty: numer, pozycja, nazwisko --}}
-                <div class="lech-banner relative overflow-hidden px-4 pb-3 pt-3">
-                    <span class="pointer-events-none absolute -right-2 -top-5 select-none text-8xl font-black leading-none text-white/10 tabular-nums transition group-hover:text-white/20">{{ $p->number }}</span>
-                    <div class="relative flex items-center gap-2">
-                        <span class="{{ $posTone[$p->position->value] ?? 'bg-white text-zinc-900' }} grid size-7 place-items-center rounded-full text-xs font-black shadow" title="{{ $p->position->label() }}">{{ $p->position->short() }}</span>
-                        <span class="text-sm font-bold tabular-nums text-white/70">#{{ $p->number }}</span>
-                        @if ($p->is_academy)
-                            <span class="rounded-full bg-white/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white/80">{{ __('Academy') }}</span>
-                        @endif
-                    </div>
-                    <div class="relative mt-2 truncate text-lg font-extrabold leading-tight text-white">{{ $p->name }}</div>
-                </div>
-
-                <div class="flex flex-1 flex-col gap-3 p-4">
-                    {{-- Doświadczenie łącznie i w sezonie --}}
-                    <div class="flex items-end justify-between gap-2">
-                        <div title="{{ __('Experience in the club, all seasons') }}">
-                            <div class="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">{{ __('Total exp.') }}</div>
-                            <div class="text-3xl font-black leading-none tabular-nums text-lech-700 dark:text-lech-300">{{ $exp($careerExp) }}</div>
-                        </div>
-                        <div class="text-right" title="{{ __('Experience') }} ({{ __('this season') }})">
-                            <div class="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">{{ __('This season') }}</div>
-                            <div class="text-lg font-bold leading-none tabular-nums {{ $s['experience'] ? 'text-zinc-800 dark:text-zinc-100' : 'text-zinc-300 dark:text-zinc-600' }}">+{{ $exp($s['experience']) }}</div>
-                        </div>
-                    </div>
-                    <div class="h-1.5 overflow-hidden rounded-full bg-zinc-100 dark:bg-white/10">
-                        <div class="h-full rounded-full bg-gradient-to-r from-lech-400 via-lech-600 to-lech-800" style="width: {{ $share }}%"></div>
-                    </div>
-
-                    {{-- Sezon w liczbach --}}
-                    <div class="grid grid-cols-5 gap-1">
-                        @foreach ($cardCols as $col)
-                            <div class="rounded-lg bg-zinc-50 px-1 py-1.5 text-center dark:bg-white/5" title="{{ $statCols[$col][1] }} ({{ __('this season') }})">
-                                <div class="text-sm font-bold tabular-nums {{ $s[$col] ? '' : 'text-zinc-300 dark:text-zinc-600' }}">{{ $fmt($s[$col]) }}</div>
-                                <div class="truncate text-[9px] font-semibold uppercase text-zinc-500">{{ $col === 'fielded' ? __('Matches') : $statCols[$col][0] }}</div>
-                            </div>
+        <div class="overflow-x-auto">
+            <table class="w-full min-w-[56rem] text-sm">
+                <thead class="bg-zinc-50 text-[11px] font-bold uppercase tracking-wider text-zinc-500 dark:bg-white/5">
+                    <tr>
+                        @foreach (['number' => ['#', __('Number'), 'text-center w-12'], 'name' => [__('Footballer'), __('Footballer'), 'text-left'], 'pos' => [__('Pos.'), __('Position'), 'text-center'], 'total' => [__('Total exp.'), __('Experience in the club, all seasons'), 'text-left w-36']] as $sortKey => [$short, $long, $align])
+                            <th class="{{ $align }} px-2 py-2 first:ps-4" title="{{ $long }}">
+                                <button type="button" x-on:click="sortBy('{{ $sortKey }}')" class="inline-flex items-center gap-1 uppercase hover:text-lech-700 dark:hover:text-lech-300"
+                                    x-bind:class="sort === '{{ $sortKey }}' && 'text-lech-700 dark:text-lech-300'">
+                                    {{ $short }}<span x-show="sort === '{{ $sortKey }}'" x-text="dir > 0 ? '▲' : '▼'" class="text-[9px]"></span>
+                                </button>
+                            </th>
                         @endforeach
-                    </div>
-
-                    <div class="mt-auto flex items-center justify-between gap-2 text-xs">
-                        <span class="tabular-nums">@include('partials.card-counts', ['yellow' => $s['yellow'], 'red' => $s['red']])</span>
-                        @if ($club['free_at'])
-                            <span class="{{ \App\Support\Squad::lockColor(\App\Support\Squad::hoursLeft($club['free_at'])) }} rounded-full px-2 py-0.5 text-[10px] font-bold">
-                                {{ __('free from :date', ['date' => \Illuminate\Support\Carbon::createFromTimestamp($club['free_at'], config('app.timezone'))->format('d.m, H:i')]) }}
-                            </span>
-                        @else
-                            <span class="flex items-center gap-1 font-semibold text-green-600 dark:text-green-400"><span class="size-1.5 rounded-full bg-green-500"></span>{{ __('Ready to play') }}</span>
-                        @endif
-                    </div>
-                </div>
-            </button>
-        @endforeach
-    </div>
+                        @foreach ($tableCols as $col)
+                            <th class="px-2 py-2 text-right" title="{{ $statCols[$col][1] }}">
+                                <button type="button" x-on:click="sortBy('{{ $col }}')" class="inline-flex items-center gap-1 uppercase hover:text-lech-700 dark:hover:text-lech-300"
+                                    x-bind:class="sort === '{{ $col }}' && 'text-lech-700 dark:text-lech-300'">
+                                    <span x-show="sort === '{{ $col }}'" x-text="dir > 0 ? '▲' : '▼'" class="text-[9px]"></span>{{ $statCols[$col][0] }}
+                                </button>
+                            </th>
+                        @endforeach
+                        <th class="px-2 py-2 text-center" title="{{ __('Yellow and red cards') }}">{{ __('Cards') }}</th>
+                        <th class="px-4 py-2 text-right">{{ __('Status') }}</th>
+                    </tr>
+                </thead>
+                <tbody x-ref="body" class="divide-y divide-zinc-100 dark:divide-white/5">
+                    @foreach ($clubPlayers as $club)
+                        @php
+                            $p = $club['player'];
+                            $careerExp = $club['career']['experience'];
+                            $share = (int) round(100 * $careerExp / $maxExp);
+                            $idle = $club['career']['fielded'] == 0;
+                            $key = $keyStats[$p->position->value] ?? [];
+                        @endphp
+                        <tr wire:key="club-player-{{ $p->id }}" data-club-player x-show="pos === 'all' || pos === '{{ $p->position->value }}'"
+                            x-on:click="open = {{ $p->id }}; season = null"
+                            data-total="{{ $careerExp }}" data-number="{{ $p->number ?? 999 }}" data-name="{{ $p->name }}" data-pos="{{ $posOrder[$p->position->value] ?? 9 }}"
+                            @foreach ($tableCols as $col) data-season-{{ $col }}="{{ $club['season'][$col] }}" data-career-{{ $col }}="{{ $club['career'][$col] }}" @endforeach
+                            class="{{ $idle ? 'text-zinc-400 dark:text-zinc-500' : '' }} cursor-pointer transition hover:bg-lech-50/70 dark:hover:bg-white/5">
+                            <td class="ps-4 pe-2 py-2 text-center">
+                                <span class="grid size-8 place-items-center rounded-lg bg-lech-800 text-xs font-black tabular-nums text-white">{{ $p->number ?? '–' }}</span>
+                            </td>
+                            <td class="px-2 py-2">
+                                <span class="block font-semibold {{ $idle ? '' : 'text-zinc-900 dark:text-white' }}">{{ $p->name }}</span>
+                                @if ($p->is_academy)
+                                    <span class="text-[10px] font-semibold uppercase tracking-wide text-lech-600 dark:text-lech-300">{{ __('Academy') }}</span>
+                                @endif
+                            </td>
+                            <td class="px-2 py-2 text-center">
+                                <span class="{{ $posTone[$p->position->value] ?? 'bg-white text-zinc-900' }} inline-grid size-7 place-items-center rounded-full text-[11px] font-black" title="{{ $p->position->label() }}">{{ $p->position->short() }}</span>
+                            </td>
+                            <td class="px-2 py-2">
+                                <div class="font-black tabular-nums text-lech-700 dark:text-lech-300">{{ $exp($careerExp) }}</div>
+                                <div class="mt-1 h-1 w-28 overflow-hidden rounded-full bg-zinc-100 dark:bg-white/10">
+                                    <div class="h-full rounded-full bg-gradient-to-r from-lech-400 to-lech-800" style="width: {{ $share }}%"></div>
+                                </div>
+                            </td>
+                            @foreach ($tableCols as $col)
+                                @php
+                                    $isKey = in_array($col, $key, true);
+                                    $cellClass = $isKey ? 'font-bold' : ($col === 'experience' ? 'font-semibold text-lech-700 dark:text-lech-300' : 'text-zinc-500 dark:text-zinc-400');
+                                @endphp
+                                <td class="{{ $cellClass }} {{ $isKey ? 'bg-lech-50/60 dark:bg-lech-900/20' : '' }} px-2 py-2 text-right tabular-nums">
+                                    @foreach (['season', 'career'] as $scopeKey)
+                                        @php
+                                            $v = $club[$scopeKey][$col];
+                                        @endphp
+                                        <span x-show="scope === '{{ $scopeKey }}'" @if ($scopeKey === 'career') x-cloak @endif class="{{ $v ? '' : 'text-zinc-300 dark:text-zinc-600' }}">{{ $col === 'experience' ? $exp($v) : $fmt($v) }}</span>
+                                    @endforeach
+                                </td>
+                            @endforeach
+                            <td class="px-2 py-2 text-center text-xs tabular-nums">
+                                <span x-show="scope === 'season'">@include('partials.card-counts', ['yellow' => $club['season']['yellow'], 'red' => $club['season']['red']])</span>
+                                <span x-show="scope === 'career'" x-cloak>@include('partials.card-counts', ['yellow' => $club['career']['yellow'], 'red' => $club['career']['red']])</span>
+                            </td>
+                            <td class="px-4 py-2 text-right text-xs">
+                                @if ($club['free_at'])
+                                    <span class="{{ \App\Support\Squad::lockColor(\App\Support\Squad::hoursLeft($club['free_at'])) }} whitespace-nowrap rounded-full px-2 py-0.5 text-[10px] font-bold">
+                                        {{ __('free from :date', ['date' => \Illuminate\Support\Carbon::createFromTimestamp($club['free_at'], config('app.timezone'))->format('d.m, H:i')]) }}
+                                    </span>
+                                @else
+                                    <span class="inline-flex items-center gap-1 whitespace-nowrap font-semibold text-green-600 dark:text-green-400"><span class="size-1.5 rounded-full bg-green-500"></span>{{ __('Ready to play') }}</span>
+                                @endif
+                            </td>
+                        </tr>
+                    @endforeach
+                </tbody>
+            </table>
+        </div>
+    </x-lech-panel>
     <flux:text class="text-xs">{{ __('Each club has its own Lech players: the numbers come only from matches that took place in matchdays in which this club fielded the player. Click a player to see all seasons, then a season to see its matches.') }}</flux:text>
 
     {{-- Okno zawodnika: wszystkie sezony i mecze --}}
