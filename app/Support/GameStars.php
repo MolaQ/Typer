@@ -2,7 +2,6 @@
 
 namespace App\Support;
 
-use App\Enums\CompetitionType;
 use App\Enums\MatchdayStatus;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Database\Query\JoinClause;
@@ -18,6 +17,9 @@ use Illuminate\Support\Facades\DB;
  */
 class GameStars
 {
+    /** Typ rozgrywek → typ dorobku (CompetitionType::scoreSet) w SQL: Liga podwórkowa z ligami, LE i LK z LM. */
+    private const SCORE_SET_SQL = "CASE c.type WHEN 'swiss' THEN 'league' WHEN 'europa' THEN 'champions' WHEN 'conference' THEN 'champions' ELSE c.type END";
+
     /**
      * Zapytanie z jednym wierszem na parę klub + zawodnik (alias `stars`): user_id, bot_id, player_id, name, number, position,
      * is_academy, club, owner, fielded, played, goals, assists, own_goals, clean_sheets, attack, defense, contribution,
@@ -92,16 +94,10 @@ class GameStars
      */
     private static function results(?int $seasonId): Builder
     {
-        // Typ rozgrywek → typ dorobku (CompetitionType::scoreSet) jako CASE w SQL.
-        $set = 'CASE c.type';
-        foreach (CompetitionType::cases() as $type) {
-            $set .= " WHEN '".$type->value."' THEN '".$type->scoreSet()->value."'";
-        }
-        $set .= ' END';
 
-        $sides = self::side($seasonId, $set, 'home_entry_id', 'fm.id as matchday_id, COALESCE(ts.user_id * 2, ts.bot_id * 2 + 1) as club, ts.score_set,
+        $sides = self::side($seasonId, 'home_entry_id', 'fm.id as matchday_id, COALESCE(ts.user_id * 2, ts.bot_id * 2 + 1) as club, ts.score_set,
             CASE WHEN f.home_goals > f.away_goals OR (f.home_goals = f.away_goals AND f.winner_entry_id = f.home_entry_id) THEN 1 ELSE 0 END as won')
-            ->unionAll(self::side($seasonId, $set, 'away_entry_id', 'fm.id as matchday_id, COALESCE(ts.user_id * 2, ts.bot_id * 2 + 1) as club, ts.score_set,
+            ->unionAll(self::side($seasonId, 'away_entry_id', 'fm.id as matchday_id, COALESCE(ts.user_id * 2, ts.bot_id * 2 + 1) as club, ts.score_set,
             CASE WHEN f.away_goals > f.home_goals OR (f.home_goals = f.away_goals AND f.winner_entry_id = f.away_entry_id) THEN 1 ELSE 0 END as won'));
 
         return DB::query()->fromSub($sides, 'x')
@@ -114,7 +110,7 @@ class GameStars
      *
      * @param  literal-string  $select
      */
-    private static function side(?int $seasonId, string $set, string $entry, string $select): Builder
+    private static function side(?int $seasonId, string $entry, string $select): Builder
     {
         return DB::table('fixtures as f')
             ->join('competitions as c', 'c.id', '=', 'f.competition_id')
@@ -122,7 +118,7 @@ class GameStars
             ->join('competition_entries as e', 'e.id', '=', 'f.'.$entry)
             ->join('team_scores as ts', fn (JoinClause $j) => $j->on('ts.matchday_id', '=', 'fm.id')
                 ->on('ts.season_team_id', '=', 'e.season_team_id')
-                ->on('ts.score_set', '=', DB::raw($set)))
+                ->on('ts.score_set', '=', DB::raw(self::SCORE_SET_SQL)))
             ->whereNotNull('f.home_goals')
             ->when($seasonId, fn ($q) => $q->where('c.season_id', $seasonId))
             ->selectRaw($select);
