@@ -4,6 +4,8 @@ namespace App\Support;
 
 use App\Enums\CompetitionType;
 use App\Enums\MatchdayStatus;
+use Illuminate\Database\Query\Builder;
+use Illuminate\Database\Query\JoinClause;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -11,135 +13,110 @@ use Illuminate\Support\Facades\DB;
  * (dorobek liczy się osobno w każdym klubie, jak w „Mojej kadrze”). Liczby z rozliczonych wyborów (designated_players,
  * counted, mecze, które się odbyły), procent wygranych z meczów klubu w typie rozgrywek, w którym zawodnik był wystawiony
  * (Liga Legend: oba pojedynki; remis rozstrzygnięty czasem typu w pucharze = wygrana albo porażka).
- * Wiersze zawierają tylko liczby i id (cache bez obiektów), nazwy dokłada strona.
+ * Całość liczy baza (GROUP BY), strona filtruje, sortuje i stronicuje zapytanie: przy dużej liczbie klubów
+ * wczytanie wszystkich wierszy do PHP wyczerpywało pamięć (15.10.2026).
  */
 class GameStars
 {
     /**
-     * @return array<int, array{user_id: int|null, bot_id: int|null, player_id: int, fielded: int, played: int, goals: int, assists: int, own_goals: int, clean_sheets: int, attack: float, defense: float, contribution: float, experience: float, yellow: int, red: int, won: int, games: int, win_pct: float|null}>
+     * Zapytanie z jednym wierszem na parę klub + zawodnik (alias `stars`): user_id, bot_id, player_id, name, number, position,
+     * is_academy, club, owner, fielded, played, goals, assists, own_goals, clean_sheets, attack, defense, contribution,
+     * experience, yellow, red, won, games, win_pct.
      */
-    public static function rows(?int $seasonId): array
+    public static function query(?int $seasonId): Builder
     {
-        return PageCache::remember('stars:'.($seasonId ?? 'all'), fn () => self::compute($seasonId));
+        $base = DB::table('designated_players as dp')
+            ->join('matchdays as m', 'm.id', '=', 'dp.matchday_id')
+            ->leftJoinSub(self::results($seasonId), 'r', function (JoinClause $join): void {
+                $join->on('r.matchday_id', '=', 'dp.matchday_id')
+                    ->on('r.score_set', '=', 'dp.score_set')
+                    ->on('r.club', '=', DB::raw('COALESCE(dp.user_id * 2, dp.bot_id * 2 + 1)'));
+            })
+            ->where('m.status', MatchdayStatus::Played->value)
+            ->where('dp.counted', true)
+            ->where('dp.matches', '>', 0)
+            ->when($seasonId, fn ($q) => $q->where('m.season_id', $seasonId))
+            ->groupBy('dp.user_id', 'dp.bot_id', 'dp.lech_player_id')
+            ->selectRaw('dp.user_id, dp.bot_id, dp.lech_player_id as player_id,
+                SUM(dp.matches) as fielded,
+                SUM(CASE WHEN dp.play_time > 0 THEN dp.matches ELSE 0 END) as played,
+                SUM(dp.goals * dp.matches) as goals,
+                SUM(dp.assists * dp.matches) as assists,
+                SUM(dp.own_goals * dp.matches) as own_goals,
+                SUM(CASE WHEN dp.clean_sheet = 1 THEN dp.matches ELSE 0 END) as clean_sheets,
+                SUM(dp.attack * dp.matches) as attack,
+                SUM(dp.defense * dp.matches) as defense,
+                SUM((dp.attack + dp.defense) * dp.matches) as contribution,
+                SUM(dp.experience * dp.matches) as experience,
+                SUM(dp.yellow * dp.matches) as yellow,
+                SUM(dp.red * dp.matches) as red,
+                COALESCE(SUM(r.won), 0) as won,
+                COALESCE(SUM(r.games), 0) as games,
+                CASE WHEN SUM(r.games) > 0 THEN ROUND(100.0 * SUM(r.won) / SUM(r.games), 1) END as win_pct');
+
+        return DB::query()->fromSub($base, 's')
+            ->join('lech_players as lp', 'lp.id', '=', 's.player_id')
+            ->leftJoin('users as u', 'u.id', '=', 's.user_id')
+            ->leftJoin('bots as b', 'b.id', '=', 's.bot_id')
+            ->where(fn ($q) => $q->whereNotNull('u.id')->orWhereNotNull('b.id'))
+            ->select('s.*', 'lp.name', 'lp.number', 'lp.position', 'lp.is_academy', 'u.name as owner')
+            ->selectRaw("COALESCE(NULLIF(u.team_name, ''), u.name, b.name) as club");
     }
 
     /**
-     * @return array<int, array{user_id: int|null, bot_id: int|null, player_id: int, fielded: int, played: int, goals: int, assists: int, own_goals: int, clean_sheets: int, attack: float, defense: float, contribution: float, experience: float, yellow: int, red: int, won: int, games: int, win_pct: float|null}>
-     */
-    private static function compute(?int $seasonId): array
-    {
-        $picks = DB::table('designated_players')
-            ->join('matchdays', 'matchdays.id', '=', 'designated_players.matchday_id')
-            ->where('matchdays.status', MatchdayStatus::Played->value)
-            ->where('designated_players.counted', true)
-            ->where('designated_players.matches', '>', 0)
-            ->when($seasonId, fn ($q) => $q->where('matchdays.season_id', $seasonId))
-            ->get([
-                'designated_players.matchday_id', 'designated_players.user_id', 'designated_players.bot_id', 'designated_players.lech_player_id',
-                'designated_players.score_set', 'designated_players.matches', 'designated_players.play_time', 'designated_players.goals',
-                'designated_players.assists', 'designated_players.own_goals', 'designated_players.clean_sheet', 'designated_players.yellow',
-                'designated_players.red', 'designated_players.attack', 'designated_players.defense', 'designated_players.experience',
-            ]);
-
-        $outcomes = self::outcomes($seasonId);
-        /** @var array<string, array{user_id: int|null, bot_id: int|null, player_id: int, fielded: int, played: int, goals: int, assists: int, own_goals: int, clean_sheets: int, attack: float, defense: float, contribution: float, experience: float, yellow: int, red: int, won: int, games: int, win_pct: float|null}> $rows */
-        $rows = [];
-
-        foreach ($picks as $pick) {
-            $club = Squad::clubKey($pick->user_id !== null ? (int) $pick->user_id : null, $pick->bot_id !== null ? (int) $pick->bot_id : null);
-            $key = $club.'|'.$pick->lech_player_id;
-            $times = (int) $pick->matches;
-            $rows[$key] ??= [
-                'user_id' => $pick->user_id !== null ? (int) $pick->user_id : null,
-                'bot_id' => $pick->bot_id !== null ? (int) $pick->bot_id : null,
-                'player_id' => (int) $pick->lech_player_id,
-                'fielded' => 0, 'played' => 0, 'goals' => 0, 'assists' => 0, 'own_goals' => 0, 'clean_sheets' => 0,
-                'attack' => 0.0, 'defense' => 0.0, 'contribution' => 0.0, 'experience' => 0.0, 'yellow' => 0, 'red' => 0,
-                'won' => 0, 'games' => 0, 'win_pct' => null,
-            ];
-            $row = &$rows[$key];
-            $row['fielded'] += $times;
-            $row['played'] += (float) $pick->play_time > 0 ? $times : 0;
-            $row['goals'] += (int) $pick->goals * $times;
-            $row['assists'] += (int) $pick->assists * $times;
-            $row['own_goals'] += (int) $pick->own_goals * $times;
-            $row['clean_sheets'] += (int) $pick->clean_sheet === 1 ? $times : 0;
-            $row['attack'] += (float) $pick->attack * $times;
-            $row['defense'] += (float) $pick->defense * $times;
-            $row['experience'] += (float) $pick->experience * $times;
-            $row['yellow'] += (int) $pick->yellow * $times;
-            $row['red'] += (int) $pick->red * $times;
-
-            // Wynik meczów klubu w tym typie rozgrywek w tej kolejce (zawodnik był w nich wystawiony).
-            [$won, $games] = $outcomes[$pick->matchday_id.'|'.$club.'|'.$pick->score_set] ?? [0, 0];
-            $row['won'] += $won;
-            $row['games'] += $games;
-            unset($row);
-        }
-
-        return array_values(array_map(function (array $row): array {
-            $games = $row['games'];
-            $row['contribution'] = $row['attack'] + $row['defense'];
-            $row['win_pct'] = $games > 0 ? round($row['won'] / $games * 100, 1) : null;
-
-            return $row;
-        }, $rows));
-    }
-
-    /**
-     * Wygrane i rozegrane mecze klubu w kolejce w typie rozgrywek (kto grał miejscem: team_scores.user_id / bot_id).
+     * Liczby do banera i liderzy sezonu (pamięć PageCache, same liczby i id).
      *
-     * @return array<string, array{0: int, 1: int}> „matchday_id|klucz klubu|typ rozgrywek” => [wygrane, mecze]
+     * @return array{count: int, goals: int, leaders: array<string, array<string, mixed>|null>}
      */
-    private static function outcomes(?int $seasonId): array
+    public static function summary(?int $seasonId): array
     {
-        $fixtures = DB::table('fixtures')
-            ->join('competitions', 'competitions.id', '=', 'fixtures.competition_id')
-            ->whereNotNull('fixtures.home_goals')
-            ->when($seasonId, fn ($q) => $q->where('competitions.season_id', $seasonId))
-            ->get(['fixtures.round', 'fixtures.home_entry_id', 'fixtures.away_entry_id', 'fixtures.home_goals', 'fixtures.away_goals',
-                'fixtures.winner_entry_id', 'competitions.season_id', 'competitions.type']);
-
-        $entryIds = $fixtures->pluck('home_entry_id')->merge($fixtures->pluck('away_entry_id'))->filter()->unique()->values();
-        $teamOfEntry = DB::table('competition_entries')->whereIn('id', $entryIds)->pluck('season_team_id', 'id');
-        $matchdays = DB::table('matchdays')->when($seasonId, fn ($q) => $q->where('season_id', $seasonId))->get(['id', 'season_id', 'number'])
-            ->mapWithKeys(fn ($md) => [$md->season_id.':'.$md->number => (int) $md->id]);
-        $owners = DB::table('team_scores')
-            ->when($seasonId, fn ($q) => $q->whereIn('matchday_id', $matchdays->values()))
-            ->get(['matchday_id', 'season_team_id', 'score_set', 'user_id', 'bot_id'])
-            ->mapWithKeys(fn ($s) => [$s->matchday_id.'|'.$s->season_team_id.'|'.$s->score_set => Squad::clubKey(
-                $s->user_id !== null ? (int) $s->user_id : null,
-                $s->bot_id !== null ? (int) $s->bot_id : null,
-            )]);
-
-        $out = [];
-        foreach ($fixtures as $fixture) {
-            $matchdayId = $matchdays[$fixture->season_id.':'.$fixture->round] ?? null;
-            if ($matchdayId === null) {
-                continue;
+        return PageCache::remember('stars:summary:'.($seasonId ?? 'all'), function () use ($seasonId): array {
+            $totals = DB::query()->fromSub(self::query($seasonId), 't')->selectRaw('COUNT(*) as n, COALESCE(SUM(goals), 0) as g')->first();
+            $leaders = [];
+            foreach (['goals', 'assists', 'clean_sheets', 'contribution', 'win_pct'] as $key) {
+                $row = DB::query()->fromSub(self::query($seasonId), 't')
+                    ->when($key === 'win_pct', fn ($q) => $q->where('games', '>=', 5))
+                    ->where($key, '>', 0)
+                    ->orderByDesc($key)->orderByDesc('fielded')
+                    ->first();
+                $leaders[$key] = $row ? (array) $row : null;
             }
-            $set = CompetitionType::from($fixture->type)->scoreSet()->value;
 
-            foreach ([true, false] as $home) {
-                $entry = $home ? $fixture->home_entry_id : $fixture->away_entry_id;
-                $team = $entry !== null ? ($teamOfEntry[$entry] ?? null) : null;
-                $club = $team !== null ? ($owners[$matchdayId.'|'.$team.'|'.$set] ?? null) : null;
-                if ($club === null) {
-                    continue;
-                }
+            return ['count' => (int) ($totals->n ?? 0), 'goals' => (int) ($totals->g ?? 0), 'leaders' => $leaders];
+        });
+    }
 
-                $mine = (int) ($home ? $fixture->home_goals : $fixture->away_goals);
-                $theirs = (int) ($home ? $fixture->away_goals : $fixture->home_goals);
-                // Remis rozstrzygnięty czasem typu (puchar) to wygrana albo porażka.
-                $won = $mine === $theirs && $fixture->winner_entry_id ? (int) $fixture->winner_entry_id === (int) $entry : $mine > $theirs;
-
-                $key = $matchdayId.'|'.$club.'|'.$set;
-                $out[$key] ??= [0, 0];
-                $out[$key][0] += $won ? 1 : 0;
-                $out[$key][1]++;
-            }
+    /**
+     * Wygrane i mecze klubu w kolejce w typie rozgrywek: matchday_id, club (user_id × 2 albo bot_id × 2 + 1, bez liczb ujemnych: kolumny są unsigned), score_set, won, games.
+     * Właściciel strony meczu = kto grał miejscem w tej kolejce (team_scores.user_id / bot_id).
+     */
+    private static function results(?int $seasonId): Builder
+    {
+        // Typ rozgrywek → typ dorobku (CompetitionType::scoreSet) jako CASE w SQL.
+        $set = 'CASE c.type';
+        foreach (CompetitionType::cases() as $type) {
+            $set .= " WHEN '".$type->value."' THEN '".$type->scoreSet()->value."'";
         }
+        $set .= ' END';
 
-        return $out;
+        $side = function (string $mine, string $theirs, string $entry) use ($seasonId, $set): Builder {
+            return DB::table('fixtures as f')
+                ->join('competitions as c', 'c.id', '=', 'f.competition_id')
+                ->join('matchdays as fm', fn (JoinClause $j) => $j->on('fm.season_id', '=', 'c.season_id')->on('fm.number', '=', 'f.round'))
+                ->join('competition_entries as e', 'e.id', '=', 'f.'.$entry)
+                ->join('team_scores as ts', fn (JoinClause $j) => $j->on('ts.matchday_id', '=', 'fm.id')
+                    ->on('ts.season_team_id', '=', 'e.season_team_id')
+                    ->on('ts.score_set', '=', DB::raw($set)))
+                ->whereNotNull('f.home_goals')
+                ->when($seasonId, fn ($q) => $q->where('c.season_id', $seasonId))
+                ->selectRaw("fm.id as matchday_id, COALESCE(ts.user_id * 2, ts.bot_id * 2 + 1) as club, ts.score_set,
+                    CASE WHEN f.$mine > f.$theirs OR (f.$mine = f.$theirs AND f.winner_entry_id = f.$entry) THEN 1 ELSE 0 END as won");
+        };
+
+        $sides = $side('home_goals', 'away_goals', 'home_entry_id')->unionAll($side('away_goals', 'home_goals', 'away_entry_id'));
+
+        return DB::query()->fromSub($sides, 'x')
+            ->groupBy('matchday_id', 'club', 'score_set')
+            ->selectRaw('matchday_id, club, score_set, SUM(won) as won, COUNT(*) as games');
     }
 }

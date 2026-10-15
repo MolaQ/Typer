@@ -2,15 +2,13 @@
 
 use App\Enums\MatchdayStatus;
 use App\Enums\PlayerPosition;
-use App\Models\Bot;
-use App\Models\LechPlayer;
 use App\Models\Matchday;
 use App\Models\Season;
-use App\Models\User;
 use App\Support\GameStars;
 use Illuminate\Contracts\View\View;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
@@ -94,124 +92,91 @@ new #[Layout('layouts::public')] class extends Component {
         return Season::whereIn('id', $ids)->orderByDesc('number')->get();
     }
 
-    /** @return Collection<int, LechPlayer> */
-    #[Computed]
-    public function players(): Collection
-    {
-        return LechPlayer::all()->keyBy('id');
-    }
-
     /**
-     * Nazwy klubów i adresy profili: klucz u{id} albo b{id}.
+     * Wiersz zapytania GameStars z danymi do widoku (pozycja jako enum, adres profilu klubu).
      *
-     * @return array<string, array{name: string, owner: string|null, url: string}>
+     * @return array<string, mixed>
      */
-    #[Computed]
-    public function clubNames(): array
+    private function decorate(object $row, int $rank = 0): array
     {
-        $rows = collect(GameStars::rows($this->season ?: null));
-        $out = [];
-        foreach (User::whereIn('id', $rows->pluck('user_id')->filter()->unique())->get(['id', 'name', 'team_name']) as $user) {
-            $out['u'.$user->id] = ['name' => $user->team_name ?: $user->name, 'owner' => $user->name, 'url' => route('team.show', $user)];
-        }
-        foreach (Bot::whereIn('id', $rows->pluck('bot_id')->filter()->unique())->get(['id', 'name']) as $bot) {
-            $out['b'.$bot->id] = ['name' => $bot->name, 'owner' => null, 'url' => route('bot.show', $bot)];
-        }
+        $data = (array) $row;
+        $bot = $data['bot_id'] !== null;
 
-        return $out;
+        return [
+            'rank' => $rank,
+            'club_key' => $bot ? 'b'.$data['bot_id'] : 'u'.$data['user_id'],
+            'url' => $bot ? route('bot.show', (int) $data['bot_id']) : route('team.show', (int) $data['user_id']),
+            'bot' => $bot,
+            'user_id' => $data['user_id'] !== null ? (int) $data['user_id'] : null,
+            'player_id' => (int) $data['player_id'],
+            'name' => (string) $data['name'],
+            'number' => $data['number'] !== null ? (int) $data['number'] : null,
+            'position' => PlayerPosition::from((string) $data['position']),
+            'academy' => (bool) $data['is_academy'],
+            'club' => (string) $data['club'],
+            'won' => (int) $data['won'],
+            'games' => (int) $data['games'],
+            'win_pct' => $data['win_pct'] !== null ? (float) $data['win_pct'] : null,
+        ] + array_map(fn ($v) => $v + 0, array_intersect_key($data, array_flip(['fielded', 'goals', 'assists', 'clean_sheets', 'attack', 'defense', 'contribution', 'experience'])));
     }
 
-    /**
-     * Wszystkie wiersze sezonu z nazwami (zawodnik, klub).
-     *
-     * @return Collection<int, array<string, mixed>>
-     */
+    /** Liczby do banera i liderzy (bez filtrów poza sezonem). @return array{count: int, goals: int, leaders: array<string, array<string, mixed>|null>} */
     #[Computed]
-    public function all(): Collection
+    public function summary(): array
     {
-        $players = $this->players;
-        $names = $this->clubNames;
-
-        return collect(GameStars::rows($this->season ?: null))
-            ->map(function (array $row) use ($players, $names): ?array {
-                $player = $players->get($row['player_id']);
-                $club = $row['user_id'] !== null ? 'u'.$row['user_id'] : 'b'.$row['bot_id'];
-                if (! $player || ! isset($names[$club])) {
-                    return null;
-                }
-
-                return $row + [
-                    'club_key' => $club,
-                    'club' => $names[$club]['name'],
-                    'owner' => $names[$club]['owner'],
-                    'url' => $names[$club]['url'],
-                    'bot' => $row['bot_id'] !== null,
-                    'name' => $player->name,
-                    'number' => $player->number,
-                    'position' => $player->position,
-                    'academy' => $player->is_academy,
-                ];
-            })
-            ->filter()
-            ->values();
+        return GameStars::summary($this->season ?: null);
     }
 
-    /** Wiersze po filtrach i sortowaniu, z miejscem w tym widoku. */
-    #[Computed]
-    public function filtered(): Collection
-    {
-        $needle = mb_strtolower(trim($this->search));
-        $me = auth()->id();
-
-        $rows = $this->all
-            ->when($this->position !== '', fn ($rows) => $rows->filter(fn ($row) => $row['position']->value === $this->position))
-            ->when($this->clubs === 'mine', fn ($rows) => $rows->filter(fn ($row) => $me && $row['user_id'] === (int) $me))
-            ->when($this->clubs === 'users', fn ($rows) => $rows->filter(fn ($row) => ! $row['bot']))
-            ->when($this->clubs === 'bots', fn ($rows) => $rows->filter(fn ($row) => $row['bot']))
-            ->when($this->minGames > 1, fn ($rows) => $rows->filter(fn ($row) => $row['fielded'] >= $this->minGames))
-            ->when(mb_strlen($needle) >= 2, fn ($rows) => $rows->filter(fn ($row) => str_contains(mb_strtolower($row['name']), $needle) || str_contains(mb_strtolower($row['club']), $needle)));
-
-        $sort = in_array($this->sort, self::SORTS, true) ? $this->sort : 'contribution';
-        $sign = $this->dir === 'asc' ? 1 : -1;
-
-        return $rows
-            // Remisy: dorobek, potem występy, potem nazwisko.
-            ->sort(fn ($a, $b) => $sign * (($a[$sort] ?? -1) <=> ($b[$sort] ?? -1)) ?: [$b['contribution'], $b['fielded'], $a['name']] <=> [$a['contribution'], $a['fielded'], $b['name']])
-            ->values()
-            ->map(fn ($row, $index) => ['rank' => $index + 1] + $row);
-    }
-
+    /** Strona tabeli: filtry, sortowanie i stronicowanie robi baza. */
     #[Computed]
     public function pageItems(): LengthAwarePaginator
     {
-        $current = max(1, (int) $this->getPage(self::PAGE));
+        $me = auth()->id();
+        $needle = mb_strtolower(trim($this->search));
+        $sort = in_array($this->sort, self::SORTS, true) ? $this->sort : 'contribution';
+        $dir = $this->dir === 'asc' ? 'asc' : 'desc';
 
-        return new LengthAwarePaginator($this->filtered->forPage($current, $this->perPage)->values(), $this->filtered->count(), $this->perPage, $current, ['pageName' => self::PAGE]);
+        $query = DB::query()->fromSub(GameStars::query($this->season ?: null), 'stars')
+            ->when($this->position !== '', fn ($q) => $q->where('position', $this->position))
+            ->when($this->clubs === 'mine', fn ($q) => $q->where('user_id', $me ?? 0))
+            ->when($this->clubs === 'users', fn ($q) => $q->whereNotNull('user_id'))
+            ->when($this->clubs === 'bots', fn ($q) => $q->whereNotNull('bot_id'))
+            ->when($this->minGames > 1, fn ($q) => $q->where('fielded', '>=', $this->minGames))
+            ->when(mb_strlen($needle) >= 2, fn ($q) => $q->where(fn ($w) => $w->whereRaw('LOWER(name) LIKE ?', ['%'.$needle.'%'])->orWhereRaw('LOWER(club) LIKE ?', ['%'.$needle.'%'])))
+            // Brak procentu (bez meczów) zawsze na końcu; remisy: dorobek, występy, nazwisko.
+            ->when($sort === 'win_pct', fn ($q) => $q->orderByRaw('CASE WHEN win_pct IS NULL THEN 1 ELSE 0 END'))
+            ->orderBy($sort, $dir)
+            ->orderByDesc('contribution')->orderByDesc('fielded')->orderBy('name');
+
+        $paginator = $query->paginate($this->perPage, ['*'], self::PAGE);
+        $offset = ($paginator->currentPage() - 1) * $paginator->perPage();
+        $paginator->setCollection($paginator->getCollection()->values()->map(fn ($row, $i) => $this->decorate($row, $offset + $i + 1)));
+
+        return $paginator;
     }
 
     /**
-     * Liderzy wybranego sezonu (bez innych filtrów): gole, asysty, czyste konta, dorobek, procent wygranych (min. 5 występów).
+     * Liderzy wybranego sezonu: gole, asysty, czyste konta, dorobek, procent wygranych (min. 5 meczów).
      *
      * @return array<int, array{label: string, icon: string, value: string, row: array<string, mixed>}>
      */
     #[Computed]
     public function leaders(): array
     {
-        $out = [];
-        $pick = [
-            ['goals', __('Top scorer'), 'fire', fn ($row) => (string) $row['goals']],
-            ['assists', __('Top assister'), 'hand-raised', fn ($row) => (string) $row['assists']],
-            ['clean_sheets', __('Most clean sheets'), 'shield-check', fn ($row) => (string) $row['clean_sheets']],
-            ['contribution', __('Best contribution'), 'star', fn ($row) => \App\Support\ClubStats::format($row['contribution'])],
-            ['win_pct', __('Best win rate'), 'trophy', fn ($row) => \App\Support\ClubStats::format($row['win_pct']).'%'],
+        $labels = [
+            'goals' => [__('Top scorer'), 'fire'],
+            'assists' => [__('Top assister'), 'hand-raised'],
+            'clean_sheets' => [__('Most clean sheets'), 'shield-check'],
+            'contribution' => [__('Best contribution'), 'star'],
+            'win_pct' => [__('Best win rate'), 'trophy'],
         ];
-        foreach ($pick as [$key, $label, $icon, $format]) {
-            $best = $this->all
-                ->when($key === 'win_pct', fn ($rows) => $rows->filter(fn ($row) => $row['games'] >= 5))
-                ->sort(fn ($a, $b) => [$b[$key] ?? -1, $b['fielded']] <=> [$a[$key] ?? -1, $a['fielded']])
-                ->first();
-            if ($best && ($best[$key] ?? 0) > 0) {
-                $out[] = ['label' => $label, 'icon' => $icon, 'value' => $format($best), 'row' => $best];
+        $out = [];
+        foreach ($labels as $key => [$label, $icon]) {
+            $best = $this->summary['leaders'][$key] ?? null;
+            if ($best) {
+                $row = $this->decorate((object) $best);
+                $value = $key === 'win_pct' ? \App\Support\ClubStats::format((float) $row['win_pct']).'%' : \App\Support\ClubStats::format($row[$key]);
+                $out[] = ['label' => $label, 'icon' => $icon, 'value' => $value, 'row' => $row];
             }
         }
 
@@ -260,18 +225,18 @@ new #[Layout('layouts::public')] class extends Component {
         <x-slot:aside>
             <div class="grid grid-cols-2 gap-2 text-center">
                 <div class="rounded-xl bg-white/10 px-4 py-2">
-                    <div class="text-2xl font-black tabular-nums">{{ $this->all->count() }}</div>
+                    <div class="text-2xl font-black tabular-nums">{{ $this->summary['count'] }}</div>
                     <div class="text-[10px] font-semibold uppercase tracking-wider opacity-75">{{ __('Players in clubs') }}</div>
                 </div>
                 <div class="rounded-xl bg-white/10 px-4 py-2">
-                    <div class="text-2xl font-black tabular-nums">{{ $this->all->sum('goals') }}</div>
+                    <div class="text-2xl font-black tabular-nums">{{ $this->summary['goals'] }}</div>
                     <div class="text-[10px] font-semibold uppercase tracking-wider opacity-75">{{ __('Goals') }}</div>
                 </div>
             </div>
         </x-slot:aside>
     </x-page-banner>
 
-    @if ($this->all->isEmpty() && ! $season)
+    @if ($this->summary['count'] === 0 && ! $season)
         <flux:card>
             <flux:text>{{ __('The stars appear after the first settled matchday with fielded players.') }}</flux:text>
         </flux:card>
@@ -332,7 +297,7 @@ new #[Layout('layouts::public')] class extends Component {
                             class="{{ $clubs === $clubKey ? 'bg-lech-700 text-white shadow' : 'text-zinc-600 hover:text-lech-700 dark:text-zinc-300' }} rounded-full px-3 py-1 text-xs font-bold transition">{{ $clubLabel }}</button>
                     @endforeach
                 </div>
-                <span class="ms-auto text-sm text-zinc-500">{{ trans_choice(':count player found|:count players found', $this->filtered->count(), ['count' => $this->filtered->count()]) }}</span>
+                <span class="ms-auto text-sm text-zinc-500">{{ trans_choice(':count player found|:count players found', $this->pageItems->total(), ['count' => $this->pageItems->total()]) }}</span>
                 @if ($this->isFiltered())
                     <flux:button size="xs" variant="ghost" icon="x-mark" wire:click="clearFilters">{{ __('Clear filters') }}</flux:button>
                 @endif
