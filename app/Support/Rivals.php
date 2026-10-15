@@ -211,7 +211,7 @@ final class Rivals
      * po rozliczeniu nazwiska widzą wszyscy.
      * Bot wystawia skład przy przeliczeniu kolejki, więc przed wynikami nic nie pokazujemy.
      *
-     * @return array{count: int, positions: array<string, int>|null, names: array<int, string>|null}|null
+     * @return array{count: int, positions: array<string, int>|null, names: array<int, array{label: string, tone: string|null}>|null}|null
      */
     private static function lineup(SeasonTeam $team, ?TeamScore $score, Matchday $matchday, CompetitionType $set, string $phase, bool $premium): ?array
     {
