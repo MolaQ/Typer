@@ -18,8 +18,9 @@ use Illuminate\Support\Facades\DB;
 
 /**
  * Lista przedsezonowa nowego sezonu z tabel końcowych poprzedniego (regulamin, punkt 9):
- * awanse i spadki po 4 z czyszczeniem z botów (App\Support\Promotion), Liga podwórkowa według
- * klasyfikacji końcowej. Zespół gracza, który nie może już grać (ban, nieaktywny), zostaje na swoim
+ * boty na koniec tabel, awanse i spadki po 4, wypychanie botów pod ludzi (App\Support\Promotion), Liga podwórkowa według
+ * klasyfikacji końcowej. Boty spoza 512 miejsc (SeasonTeam::CUP_SIZE) nie wchodzą na listę i pauzują (bots.is_active = false),
+ * ale zostają w puli dla miejsc zbanowanych graczy. Zespół gracza, który nie może już grać (ban, nieaktywny), zostaje na swoim
  * miejscu jako bot. Nowi gracze dochodzą potem przyciskiem "Dodaj nowych graczy" (na koniec podwórkowej).
  * Każde miejsce pamięta, z którego miejsca poprzedniego sezonu powstało (previous_id).
  */
@@ -92,6 +93,12 @@ class BuildListFromPrevious
                 foreach ($ids as $id) {
                     $team = $old[$id];
                     $human = $team->user_id !== null && isset($eligible[$team->user_id]);
+
+                    // Boty są na końcu listy (Promotion), więc odcięcie dotyczy tylko botów.
+                    if (! $human && $position >= SeasonTeam::CUP_SIZE) {
+                        continue;
+                    }
+
                     $players += (int) $human;
 
                     $rows[] = [
@@ -109,6 +116,8 @@ class BuildListFromPrevious
             foreach (array_chunk($rows, 500) as $chunk) {
                 SeasonTeam::insert($chunk);
             }
+
+            Bot::syncActive($season->id);
 
             Audit::log(
                 'season_list.built',

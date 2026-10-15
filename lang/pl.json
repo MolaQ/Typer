@@ -782,7 +782,7 @@
     "A win gives 3 points, a draw 1 and a loss 0. Ties are decided by goal balance, goals, wins, draws, exact tips, hit differences, hit outcomes, bonuses, Hall of Fame points and the place on the list.": "Wygrana daje 3 punkty, remis 1, porażka 0. Przy równej liczbie punktów decydują: bilans, bramki, wygrane, remisy, dokładne typy, trafione różnice, trafione rozstrzygnięcia, bonusy, punkty Hall of Fame i pozycja na liście.",
     "All rules": "Cały regulamin",
     "An exact score tip, worth the full 3 points for the tip.": "Dokładnie trafiony wynik, wart pełne 3 punkty za typ.",
-    "By default 4 teams go up and 4 go down, and leagues are cleaned of bots with up to 6 extra swaps. The top 3 of leagues 1–10 play in Liga Mistrzów, Europy and Konferencji next season.": "Domyślnie awansują 4 zespoły i 4 spadają, a ligi są czyszczone z botów (do 6 dodatkowych zamian). Pierwsza trójka lig 1–10 gra w kolejnym sezonie w Lidze Mistrzów, Europy i Konferencji.",
+    "After the season bots go to the bottom of every table, then 4 teams go up and 4 go down, and finally every bot swaps places with the best human below it, so humans fill the leagues from the top. Bots beyond place 512 of the list rest for a season. The top 3 of leagues 1–10 play in Liga Mistrzów, Europy and Konferencji next season.": "Po sezonie boty trafiają na koniec każdej tabeli, potem awansują 4 zespoły i 4 spadają, a na koniec każdy bot zamienia się z najlepszym człowiekiem pod nim, więc ludzie wypełniają ligi od góry. Boty spoza 512 miejsc listy pauzują sezon. Pierwsza trójka lig 1–10 gra w kolejnym sezonie w Lidze Mistrzów, Europy i Konferencji.",
     "Can I change my tip?": "Czy mogę zmienić typ?",
     "Competitions of the season": "Rozgrywki sezonu",
     "Delete sponsor": "Usuń sponsora",
@@ -1550,5 +1550,7 @@
     "Ordered by experience in the club": "Kolejność według doświadczenia w klubie",
     "This season": "Ten sezon",
     "Close": "Zamknij",
-    "Ready to play": "Gotowy do gry"
+    "Ready to play": "Gotowy do gry",
+    "Beyond place 512 of the list: rests this season, can replace a banned player": "Poza 512 miejscami listy: pauzuje w tym sezonie, może zastąpić zbanowanego gracza",
+    "Resting": "Pauzuje"
 }

@@ -62,6 +62,9 @@ class SetUpSeason
                 Roster::place($season->id, (int) $userId, League::Podworkowa);
             }
 
+            // Boty spoza listy pauzują w puli.
+            Bot::syncActive($season->id);
+
             $approved = $this->approve->handle($season);
 
             Audit::log('season.set_up', null, [], ['leagues' => $approved['leagues'], 'fixtures' => $approved['fixtures']], $season->title);

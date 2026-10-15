@@ -229,6 +229,9 @@ new class extends Component {
                         @else
                             <flux:badge size="sm" color="zinc">{{ __('Default') }}</flux:badge>
                         @endif
+                        @if (! $bot->is_active)
+                            <flux:badge size="sm" color="red" :title="__('Beyond place 512 of the list: rests this season, can replace a banned player')">{{ __('Resting') }}</flux:badge>
+                        @endif
                     </flux:table.cell>
                     <flux:table.cell align="end">
                         @can(\App\Enums\Permission::SeasonEdit->value)

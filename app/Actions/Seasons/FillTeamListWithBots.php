@@ -61,6 +61,8 @@ class FillTeamListWithBots
                 SeasonTeam::insert($chunk);
             }
 
+            Bot::syncActive($season->id);
+
             return count($rows);
         });
     }

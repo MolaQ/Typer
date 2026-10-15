@@ -186,6 +186,8 @@ class Roster
 
         if ($bot) {
             $team->update(['user_id' => null, 'bot_id' => $bot->id]);
+            // Bot z puli (także pauzujący) wraca do gry.
+            $bot->update(['is_active' => true]);
 
             return true;
         }

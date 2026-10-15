@@ -12,16 +12,29 @@ use Illuminate\Support\Str;
  *
  * @property int $sort_order
  * @property string $name
+ * @property bool $is_active
  */
 class Bot extends Model
 {
-    protected $fillable = ['sort_order', 'name'];
+    protected $fillable = ['sort_order', 'name', 'is_active'];
 
     protected function casts(): array
     {
         return [
             'sort_order' => 'integer',
+            'is_active' => 'boolean',
         ];
+    }
+
+    /**
+     * Aktywne są tylko boty z listy sezonu (pozostałe pauzują w puli, np. spoza 512 miejsc po awansach i spadkach).
+     */
+    public static function syncActive(int $seasonId): void
+    {
+        $listed = SeasonTeam::where('season_id', $seasonId)->whereNotNull('bot_id')->select('bot_id');
+
+        self::query()->whereIn('id', $listed)->update(['is_active' => true]);
+        self::query()->whereNotIn('id', $listed)->update(['is_active' => false]);
     }
 
     /** Adres profilu /bots/{id}-{nazwa}, jak przy zespołach graczy. */

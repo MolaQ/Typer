@@ -24,13 +24,33 @@ it('moves four teams between neighbouring leagues', function () {
         ->and($result[3])->toBe([17, 18, 19, 20, 25, 26, 27, 28, 29, 30]);
 });
 
-it('swaps bots for humans across a boundary', function () {
+it('pushes bots below every human', function () {
     // Ekstraklasa: 5 ludzi i 5 botów (miejsca 6-10), I liga: 7 ludzi na górze.
     $result = Promotion::apply([1 => league(1, 10, 5), 2 => league(11, 10, 7)]);
 
-    // Bot z miejsca 6 spada dodatkowo, a człowiek z miejsca 5 I ligi awansuje dodatkowo.
+    // Po 4 w górę i w dół, potem ludzie przed botami: Ekstraklasa cała ludzka, boty od najlepszego (6. miejsce Ekstraklasy).
     expect($result[1])->toBe([1, 2, 3, 4, 5, 11, 12, 13, 14, 15])
-        ->and($result[2])->toBe([6, 7, 8, 9, 10, 16, 17, 18, 19, 20]);
+        ->and($result[2])->toBe([16, 17, 6, 7, 8, 9, 10, 18, 19, 20]);
+});
+
+it('moves bots to the end of the table before promotion', function () {
+    // I liga: bot na 1. miejscu, ludzie za nim. Bot nie awansuje, awansują 4 najlepsi ludzie.
+    $second = league(11);
+    $second[0]['human'] = false;
+
+    $result = Promotion::apply([1 => league(1), 2 => $second]);
+
+    expect($result[1])->toBe([1, 2, 3, 4, 5, 6, 12, 13, 14, 15])
+        ->and($result[2])->toBe([7, 8, 9, 10, 16, 17, 18, 19, 20, 11]);
+});
+
+it('lets a human jump several leagues over bots', function () {
+    // Ekstraklasa i I liga same boty, najlepszy człowiek II ligi kończy w Ekstraklasie.
+    $result = Promotion::apply([1 => league(1, 10, 0), 2 => league(11, 10, 0), 3 => league(21, 10, 1)]);
+
+    expect($result[1][0])->toBe(21)
+        // Najlepszy bot (mistrz Ekstraklasy) otwiera listę botów.
+        ->and($result[1][1])->toBe(1);
 });
 
 it('keeps every league at the same size', function () {
@@ -39,17 +59,4 @@ it('keeps every league at the same size', function () {
     expect($result[1])->toHaveCount(10)
         ->and($result[2])->toHaveCount(10)
         ->and($result[3])->toHaveCount(25);
-});
-
-it('stops the clean-up at the first pair without a swap', function () {
-    // Ekstraklasa: bot na 4. i 6. miejscu, człowiek na 5. I liga: na 5. i 6. miejscu ludzie.
-    $top = league(1);
-    $top[3]['human'] = false;
-    $top[5]['human'] = false;
-
-    $result = Promotion::apply([1 => $top, 2 => league(11)]);
-
-    // Para 6.-5.: bot za człowieka. Para 5.-6.: wyżej człowiek, więc koniec (bot z 4. miejsca zostaje).
-    expect($result[1])->toBe([1, 2, 3, 4, 5, 11, 12, 13, 14, 15])
-        ->and($result[2])->toBe([6, 7, 8, 9, 10, 16, 17, 18, 19, 20]);
 });
