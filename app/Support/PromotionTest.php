@@ -28,7 +28,8 @@ it('pushes bots below every human', function () {
     // Ekstraklasa: 5 ludzi i 5 botów (miejsca 6-10), I liga: 7 ludzi na górze.
     $result = Promotion::apply([1 => league(1, 10, 5), 2 => league(11, 10, 7)]);
 
-    // Po 4 w górę i w dół, potem ludzie przed botami: Ekstraklasa cała ludzka, boty od najlepszego (6. miejsce Ekstraklasy).
+    // Po 4 w górę i w dół, potem ludzie przed botami: Ekstraklasa cała ludzka (15 wskoczył za bota, więc stoi za beniaminkami),
+    // boty od najlepszego (6. miejsce Ekstraklasy).
     expect($result[1])->toBe([1, 2, 3, 4, 5, 11, 12, 13, 14, 15])
         ->and($result[2])->toBe([16, 17, 6, 7, 8, 9, 10, 18, 19, 20]);
 });

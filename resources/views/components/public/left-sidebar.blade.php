@@ -29,6 +29,10 @@
                 :current="request()->routeIs('hall-of-fame', 'team.show')" wire:navigate>
                 {{ __('Hall of Fame') }}
             </flux:sidebar.item>
+            <flux:sidebar.item icon="building-library" :href="route('history')" :current="request()->routeIs('history')"
+                wire:navigate>
+                {{ __('History and records') }}
+            </flux:sidebar.item>
             <flux:sidebar.item icon="heart" :href="route('support')" :current="request()->routeIs('support')"
                 wire:navigate>
                 {{ __('Premium and support') }}
@@ -44,6 +48,13 @@
         </flux:sidebar.nav>
 
         <flux:spacer />
+
+        {{-- Panel administracyjny w menu na telefonie (w nagłówku widoczny od szerokości sm) --}}
+        @can(\App\Enums\Permission::DashboardAccess->value)
+            <flux:sidebar.nav class="sm:hidden">
+                <flux:sidebar.item icon="squares-2x2" :href="route('dashboard')">{{ __('Dashboard') }}</flux:sidebar.item>
+            </flux:sidebar.nav>
+        @endcan
 
         @guest
             <flux:sidebar.nav>

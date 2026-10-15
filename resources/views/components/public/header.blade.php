@@ -11,9 +11,12 @@
         <livewire:pages::home.global-search />
 
         @can(\App\Enums\Permission::DashboardAccess->value)
-            <flux:button :href="route('dashboard')" variant="ghost" size="sm" icon="squares-2x2" class="hidden sm:inline-flex">
-                {{ __('Dashboard') }}
-            </flux:button>
+            {{-- Na telefonie panel jest w menu bocznym (klasa hidden nie wygrywa z inline-flex przycisku, stąd opakowanie) --}}
+            <div class="hidden sm:block">
+                <flux:button :href="route('dashboard')" variant="ghost" size="sm" icon="squares-2x2">
+                    {{ __('Dashboard') }}
+                </flux:button>
+            </div>
         @endcan
 
         <flux:modal.trigger name="right-panel">
@@ -21,7 +24,22 @@
                 :aria-label="__('Open panel')" />
         </flux:modal.trigger>
 
-        <flux:dropdown position="bottom" align="end">
+        {{-- Na telefonie sam awatar, żeby nagłówek mieścił się w szerokości ekranu --}}
+        <flux:dropdown position="bottom" align="end" class="sm:hidden">
+            <flux:profile :initials="auth()->user()->initials()" :chevron="false" />
+
+            <flux:menu>
+                <flux:menu.item :href="route('profile.edit')" icon="cog">{{ __('Settings') }}</flux:menu.item>
+                <flux:menu.separator />
+                <form method="POST" action="{{ route('logout') }}" class="w-full">
+                    @csrf
+                    <flux:menu.item as="button" type="submit" icon="arrow-right-start-on-rectangle" class="w-full">
+                        {{ __('Log out') }}
+                    </flux:menu.item>
+                </form>
+            </flux:menu>
+        </flux:dropdown>
+        <flux:dropdown position="bottom" align="end" class="hidden sm:block">
             <flux:profile :name="auth()->user()->name" />
 
             <flux:menu>
@@ -50,7 +68,9 @@
 
         <flux:button :href="route('login')" variant="ghost" size="sm">{{ __('Log in') }}</flux:button>
         @if (Route::has('register'))
-            <flux:button :href="route('register')" variant="primary" size="sm" class="hidden sm:inline-flex">{{ __('Register') }}</flux:button>
+            <div class="hidden sm:block">
+                <flux:button :href="route('register')" variant="primary" size="sm">{{ __('Register') }}</flux:button>
+            </div>
         @endif
         <flux:modal.trigger name="right-panel">
             <flux:button variant="ghost" size="sm" icon="bars-3-bottom-right" class="xl:hidden" :aria-label="__('Open panel')" />

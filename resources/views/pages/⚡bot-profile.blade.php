@@ -133,43 +133,14 @@ new #[Layout('layouts::public')] class extends Component {
     }
 
     /**
-     * Historia sezonów z tabel końcowych i punktów Hall of Fame bota.
+     * Historia sezonów (App\Support\TeamHistory): rozgrywki, wynik, zmiana ligi, punkty Hall of Fame.
      *
-     * @return array<int, array{season: Season, points: float, rows: array<int, array{name: string, result: string, points: float}>}>
+     * @return array<int, array<string, mixed>>
      */
     #[Computed]
     public function history(): array
     {
-        $standings = FinalStanding::with('competition')->where('bot_id', $this->bot->id)->get();
-        $seasonIds = $standings->pluck('season_id')->merge($this->awards->pluck('season_id'))->unique();
-        $order = array_map(fn ($t) => $t->value, CompetitionType::cases());
-        $out = [];
-
-        foreach (Season::whereIn('id', $seasonIds)->orderByDesc('number')->get() as $season) {
-            $awards = $this->awards->where('season_id', $season->id);
-            $own = $standings->where('season_id', $season->id)->keyBy('competition_id');
-            $competitions = Competition::whereIn('id', $own->keys()->merge($awards->pluck('competition_id')->filter())->unique())->get()
-                ->sortBy(fn ($c) => [array_search($c->type->value, $order, true), $c->tier ?? 99]);
-
-            $rows = [];
-            foreach ($competitions as $competition) {
-                $place = $own->get($competition->id)?->place;
-                $rows[] = [
-                    'name' => $competition->name ?: $competition->type->label(),
-                    'result' => match (true) {
-                        $place === 1 && ($competition->type === CompetitionType::Cup || $competition->type->isEuropean()) => __('Winner'),
-                        $place === 2 && ($competition->type === CompetitionType::Cup || $competition->type->isEuropean()) => __('Final'),
-                        $place !== null => __(':place. place', ['place' => $place]),
-                        default => '—',
-                    },
-                    'points' => round((float) $awards->where('competition_id', $competition->id)->sum('points'), 1),
-                ];
-            }
-
-            $out[] = ['season' => $season, 'points' => round((float) $awards->sum('points'), 1), 'rows' => $rows];
-        }
-
-        return $out;
+        return \App\Support\TeamHistory::for(null, $this->bot->id, $this->awards);
     }
 
     #[Computed]
@@ -290,27 +261,5 @@ new #[Layout('layouts::public')] class extends Component {
     </flux:card>
 
     {{-- Historia sezonów --}}
-    <flux:card class="space-y-4">
-        <flux:heading size="lg">{{ __('Season history') }}</flux:heading>
-
-        @forelse ($this->history as $item)
-            <div class="space-y-2" wire:key="season-{{ $item['season']->id }}">
-                <div class="flex items-center justify-between gap-2">
-                    <flux:heading>{{ $item['season']->title }}</flux:heading>
-                    <flux:badge color="amber">{{ __(':points pts', ['points' => HallOfFame::format($item['points'])]) }}</flux:badge>
-                </div>
-                <div class="divide-y divide-zinc-100 rounded-lg border border-zinc-200 dark:divide-zinc-700 dark:border-zinc-700">
-                    @foreach ($item['rows'] as $row)
-                        <div class="flex items-center justify-between gap-3 px-3 py-2 text-sm">
-                            <span class="min-w-0 flex-1">{{ $row['name'] }}</span>
-                            <span class="w-32 text-right">{{ $row['result'] }}</span>
-                            <span class="w-16 text-right tabular-nums text-zinc-500">{{ HallOfFame::format($row['points']) }}</span>
-                        </div>
-                    @endforeach
-                </div>
-            </div>
-        @empty
-            <flux:text>{{ __('No finished seasons yet.') }}</flux:text>
-        @endforelse
-    </flux:card>
+    @include('partials.team-history', ['history' => $this->history])
 </div>

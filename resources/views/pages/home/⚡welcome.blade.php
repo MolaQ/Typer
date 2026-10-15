@@ -76,6 +76,25 @@ new #[Layout('layouts::public')] class extends Component {
         return MatchEvent::with(['player:id,name', 'other:id,name'])->where('lech_match_id', $matchday->lech_match_id)->orderBy('id')->get();
     }
 
+    /** Liczby serwisu do paska pod banerem: gracze, zakończone sezony, rozegrane kolejki, zdobyte trofea. */
+    #[Computed]
+    public function numbers(): array
+    {
+        return [
+            ['icon' => 'users', 'value' => \App\Support\Players::eligible()->count(), 'label' => __('Players')],
+            ['icon' => 'calendar', 'value' => Season::where('status', SeasonStatus::Finished->value)->count(), 'label' => __('Seasons played')],
+            ['icon' => 'flag', 'value' => Matchday::where('status', MatchdayStatus::Played->value)->count(), 'label' => __('Lech matches tipped')],
+            ['icon' => 'trophy', 'value' => \App\Models\HallOfFameAward::whereNotNull('trophy')->count(), 'label' => __('Trophies won')],
+        ];
+    }
+
+    /** Ostatni mistrzowie najważniejszych rozgrywek (App\Support\CompetitionHistory). */
+    #[Computed]
+    public function champions(): array
+    {
+        return \App\Support\CompetitionHistory::latestChampions();
+    }
+
     /** Typ zalogowanego gracza na tę kolejkę (null, gdy brak albo gość). */
     #[Computed]
     public function myTip(): ?Tip
@@ -254,14 +273,107 @@ new #[Layout('layouts::public')] class extends Component {
                 </section>
             @endif
         @endif
-    @elseif ($this->upcoming)
-        {{-- Brak aktywnego sezonu, ale kolejny jest w przygotowaniu --}}
-        <x-page-banner :title="$this->upcoming->title" :subtitle="__('Coming soon')" />
     @else
-        <div class="py-16">
-            <flux:heading size="xl" level="1">{{ __('Welcome') }}</flux:heading>
-            <flux:subheading>{{ __('This is the public home page.') }}</flux:subheading>
-        </div>
+        {{-- Bez aktywnego sezonu: duży baner zapraszający do gry (z zapowiedzią sezonu w przygotowaniu) --}}
+        <section class="lech-banner relative overflow-hidden rounded-3xl px-6 py-12 sm:px-12 sm:py-16">
+            <div class="pointer-events-none absolute -right-16 -top-16 size-80 rounded-full bg-lech-500/20 blur-3xl"></div>
+            <div class="pointer-events-none absolute -bottom-24 left-1/3 size-72 rounded-full bg-sky-400/10 blur-3xl"></div>
+            <x-app-logo-icon class="pointer-events-none absolute -right-6 bottom-0 hidden size-72 text-white opacity-[0.07] md:block" />
+            <div class="relative max-w-2xl space-y-5">
+                @if ($this->upcoming)
+                    <span class="inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1 text-xs font-bold uppercase tracking-widest text-lech-100">
+                        <span class="size-2 animate-pulse rounded-full bg-green-400"></span>
+                        {{ $this->upcoming->title }} · {{ __('Coming soon') }}
+                    </span>
+                @else
+                    <p class="text-sm font-semibold uppercase tracking-[0.25em] text-lech-200">LechTYPER</p>
+                @endif
+                <h1 class="text-4xl font-black leading-tight tracking-tight sm:text-6xl">{{ __('Tip Lech. Pick your squad. Win trophies.') }}</h1>
+                <p class="text-lg text-lech-100 sm:text-xl">{{ __('One tip per Lech match decides your games in a league, the Polish Cup, European cups and Liga Legend. Pick Lech players, collect experience and climb from Liga podwórkowa to Ekstraklasa.') }}</p>
+                <div class="flex flex-wrap gap-3 pt-2">
+                    @guest
+                        <a href="{{ route('register') }}" class="rounded-full bg-white px-6 py-3 text-sm font-black uppercase tracking-wide text-lech-900 shadow-lg transition hover:-translate-y-0.5 hover:shadow-xl">{{ __('Join the game') }}</a>
+                    @else
+                        <a href="{{ route('tips') }}" wire:navigate class="rounded-full bg-white px-6 py-3 text-sm font-black uppercase tracking-wide text-lech-900 shadow-lg transition hover:-translate-y-0.5 hover:shadow-xl">{{ __('My LechTYPER') }}</a>
+                    @endguest
+                    <a href="{{ route('rules') }}" wire:navigate class="rounded-full border border-white/30 px-6 py-3 text-sm font-bold text-white transition hover:bg-white/10">{{ __('Rules of the game') }}</a>
+                    <a href="{{ route('history') }}" wire:navigate class="rounded-full border border-white/30 px-6 py-3 text-sm font-bold text-white transition hover:bg-white/10">{{ __('History and records') }}</a>
+                </div>
+            </div>
+        </section>
+    @endif
+
+    {{-- Liczby serwisu --}}
+    <section class="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        @foreach ($this->numbers as $number)
+            <div class="group flex items-center gap-3 rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md dark:border-zinc-700 dark:bg-zinc-900">
+                <span class="lech-banner grid size-11 shrink-0 place-items-center rounded-xl shadow">
+                    <flux:icon :icon="$number['icon']" class="size-5 text-white" />
+                </span>
+                <div class="min-w-0">
+                    <div class="text-2xl font-black leading-none tabular-nums text-lech-800 dark:text-lech-200">{{ number_format($number['value'], 0, ',', ' ') }}</div>
+                    <div class="text-[11px] font-semibold uppercase leading-tight tracking-wide text-zinc-500">{{ $number['label'] }}</div>
+                </div>
+            </div>
+        @endforeach
+    </section>
+
+    @unless ($this->season)
+        {{-- Jak to działa: trzy kroki --}}
+        <section class="grid gap-3 md:grid-cols-3">
+            @foreach ([
+                ['pencil-square', __('Tip the score'), __('Before kickoff tip the score of the Lech match. One tip counts in every competition you play.')],
+                ['user-group', __('Pick Lech players'), __('Field Lech players for each competition: goals and assists add attack, clean sheets stop the rival.')],
+                ['trophy', __('Win trophies'), __('Climb the leagues, go deep in the cups and collect Hall of Fame points season after season.')],
+            ] as $index => [$icon, $title, $text])
+                <div class="relative overflow-hidden rounded-2xl border border-zinc-200 bg-white p-5 dark:border-zinc-700 dark:bg-zinc-900">
+                    <span class="pointer-events-none absolute -right-2 -top-6 select-none text-8xl font-black text-lech-700/5 dark:text-white/5">{{ $index + 1 }}</span>
+                    <flux:icon :icon="$icon" class="size-7 text-lech-700 dark:text-lech-300" />
+                    <h3 class="mt-3 text-lg font-black">{{ $title }}</h3>
+                    <p class="mt-1 text-sm text-zinc-600 dark:text-zinc-400">{{ $text }}</p>
+                </div>
+            @endforeach
+        </section>
+    @endunless
+
+    {{-- Ostatni mistrzowie w barwach rozgrywek --}}
+    @if ($this->champions['rows'] !== [])
+        @php
+            $trophyIcons = \App\Support\HallOfFame::iconUrls();
+        @endphp
+        <section class="space-y-3">
+            <div class="flex flex-wrap items-end justify-between gap-2">
+                <div>
+                    <p class="text-xs font-bold uppercase tracking-[0.2em] text-lech-700 dark:text-lech-300">{{ $this->champions['season']->title }}</p>
+                    <h2 class="text-2xl font-black">{{ __('Latest champions') }}</h2>
+                </div>
+                <a href="{{ route('history') }}" wire:navigate class="inline-flex items-center gap-1 text-sm font-semibold text-lech-700 hover:underline dark:text-lech-300">
+                    {{ __('Full history') }} <flux:icon.arrow-right variant="micro" />
+                </a>
+            </div>
+            <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                @foreach ($this->champions['rows'] as $row)
+                    @php
+                        $ck = \App\Support\CompetitionHistory::colorKey($row['key']);
+                    @endphp
+                    <a href="{{ route('history', \App\Support\CompetitionHistory::slug($row['key'])) }}" wire:navigate
+                        class="comp-banner group flex items-center gap-4 rounded-2xl px-4 py-4 shadow-sm transition hover:-translate-y-1 hover:shadow-xl" style="{{ \App\Support\CompetitionColors::style($ck) }}">
+                        <span class="comp-badge relative z-10 grid size-14 shrink-0 place-items-center rounded-full shadow-lg">
+                            @if (isset($trophyIcons[$row['key']]))
+                                <img src="{{ $trophyIcons[$row['key']] }}" alt="" class="size-10 object-contain">
+                            @else
+                                <flux:icon.trophy class="size-7" />
+                            @endif
+                        </span>
+                        <span class="relative z-10 min-w-0">
+                            <span class="comp-accent block text-[11px] font-bold uppercase tracking-widest">{{ $row['label'] }}</span>
+                            <span class="{{ $row['team']['bot'] ? 'italic' : '' }} block truncate text-lg font-black">{{ $row['team']['name'] }}</span>
+                            <span class="block text-xs opacity-75">{{ $row['line'] }}</span>
+                        </span>
+                    </a>
+                @endforeach
+            </div>
+        </section>
     @endif
 
     {{-- Newsy z panelu z ocenami kciukami: siatka 3 x 5 z paginacją --}}

@@ -17,6 +17,7 @@ namespace App\Support;
  *  3. wypychanie botów: każdy bot zamienia się z najwyżej sklasyfikowanym człowiekiem pod nim (bez limitu lig).
  *     Wynik: najpierw wszyscy ludzie, potem wszystkie boty, każda grupa w kolejności listy po kroku 2,
  *     więc najlepszy bot otwiera listę botów pod ludźmi. Ligi zachowują swoje rozmiary.
+ *     Człowiek, który wskoczył za bota, staje w nowej lidze za beniaminkami (rozstawienie w pucharze).
  */
 final class Promotion
 {
@@ -66,13 +67,28 @@ final class Promotion
 
         // 3. Wypychanie botów: ludzie przed botami, kolejność w obu grupach jak po kroku 2.
         $order = array_merge(
-            array_column(array_filter($flat, fn ($t) => $t['human']), 'id'),
-            array_column(array_filter($flat, fn ($t) => ! $t['human']), 'id'),
+            array_values(array_filter($flat, fn ($t) => $t['human'])),
+            array_values(array_filter($flat, fn ($t) => ! $t['human'])),
         );
+
+        // Kolejność w lidze: najpierw zespoły, które były tu po kroku 2 (spadkowicze, pozostali, beniaminkowie),
+        // za nimi ludzie, którzy wskoczyli za boty; boty zawsze na końcu, w kolejności listy (najlepszy pierwszy).
+        $levelAfterStep2 = [];
+        $index = [];
+        $position = 0;
+        foreach ($levels as $level) {
+            foreach (array_splice($flat, 0, $sizes[$level]) as $team) {
+                $levelAfterStep2[$team['id']] = $level;
+                $index[$team['id']] = $position++;
+            }
+        }
 
         $result = [];
         foreach ($levels as $level) {
-            $result[$level] = array_splice($order, 0, $sizes[$level]);
+            $members = array_splice($order, 0, $sizes[$level]);
+            $key = fn ($t) => [! $t['human'], $t['human'] && $levelAfterStep2[$t['id']] !== $level, $index[$t['id']]];
+            usort($members, fn ($a, $b) => $key($a) <=> $key($b));
+            $result[$level] = array_column($members, 'id');
         }
 
         return $result;
