@@ -38,6 +38,11 @@ class MatchSheet
         }
 
         $round = $matchday->number;
+
+        // Prawdziwy mecz Lecha z wynikiem, w kolejności gospodarz – gość („Lech Poznań – Legia 4:0”).
+        $lech = $matchday->is_home
+            ? 'Lech Poznań – '.$matchday->opponent.' '.$matchday->lech_goals.':'.$matchday->opponent_goals
+            : $matchday->opponent.' – Lech Poznań '.$matchday->opponent_goals.':'.$matchday->lech_goals;
         $competitions = Competition::where('season_id', $matchday->season_id)->get()->keyBy('id');
         $mine = CompetitionEntry::whereIn('competition_id', $competitions->keys())
             ->where('season_team_id', $team->id)
@@ -143,6 +148,7 @@ class MatchSheet
 
             $out[$set][] = [
                 'fixture_id' => $fixture->id,
+                'lech' => $lech,
                 'competition' => $competition->name ?: $competition->type->label(),
                 'by_time' => (bool) $fixture->decided_by_time,
                 'sides' => $sides,

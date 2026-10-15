@@ -3,12 +3,17 @@
     Przy nazwie zespołu w wyniku typ gracza (szary, w nawiasie). Strzelcy to tylko wystawieni zawodnicy: piłki za punkty ataku, czerwona piłka
     za samobója, pięść za czyste konto; w kolumnach kartki i doświadczenie w klubie po meczu. Szarzy = nie zagrali w meczu Lecha.
     Skład strony z dokonaniami rozwija się po kliknięciu w nazwę zespołu (zwinięte bloki mają stałą wysokość).
+    Nagłówek: nazwa rozgrywek i po prawej szary mecz Lecha z wynikiem; kliknięcie otwiera okno pojedynku z rozliczeniem (show-duel).
     Zmienne: $sheet, $showCompetition.
 --}}
 <div class="overflow-hidden rounded-xl bg-white text-zinc-800 shadow-sm dark:bg-zinc-900 dark:text-zinc-100" wire:key="sheet-{{ $sheet['fixture_id'] }}" x-data="{ open: null }">
-    @if ($showCompetition)
-        <div class="truncate bg-zinc-50 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-zinc-500 dark:bg-white/5">{{ $sheet['competition'] }}</div>
-    @endif
+    <div class="flex items-center gap-2 bg-zinc-50 px-2 py-1 dark:bg-white/5">
+        @if ($showCompetition)
+            <span class="truncate text-[10px] font-semibold uppercase tracking-wide text-zinc-500">{{ $sheet['competition'] }}</span>
+        @endif
+        <button type="button" wire:click="$dispatch('show-duel', { id: {{ $sheet['fixture_id'] }} })" title="{{ __('Match details') }}"
+            class="ms-auto min-w-0 truncate text-right text-[10px] tabular-nums text-zinc-400 underline decoration-dotted underline-offset-2 transition hover:text-lech-700 dark:hover:text-lech-300">({{ $sheet['lech'] }})</button>
+    </div>
 
     {{-- Wynik: zespół i bramki, zwycięzca pogrubiony --}}
     <div class="space-y-0.5 px-2 py-1.5">
