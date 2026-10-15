@@ -99,24 +99,32 @@ class GameStars
         }
         $set .= ' END';
 
-        $side = function (string $mine, string $theirs, string $entry) use ($seasonId, $set): Builder {
-            return DB::table('fixtures as f')
-                ->join('competitions as c', 'c.id', '=', 'f.competition_id')
-                ->join('matchdays as fm', fn (JoinClause $j) => $j->on('fm.season_id', '=', 'c.season_id')->on('fm.number', '=', 'f.round'))
-                ->join('competition_entries as e', 'e.id', '=', 'f.'.$entry)
-                ->join('team_scores as ts', fn (JoinClause $j) => $j->on('ts.matchday_id', '=', 'fm.id')
-                    ->on('ts.season_team_id', '=', 'e.season_team_id')
-                    ->on('ts.score_set', '=', DB::raw($set)))
-                ->whereNotNull('f.home_goals')
-                ->when($seasonId, fn ($q) => $q->where('c.season_id', $seasonId))
-                ->selectRaw("fm.id as matchday_id, COALESCE(ts.user_id * 2, ts.bot_id * 2 + 1) as club, ts.score_set,
-                    CASE WHEN f.$mine > f.$theirs OR (f.$mine = f.$theirs AND f.winner_entry_id = f.$entry) THEN 1 ELSE 0 END as won");
-        };
-
-        $sides = $side('home_goals', 'away_goals', 'home_entry_id')->unionAll($side('away_goals', 'home_goals', 'away_entry_id'));
+        $sides = self::side($seasonId, $set, 'home_entry_id', 'fm.id as matchday_id, COALESCE(ts.user_id * 2, ts.bot_id * 2 + 1) as club, ts.score_set,
+            CASE WHEN f.home_goals > f.away_goals OR (f.home_goals = f.away_goals AND f.winner_entry_id = f.home_entry_id) THEN 1 ELSE 0 END as won')
+            ->unionAll(self::side($seasonId, $set, 'away_entry_id', 'fm.id as matchday_id, COALESCE(ts.user_id * 2, ts.bot_id * 2 + 1) as club, ts.score_set,
+            CASE WHEN f.away_goals > f.home_goals OR (f.home_goals = f.away_goals AND f.winner_entry_id = f.away_entry_id) THEN 1 ELSE 0 END as won'));
 
         return DB::query()->fromSub($sides, 'x')
             ->groupBy('matchday_id', 'club', 'score_set')
             ->selectRaw('matchday_id, club, score_set, SUM(won) as won, COUNT(*) as games');
+    }
+
+    /**
+     * Jedna strona meczów (gospodarz albo gość) z wynikiem dla właściciela miejsca.
+     *
+     * @param  literal-string  $select
+     */
+    private static function side(?int $seasonId, string $set, string $entry, string $select): Builder
+    {
+        return DB::table('fixtures as f')
+            ->join('competitions as c', 'c.id', '=', 'f.competition_id')
+            ->join('matchdays as fm', fn (JoinClause $j) => $j->on('fm.season_id', '=', 'c.season_id')->on('fm.number', '=', 'f.round'))
+            ->join('competition_entries as e', 'e.id', '=', 'f.'.$entry)
+            ->join('team_scores as ts', fn (JoinClause $j) => $j->on('ts.matchday_id', '=', 'fm.id')
+                ->on('ts.season_team_id', '=', 'e.season_team_id')
+                ->on('ts.score_set', '=', DB::raw($set)))
+            ->whereNotNull('f.home_goals')
+            ->when($seasonId, fn ($q) => $q->where('c.season_id', $seasonId))
+            ->selectRaw($select);
     }
 }
