@@ -9,10 +9,10 @@ use App\Enums\CompetitionType;
 use App\Enums\MatchdayStatus;
 use App\Enums\RoleName;
 use App\Enums\SeasonStatus;
-use App\Models\BotNameProposal;
 use App\Models\Competition;
 use App\Models\Fixture;
 use App\Models\Matchday;
+use App\Models\OfficeRequest;
 use App\Models\Season;
 use App\Models\SeasonTeam;
 use App\Models\TeamNameChangeRequest;
@@ -58,9 +58,9 @@ final class AdminAlerts
             $alerts[] = self::alert(self::INFO, 'identification', trans_choice(':count team name request|:count team name requests', $requests, ['count' => $requests]), __('Approve or reject the new names.'), 'dashboard.team-requests');
         }
 
-        $proposals = BotNameProposal::pending()->count();
-        if ($proposals > 0) {
-            $alerts[] = self::alert(self::INFO, 'cpu-chip', trans_choice(':count bot name proposal waits for review|:count bot name proposals wait for review', $proposals, ['count' => $proposals]), __('Give the names to bots or reject them.'), 'dashboard.bot-name-proposals');
+        $office = OfficeRequest::pending()->count();
+        if ($office > 0) {
+            $alerts[] = self::alert(self::INFO, 'inbox', trans_choice(':count request waits in the office|:count requests wait in the office', $office, ['count' => $office]), __('Appeals and bot names after the players\' vote.'), 'dashboard.office');
         }
 
         $unverified = User::whereNull('email_verified_at')->where('created_at', '<', now()->subDay())->count();

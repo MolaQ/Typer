@@ -45,6 +45,10 @@
                 wire:navigate>
                 {{ __('FAQ') }}
             </flux:sidebar.item>
+            <flux:sidebar.item icon="inbox" :href="route('office')" :current="request()->routeIs('office')"
+                wire:navigate>
+                {{ __('Complaints and requests office') }}
+            </flux:sidebar.item>
         </flux:sidebar.nav>
 
         <flux:spacer />

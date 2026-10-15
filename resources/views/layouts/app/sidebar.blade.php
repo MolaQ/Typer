@@ -16,7 +16,7 @@
         $canRequests = $user->can(\App\Enums\Permission::TeamChangeName->value);
         $canLogs = $user->can(\App\Enums\Permission::LogView->value);
         $canNews = $user->can(\App\Enums\Permission::NewsCreate->value);
-        $proposals = $canSeasons ? \App\Models\BotNameProposal::pending()->count() : 0;
+        $office = $canRoles ? \App\Models\OfficeRequest::pending()->count() : 0;
 
         // Powiadomienia (pilne i ostrzeżenia) jako plakietka przy Pulpicie.
         $alerts = $canSeasons ? \App\Support\AdminAlerts::count() : 0;
@@ -111,9 +111,9 @@
                 </flux:sidebar.group>
             @endif
 
-            @if ($canSeasons || $canNews)
+            @if ($canSeasons || $canNews || $canRoles)
                 <flux:sidebar.group expandable
-                    :expanded="request()->routeIs('dashboard.news', 'dashboard.bot-name-proposals')"
+                    :expanded="request()->routeIs('dashboard.news', 'dashboard.office')"
                     :heading="__('Site content')" class="grid">
                     @if ($canNews)
                         <flux:sidebar.item icon="newspaper" :href="route('dashboard.news')"
@@ -121,11 +121,11 @@
                             {{ __('News') }}
                         </flux:sidebar.item>
                     @endif
-                    @if ($canSeasons)
-                        <flux:sidebar.item icon="cpu-chip" :href="route('dashboard.bot-name-proposals')"
-                            :current="request()->routeIs('dashboard.bot-name-proposals')"
-                            :badge="$proposals ?: null" badge-color="amber" wire:navigate>
-                            {{ __('Bot name proposals') }}
+                    @if ($canRoles)
+                        <flux:sidebar.item icon="inbox" :href="route('dashboard.office')"
+                            :current="request()->routeIs('dashboard.office')"
+                            :badge="$office ?: null" badge-color="amber" wire:navigate>
+                            {{ __('Complaints and requests office') }}
                         </flux:sidebar.item>
                     @endif
                 </flux:sidebar.group>

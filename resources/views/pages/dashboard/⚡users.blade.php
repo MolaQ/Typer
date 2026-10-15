@@ -171,22 +171,7 @@ new class extends Component {
         $added = 0;
 
         foreach ($users as $user) {
-            $wasPlayer = \App\Support\Players::canPlay($user);
-
-            $user->removeRole($role);
-            $user->unsetRelation('roles');
-            if (!$user->roles()->exists()) {
-                $user->assignRole(RoleName::User->value);
-                $user->unsetRelation('roles');
-            }
-
-            if (!$wasPlayer && \App\Support\Players::canPlay($user)) {
-                \App\Support\SystemFeed::record('players', ':name joined the game', ['name' => $user->team_name ?: $user->name], 'team.show', ['user' => $user->id], $user->id);
-            }
-
-            \App\Support\Audit::log('user.role_removed', $user, ['roles' => [$role]], ['roles' => $user->roles->pluck('name')->all()], __('Bulk action'));
-
-            $added += Roster::syncUser($user)['added'];
+            $added += \App\Support\Office::liftRole($user, $role, __('Bulk action'));
         }
 
         $this->checked = [];

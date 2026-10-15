@@ -29,6 +29,7 @@ Route::livewire('rules', 'pages::rules')->name('rules');
 Route::livewire('faq', 'pages::faq')->name('faq');
 Route::livewire('system', 'pages::system-feed')->name('system');
 Route::livewire('news/{news}', 'pages::news-show')->name('news.show');
+Route::livewire('office', 'pages::office')->name('office');
 Route::post('payments/przelewy24/status', [Przelewy24Controller::class, 'status'])->name('przelewy24.status');
 
 // Panel: wejście tylko z uprawnieniem dashboard-access (Admin ma je zawsze)
@@ -69,9 +70,6 @@ Route::middleware(['auth', 'verified', 'permission:'.Permission::DashboardAccess
     Route::livewire('dashboard/lech-squad', 'pages::dashboard.lech-squad')
         ->middleware('permission:season-list')
         ->name('dashboard.lech-squad');
-    Route::livewire('dashboard/bot-name-proposals', 'pages::dashboard.bot-name-proposals')
-        ->middleware('permission:season-list')
-        ->name('dashboard.bot-name-proposals');
     Route::livewire('dashboard/tips', 'pages::dashboard.tips-overview')
         ->middleware('permission:season-list')
         ->name('dashboard.tips');
@@ -101,6 +99,10 @@ Route::middleware(['auth', 'verified', 'permission:'.Permission::DashboardAccess
     Route::livewire('dashboard/users', 'pages::dashboard.users')
         ->middleware('role:Admin')
         ->name('dashboard.users');
+
+    Route::livewire('dashboard/office', 'pages::dashboard.office')
+        ->middleware('role:Admin')
+        ->name('dashboard.office');
 
     Route::livewire('dashboard/payments', 'pages::dashboard.payments')
         ->middleware('role:Admin')

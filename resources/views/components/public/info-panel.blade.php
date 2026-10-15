@@ -9,8 +9,9 @@
         <div class="space-y-2">
             <flux:heading>{{ __('Contact') }}</flux:heading>
             <flux:text>kontakt@example.com</flux:text>
-            {{-- Propozycja nazwy bota do panelu admina --}}
-            <livewire:pages::home.bot-name-proposal />
+            {{-- Biuro skarg i wniosków: odwołania, wnioski o nazwy botów, inne sprawy do admina --}}
+            <flux:text>{{ __('Appeal, request a bot name or write to the administrator.') }}</flux:text>
+            <flux:button size="sm" icon="inbox" :href="route('office')" wire:navigate>{{ __('Complaints and requests office') }}</flux:button>
         </div>
 
         <div class="space-y-2">

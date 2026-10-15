@@ -376,9 +376,34 @@ new #[Layout('layouts::public')] class extends Component {
         </section>
     @endif
 
+    {{-- Biuro skarg i wniosków (/office): odwołania, wnioski o nazwy botów z głosowaniem graczy, inne sprawy --}}
+    @php
+        $voting = \App\Models\OfficeRequest::where('status', \App\Models\OfficeRequest::VOTING)->count();
+    @endphp
+    <section class="lech-banner relative overflow-hidden rounded-2xl p-5 text-white shadow-lg sm:p-6">
+        <flux:icon.inbox class="pointer-events-none absolute -right-6 -top-6 size-40 text-white/5" />
+        <div class="relative grid gap-5 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
+            <div class="space-y-3">
+                <p class="text-xs font-semibold uppercase tracking-[0.2em] text-lech-200">{{ __('Contact the administrator') }}</p>
+                <h2 class="text-2xl font-black tracking-tight">{{ __('Complaints and requests office') }}</h2>
+                <div class="grid gap-2 sm:grid-cols-3">
+                    @foreach ([['no-symbol', __('Ban appeal')], ['moon', __('Inactive status appeal')], ['cpu-chip', __('New bot name (premium, players vote)')]] as [$icon, $label])
+                        <div class="flex items-center gap-2 rounded-xl bg-white/10 px-3 py-2 text-sm">
+                            <flux:icon :name="$icon" variant="mini" class="shrink-0 text-lech-200" />{{ $label }}
+                        </div>
+                    @endforeach
+                </div>
+            </div>
+            <div class="flex flex-col items-start gap-2 lg:items-end">
+                <flux:button variant="primary" icon="inbox" :href="route('office')" wire:navigate>{{ __('Go to the office') }}</flux:button>
+                @if ($voting > 0)
+                    <span class="text-xs text-lech-100">{{ trans_choice(':count bot name is being voted on|:count bot names are being voted on', $voting, ['count' => $voting]) }}</span>
+                @endif
+            </div>
+        </div>
+    </section>
+
     {{-- Newsy z panelu z ocenami kciukami: siatka 3 x 5 z paginacją --}}
     <livewire:pages::home.news />
 
-    {{-- Propozycja nazwy bota (dashboard/bot-name-proposals) --}}
-    <livewire:pages::home.bot-name-proposal variant="card" />
 </div>
