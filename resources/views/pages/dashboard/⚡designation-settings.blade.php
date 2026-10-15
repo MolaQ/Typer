@@ -148,7 +148,7 @@ new class extends Component {
                             $hours = (int) round($base + ($full + $partial / 2) * $perHalf);
                         @endphp
                         <div class="rounded-lg border border-zinc-200 p-2 dark:border-zinc-700">
-                            <div class="text-xs text-zinc-500">{{ $label }}</div>
+                            <div class="text-xs text-zinc-500" title="{{ \App\Support\MatchReport::phase($slot, long: true) }}">{{ \App\Support\MatchReport::phase($slot) }}</div>
                             <div class="{{ \App\Support\Squad::lockColor($hours) }} mt-1 whitespace-nowrap rounded px-1 font-bold tabular-nums">{{ $hours }} h</div>
                         </div>
                     @endforeach

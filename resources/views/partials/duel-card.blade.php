@@ -94,6 +94,17 @@
                     {{ $lechPlayed ? __('Played on :date', ['date' => $lech->kickoff_at->translatedFormat('l, j F Y, H:i')]) : __('Kick-off: :date', ['date' => $lech->kickoff_at->translatedFormat('l, j F Y, H:i')]) }}
                 </div>
             @endif
+            {{-- Protokół prawdziwego meczu w kolumnach (gole, samobóje, kartki, zmiany; puste kolumny pomijamy) --}}
+            @if ($lechPlayed && $lech->lech_match_id)
+                @php
+                    $lechEvents = \App\Models\MatchEvent::with(['player:id,name', 'other:id,name'])->where('lech_match_id', $lech->lech_match_id)->orderBy('id')->get();
+                @endphp
+                @if ($lechEvents->isNotEmpty())
+                    <div class="mt-3 border-t border-lech-200/70 pt-3 dark:border-lech-800">
+                        @include('partials.match-protocol-columns', ['events' => $lechEvents])
+                    </div>
+                @endif
+            @endif
         </div>
     @endif
 
@@ -268,7 +279,15 @@
                         @if ($lineup['names'])
                             <div class="flex flex-wrap gap-1 {{ $left ? 'justify-end' : '' }}">
                                 @foreach ($lineup['names'] as $lineupName)
-                                    <span class="rounded-full bg-white px-2 py-0.5 text-[11px] font-medium text-zinc-700 ring-1 ring-lech-200 dark:bg-zinc-800 dark:text-zinc-200 dark:ring-lech-800">{{ $lineupName }}</span>
+                                    @php
+                                        // Niebieski: punkty ataku dla nas (gol, asysta), jasnoniebieski: punkty obrony (czyste konto).
+                                        $chipTone = match ($lineupName['tone']) {
+                                            'attack' => 'bg-lech-700 text-white ring-lech-700',
+                                            'defense' => 'bg-sky-100 text-sky-900 ring-sky-300 dark:bg-sky-500/20 dark:text-sky-100 dark:ring-sky-700',
+                                            default => 'bg-white text-zinc-700 ring-lech-200 dark:bg-zinc-800 dark:text-zinc-200 dark:ring-lech-800',
+                                        };
+                                    @endphp
+                                    <span class="{{ $chipTone }} rounded-full px-2 py-0.5 text-[11px] font-medium ring-1">{{ $lineupName['label'] }}</span>
                                 @endforeach
                             </div>
                         @endif

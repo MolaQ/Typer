@@ -700,7 +700,8 @@ new class extends Component {
                                     <div class="flex flex-wrap gap-1">
                                         @foreach (\App\Support\MatchReport::OFF_LABELS as $slot => $slotLabel)
                                             @continue($slot > $end)
-                                            <button type="button" wire:click="$set('eventSlot', {{ $slot }})" class="{{ $chip }} w-10 tabular-nums {{ $this->eventSlot === $slot ? $chipOn : $chipOff }}">{{ $slotLabel }}</button>
+                                            <button type="button" wire:click="$set('eventSlot', {{ $slot }})" title="{{ \App\Support\MatchReport::phase($slot, long: true) }}"
+                                                class="{{ $chip }} px-2 {{ $this->eventSlot === $slot ? $chipOn : $chipOff }}">{{ \App\Support\MatchReport::phase($slot) }}</button>
                                         @endforeach
                                     </div>
                                 </div>
@@ -765,7 +766,7 @@ new class extends Component {
                                                             @endif
                                                         </div>
                                                     </td>
-                                                    <td class="px-2 py-1.5 text-center text-xs tabular-nums">{{ $span ?? __('did not come on') }}</td>
+                                                    <td class="whitespace-nowrap px-2 py-1.5 text-center text-xs">{{ $span ?? __('did not come on') }}</td>
                                                     @foreach (['goals', 'assists', 'own_goals'] as $field)
                                                         <td class="px-2 py-1.5 text-center tabular-nums">
                                                             @if ($a->{$field} > 0)

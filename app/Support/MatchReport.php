@@ -33,6 +33,41 @@ class MatchReport
     /** Przyciski zejścia (punkt osi => etykieta). */
     public const OFF_LABELS = [1 => '<45', 2 => '45', 3 => '<90', 4 => '90', 5 => '<105', 6 => '105', 7 => '<120', 8 => '120'];
 
+    /**
+     * Etap meczu dla punktu osi (zamiast minut, 15.10.2026): ten sam indeks dla wejścia i zejścia.
+     * Zejście w 90+7 to „koniec 2. połowy”, więc nie ma pytań, czemu w protokole jest „<90”.
+     *
+     * @param  bool  $on  wejście (od 2. połowy…), inaczej zejście albo zdarzenie (koniec 1. połowy…)
+     */
+    public static function phase(int $slot, bool $on = false, bool $long = false): string
+    {
+        if ($long) {
+            return match ($slot) {
+                0 => __('From the start'),
+                1 => __('During the 1st half'),
+                2 => $on ? __('At half-time (from the 2nd half)') : __('End of the 1st half (stoppage time or half-time)'),
+                3 => __('During the 2nd half'),
+                4 => $on ? __('Before extra time') : __('End of the 2nd half (stoppage time, e.g. 90+7)'),
+                5 => __('During the 1st half of extra time'),
+                6 => $on ? __('From the 2nd half of extra time') : __('End of the 1st half of extra time'),
+                7 => __('During the 2nd half of extra time'),
+                default => __('End of extra time'),
+            };
+        }
+
+        return match ($slot) {
+            0 => __('start'),
+            1 => __('1st half'),
+            2 => $on ? __('from 2nd half') : __('end of 1st half'),
+            3 => __('2nd half'),
+            4 => $on ? __('from extra time') : __('end of 2nd half'),
+            5 => __('ET 1st half'),
+            6 => $on ? __('from ET 2nd half') : __('end of ET 1st half'),
+            7 => __('ET 2nd half'),
+            default => __('end of ET'),
+        };
+    }
+
     /** Rodzaje wpisów protokołu. */
     public const EVENT_GOAL = 'goal';
 
@@ -125,14 +160,14 @@ class MatchReport
         return $out;
     }
 
-    /** Czas na boisku do tabeli („0–90”, „>45–90”), null = nie zagrał. */
+    /** Czas na boisku do tabeli etapami meczu („start – koniec 2. poł.”), null = nie zagrał. */
     public static function spanLabel(?int $on, int $off): ?string
     {
         if ($on === null) {
             return null;
         }
 
-        return ($on === 0 ? '0' : (self::ON_LABELS[$on] ?? (string) $on)).'–'.(self::OFF_LABELS[$off] ?? (string) $off);
+        return self::phase($on, true).' – '.self::phase($off);
     }
 
     /**

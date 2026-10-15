@@ -118,6 +118,28 @@ new class extends Component {
         return $colors;
     }
 
+    /**
+     * Nazwy rozgrywek gracza w kartach typów (np. „Ekstraklasa”, „Liga Mistrzów”); bez wpisu zostaje nazwa typu.
+     *
+     * @return array<string, string>
+     */
+    #[Computed]
+    public function setNames(): array
+    {
+        $names = [];
+        $teamId = $this->matchday ? SeasonTeam::where('season_id', $this->matchday->season_id)->where('user_id', auth()->id())->value('id') : null;
+
+        if ($teamId) {
+            foreach (CompetitionEntry::with('competition')->where('season_team_id', $teamId)->get() as $entry) {
+                if ($entry->competition) {
+                    $names[$entry->competition->type->scoreSet()->value] = $entry->competition->name ?: $entry->competition->type->label();
+                }
+            }
+        }
+
+        return $names;
+    }
+
     /** Wybór typu rozgrywek (kafelek albo karta), wspólny dla obu części. */
     #[On('designation-active')]
     public function selectSet(string $set): void
@@ -283,7 +305,7 @@ new class extends Component {
                             @if ($open) wire:click="selectSet('{{ $setValue }}')" @endif
                             class="comp-banner {{ $isActive ? 'ring-2 ring-lech-600 ring-offset-2 ring-offset-white dark:ring-offset-zinc-900' : '' }} {{ $open ? 'cursor-pointer' : '' }} min-w-0 rounded-2xl p-2.5">
                             <header class="relative z-10 flex items-center justify-between gap-2 px-0.5">
-                                <h2 class="min-w-0 text-xs font-black uppercase leading-tight tracking-[0.12em]">{{ $set->scoreSetLabel() }}</h2>
+                                <h2 class="min-w-0 text-xs font-black uppercase leading-tight tracking-[0.12em]">{{ $this->setNames[$setValue] ?? $set->scoreSetLabel() }}</h2>
                                 <span class="comp-badge shrink-0 rounded-md px-1.5 py-0.5 text-[11px] font-bold tabular-nums">{{ $mine->count() }}/{{ $max }}</span>
                             </header>
 
@@ -312,7 +334,7 @@ new class extends Component {
                             @else
                                 <div class="relative z-10 mt-2 space-y-2">
                                     @foreach ($setSheets as $sheet)
-                                        @include('partials.match-sheet', ['sheet' => $sheet, 'showCompetition' => count($setSheets) > 1 || $setValue !== \App\Enums\CompetitionType::Legends->value])
+                                        @include('partials.match-sheet', ['sheet' => $sheet, 'showCompetition' => false])
                                     @endforeach
                                 </div>
                             @endif

@@ -1,7 +1,7 @@
 {{--
     Protokół meczu Lecha (match_events): tylko zawodnicy Lecha, zawsze uporządkowany: gole z asystami, samobóje, kartki, zmiany
     (MatchReport::EVENT_ORDER), w każdej grupie według czasu i kolejności wpisu.
-    Czas (punkt osi MatchReport::OFF_LABELS) tylko przy zmianie, drugiej żółtej i czerwonej kartce.
+    Czas jako etap meczu (MatchReport::phase, bez minut) tylko przy zmianie, drugiej żółtej i czerwonej kartce.
     Zmienne: $events (MatchEvent z player i other), $deletable (przycisk usuwania wpisu, panel admina).
 --}}
 @php
@@ -12,7 +12,7 @@
 <ol class="divide-y divide-zinc-100 text-sm dark:divide-zinc-800">
     @foreach ($events as $event)
         <li class="flex items-center gap-2 py-1.5" wire:key="event-{{ $event->id }}">
-            <span class="w-9 shrink-0 text-right text-xs font-semibold tabular-nums text-zinc-500">{{ $event->slot !== null ? (\App\Support\MatchReport::OFF_LABELS[$event->slot] ?? '') . "'" : '' }}</span>
+            <span class="w-24 shrink-0 text-right text-[11px] font-semibold text-zinc-500" title="{{ $event->slot !== null ? \App\Support\MatchReport::phase($event->slot, long: true) : '' }}">{{ $event->slot !== null ? \App\Support\MatchReport::phase($event->slot) : '' }}</span>
             <span class="flex w-5 shrink-0 justify-center">
                 @switch($event->type)
                     @case(\App\Support\MatchReport::EVENT_GOAL)

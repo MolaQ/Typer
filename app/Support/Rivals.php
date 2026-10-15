@@ -9,7 +9,6 @@ use App\Models\Competition;
 use App\Models\CompetitionEntry;
 use App\Models\DesignatedPlayer;
 use App\Models\Fixture;
-use App\Models\LechPlayer;
 use App\Models\Matchday;
 use App\Models\SeasonTeam;
 use App\Models\TeamScore;
@@ -223,10 +222,11 @@ final class Rivals
             return null;
         }
 
-        $players = DesignatedPlayer::with('player')->where('matchday_id', $matchday->id)->where('score_set', $set->value)
+        $picks = DesignatedPlayer::with('player')->where('matchday_id', $matchday->id)->where('score_set', $set->value)
             ->where($userId !== null ? 'user_id' : 'bot_id', $userId ?? $botId)
-            ->get()->pluck('player')->filter()
-            ->sortBy(fn (LechPlayer $p) => array_search($p->position->value, PlayerPosition::values(), true));
+            ->get()->filter(fn (DesignatedPlayer $d) => $d->player !== null)
+            ->sortBy(fn (DesignatedPlayer $d) => array_search($d->player?->position->value, PlayerPosition::values(), true));
+        $players = $picks->map(fn (DesignatedPlayer $d) => $d->player)->filter();
 
         $positions = [];
         foreach (PlayerPosition::cases() as $position) {
@@ -240,7 +240,11 @@ final class Rivals
         return [
             'count' => $players->count(),
             'positions' => $showPositions ? $positions : null,
-            'names' => $showNames ? $players->map(fn (LechPlayer $p) => $p->position->short().' '.$p->name)->values()->all() : null,
+            // Po rozliczeniu: 'attack' = punkty ataku dla nas (gol, asysta), 'defense' = punkty obrony (czyste konto).
+            'names' => $showNames ? $picks->map(fn (DesignatedPlayer $d) => [
+                'label' => $d->player?->position->short().' '.$d->player?->name,
+                'tone' => $phase !== self::PLAYED ? null : ((int) $d->attack > 0 ? 'attack' : ((int) $d->defense > 0 ? 'defense' : null)),
+            ])->values()->all() : null,
         ];
     }
 
