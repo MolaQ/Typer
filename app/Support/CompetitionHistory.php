@@ -77,7 +77,11 @@ final class CompetitionHistory
         return self::hydrate(PageCache::remember('history:honours:'.$key, fn () => self::dehydrate(self::computeHonours($key))));
     }
 
-    /** Liczy honours() bez pamięci. */
+    /**
+     * Liczy honours() bez pamięci.
+     *
+     * @return array<int, array{season: Season, podium: array<int, array{place: int, team: array{name: string, url: string|null, bot: bool}, line: string}>, extra: array<int, array{label: string, team: array{name: string, url: string|null, bot: bool}, line: string}>}>
+     */
     private static function computeHonours(string $key): array
     {
         $seasons = self::seasons();
@@ -143,7 +147,11 @@ final class CompetitionHistory
         return self::hydrate(PageCache::remember('history:records:'.$key, fn () => self::dehydrate(self::computeRecords($key))));
     }
 
-    /** Liczy records() bez pamięci. */
+    /**
+     * Liczy records() bez pamięci.
+     *
+     * @return array<int, array{title: string, icon: string, rows: array<int, array{team: array{name: string, url: string|null, bot: bool}, value: string, season: string|null}>}>
+     */
     private static function computeRecords(string $key): array
     {
         $seasons = self::seasons();
@@ -204,7 +212,11 @@ final class CompetitionHistory
         return self::hydrate(PageCache::remember('history:latest-champions', fn () => self::dehydrate(self::computeLatestChampions())));
     }
 
-    /** Liczy latestChampions() bez pamięci. */
+    /**
+     * Liczy latestChampions() bez pamięci.
+     *
+     * @return array{season: Season|null, rows: array<int, array{key: string, label: string, team: array{name: string, url: string|null, bot: bool}, line: string}>}
+     */
     private static function computeLatestChampions(): array
     {
         $season = self::seasons()->first();
