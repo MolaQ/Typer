@@ -463,7 +463,7 @@ new class extends Component {
     }
 
     /**
-     * Zatwierdza sezon: zamyka listę, dodaje wszystkie boty i generuje terminarz lig.
+     * Zatwierdza sezon: zamyka listę, dopełnia ją botami do 512 zespołów i generuje terminarz lig.
      * Cała logika jest w App\Actions\Seasons\ApproveSeason (jedna transakcja).
      */
     public function approve(int $id): void
@@ -534,7 +534,7 @@ new class extends Component {
                 'total' => Matchday::PER_SEASON,
             ]),
             $action === 'finish' => $season->title,
-            $action === 'approve' => __('Approval closes the team list, adds all bots and generates the league fixtures. You can revert it until the season is activated.'),
+            $action === 'approve' => __('Approval closes the team list, fills it with bots up to 512 teams and generates the league fixtures. You can revert it until the season is activated.'),
             $action === 'unapprove' => __('The league fixtures will be deleted and the team list can be edited again.'),
             $current && $current->id !== $season->id => __('Activating this season will finish :title. Continue?', ['title' => $current->title]),
             default => $season->title,

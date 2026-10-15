@@ -134,8 +134,11 @@ new class extends Component {
             'unlisted' => $this->unlistedPlayers()->count(),
             // Użytkownicy bez żadnej roli: czekają na zatwierdzenie konta przez admina.
             'noRole' => Players::withoutRole()->count(),
-            // Boty z puli, których nie ma jeszcze na liście tego sezonu.
-            'freeBots' => Bot::whereNotIn('id', SeasonTeam::where('season_id', $this->seasonId)->whereNotNull('bot_id')->select('bot_id'))->count(),
+            // Ile botów brakuje do 512 zespołów (więcej nie dochodzi, reszta puli pauzuje).
+            'freeBots' => min(
+                max(0, SeasonTeam::CUP_SIZE - SeasonTeam::where('season_id', $this->seasonId)->count()),
+                Bot::whereNotIn('id', SeasonTeam::where('season_id', $this->seasonId)->whereNotNull('bot_id')->select('bot_id'))->count(),
+            ),
         ];
     }
 
@@ -305,7 +308,7 @@ new class extends Component {
         $added = app(FillTeamListWithBots::class)->handle($this->season);
 
         if ($added === 0) {
-            Flux::toast(text: __('All bots are already on the list.'), variant: 'info');
+            Flux::toast(text: __('The list already has :count teams.', ['count' => \App\Models\SeasonTeam::CUP_SIZE]), variant: 'info');
 
             return;
         }
@@ -980,12 +983,12 @@ new class extends Component {
                 </flux:card>
             @endif
 
-            {{-- Uzupełnienie wszystkimi botami z puli --}}
+            {{-- Uzupełnienie botami z puli do 512 zespołów --}}
             @if ($this->stats['freeBots'] > 0 && $this->isEditable)
                 @can(\App\Enums\Permission::SeasonEdit->value)
                     <flux:card class="flex flex-wrap items-center justify-between gap-4">
                         <flux:text>
-                            {{ __(':count bots are not on the list yet. Add them all (this also happens when the season is approved).', ['count' => $this->stats['freeBots']]) }}
+                            {{ __(':count bots are missing to fill the list up to 512 teams. Add them now (this also happens when the season is approved).', ['count' => $this->stats['freeBots']]) }}
                         </flux:text>
                         <flux:button size="sm" icon="cpu-chip" wire:click="fillWithBots">
                             <span wire:loading.remove wire:target="fillWithBots">{{ __('Fill with bots') }}</span>

@@ -104,6 +104,10 @@ Route::middleware(['auth', 'verified', 'permission:'.Permission::DashboardAccess
         ->middleware('role:Admin')
         ->name('dashboard.office');
 
+    Route::livewire('dashboard/maintenance', 'pages::dashboard.maintenance')
+        ->middleware('role:Admin')
+        ->name('dashboard.maintenance');
+
     Route::livewire('dashboard/payments', 'pages::dashboard.payments')
         ->middleware('role:Admin')
         ->name('dashboard.payments');

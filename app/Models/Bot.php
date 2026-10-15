@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Support\BotNames;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Str;
 
@@ -35,6 +36,19 @@ class Bot extends Model
 
         self::query()->whereIn('id', $listed)->update(['is_active' => true]);
         self::query()->whereNotIn('id', $listed)->update(['is_active' => false]);
+    }
+
+    /**
+     * Kolejność z puli przy włączaniu botów (dopełnienie listy do 512, miejsce zbanowanego): najpierw najlepsze,
+     * czyli z największą sumą punktów Hall of Fame, potem według sort_order. Najsłabsze zostają w pauzie.
+     *
+     * @param  Builder<self>  $query
+     */
+    public function scopeBestFirst($query): void
+    {
+        $query->orderByDesc(
+            HallOfFameAward::query()->selectRaw('coalesce(sum(points), 0)')->whereColumn('hall_of_fame_awards.bot_id', 'bots.id')
+        )->orderBy('sort_order');
     }
 
     /** Adres profilu /bots/{id}-{nazwa}, jak przy zespołach graczy. */

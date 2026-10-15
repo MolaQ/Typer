@@ -81,7 +81,7 @@ class BuildListFromPrevious
         return DB::transaction(function () use ($season, $previous, $order, $old, $eligible): array {
             // Wolne boty z puli dla miejsc graczy, którzy już nie grają.
             $usedBots = collect($old)->pluck('bot_id')->filter()->all();
-            $freeBots = Bot::whereNotIn('id', $usedBots)->orderBy('sort_order')->pluck('id')->all();
+            $freeBots = Bot::whereNotIn('id', $usedBots)->bestFirst()->pluck('id')->all();
 
             $now = now();
             $rows = [];

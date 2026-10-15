@@ -1,6 +1,7 @@
 <?php
 
 use App\Enums\Permission;
+use App\Http\Middleware\SiteMaintenance;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -19,6 +20,9 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware) {
         // Powiadomienia od Przelewy24 przychodzą z ich serwera, bez tokenu CSRF (podpis sprawdza kontroler).
         $middleware->validateCsrfTokens(except: ['payments/przelewy24/status']);
+
+        // Tryb konserwacji z panelu admina (App\Support\Maintenance): admini widzą stronę, reszta przerwę techniczną.
+        $middleware->web(append: [SiteMaintenance::class]);
 
         $middleware->alias([
             'role' => RoleMiddleware::class,

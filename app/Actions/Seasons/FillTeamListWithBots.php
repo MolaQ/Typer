@@ -8,10 +8,11 @@ use App\Models\SeasonTeam;
 use Illuminate\Support\Facades\DB;
 
 /**
- * Dodaje do listy sezonu WSZYSTKIE boty z puli, których jeszcze na niej nie ma.
+ * Dopełnia listę sezonu botami z puli do 512 zespołów (SeasonTeam::CUP_SIZE, od 15.10.2026): gracze + boty = 512,
+ * a przy ponad 512 graczach nie dochodzi żaden bot (odchudzona lista działa szybciej). Pozostałe boty pauzują (is_active).
  *
  * Kolejność: najpierw ewentualne luki w numeracji (1..max), potem koniec listy.
- * Boty idą według sort_order, więc wynik jest powtarzalny. Gracze zostają tam,
+ * Boty idą od najlepszych (Bot::bestFirst), więc wynik jest powtarzalny. Gracze zostają tam,
  * gdzie są, a pierwsze 512 miejsc to uczestnicy Pucharu Polski.
  * Używane przy zatwierdzaniu sezonu i przyciskiem "Uzupełnij botami".
  *
@@ -23,10 +24,13 @@ class FillTeamListWithBots
     {
         return DB::transaction(function () use ($season): int {
             $used = SeasonTeam::where('season_id', $season->id)->whereNotNull('bot_id')->select('bot_id');
+            $needed = SeasonTeam::CUP_SIZE - SeasonTeam::where('season_id', $season->id)->count();
 
-            $bots = Bot::query()->whereNotIn('id', $used)->orderBy('sort_order')->get();
+            $bots = $needed > 0 ? Bot::query()->whereNotIn('id', $used)->bestFirst()->limit($needed)->get() : collect();
 
             if ($bots->isEmpty()) {
+                Bot::syncActive($season->id);
+
                 return 0;
             }
 

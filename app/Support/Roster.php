@@ -58,9 +58,18 @@ class Roster
             $bot->update(['user_id' => $userId, 'bot_id' => null]);
             self::joinLegends($seasonId, $bot->id);
 
-            // Wypchnięty bot nie znika: przechodzi na koniec listy, czyli do Ligi podwórkowej.
+            // Wypchnięty bot przechodzi na koniec listy (Liga podwórkowa) tylko wtedy, gdy lista ma mniej niż 512 zespołów.
+            // Przy pełnej liście (od 15.10.2026) z gry wypada najsłabszy bot: przed startem sezonu boty za tym miejscem
+            // przesuwają się o jedno (każde miejsce bierze bota z miejsca wyżej, ostatni pauzuje), w trakcie sezonu
+            // pauzuje wypchnięty bot (wyniki miejsc zostają przy botach, które je zdobyły).
             if ($botId) {
-                self::appendBot($seasonId, $botId);
+                if (SeasonTeam::where('season_id', $seasonId)->count() < SeasonTeam::CUP_SIZE) {
+                    self::appendBot($seasonId, $botId);
+                } elseif (! Competition::where('season_id', $seasonId)->exists()) {
+                    self::shiftBots($seasonId, $bot->position, $botId);
+                }
+
+                Bot::syncActive($seasonId);
             }
 
             return true;
@@ -86,6 +95,25 @@ class Roster
         }
 
         return false;
+    }
+
+    /**
+     * Przed startem sezonu: boty za miejscem $position przesuwają się o jedno miejsce w dół listy (miejsce dostaje bota
+     * z miejsca wyżej, pierwsze za $position wypchniętego $botId), a ostatni bot listy wypada i pauzuje.
+     */
+    private static function shiftBots(int $seasonId, int $position, int $botId): void
+    {
+        $rows = SeasonTeam::where('season_id', $seasonId)
+            ->whereNotNull('bot_id')
+            ->where('position', '>', $position)
+            ->orderBy('position')
+            ->get(['id', 'bot_id']);
+
+        $carry = $botId;
+        foreach ($rows as $row) {
+            [$carry, $current] = [$row->bot_id, $carry];
+            SeasonTeam::whereKey($row->id)->update(['bot_id' => $current]);
+        }
     }
 
     /** Dopisuje bota na koniec listy (Liga podwórkowa), także do jej rozgrywek, jeśli sezon już je ma. */
@@ -173,7 +201,7 @@ class Roster
     {
         $bot = Bot::query()
             ->whereNotIn('id', SeasonTeam::where('season_id', $team->season_id)->whereNotNull('bot_id')->select('bot_id'))
-            ->orderBy('sort_order')
+            ->bestFirst()
             ->first();
 
         // Bot nie gra w Lidze Legend.

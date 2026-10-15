@@ -6,6 +6,7 @@
 </head>
 
 <body class="min-h-screen bg-white dark:bg-zinc-800">
+    <x-maintenance-notice />
     @php
         $user = auth()->user();
 
@@ -133,7 +134,7 @@
 
             @if ($canSeasons || $canRoles || $canLogs)
                 <flux:sidebar.group expandable
-                    :expanded="request()->routeIs('dashboard.hall-of-fame', 'dashboard.designation-settings', 'dashboard.bots', 'dashboard.sponsors', 'dashboard.competition-colors', 'dashboard.roles', 'dashboard.logs')"
+                    :expanded="request()->routeIs('dashboard.hall-of-fame', 'dashboard.designation-settings', 'dashboard.bots', 'dashboard.sponsors', 'dashboard.competition-colors', 'dashboard.maintenance', 'dashboard.roles', 'dashboard.logs')"
                     :heading="__('Game settings')" class="grid">
                     @if ($canSeasons)
                         <flux:sidebar.item icon="star" :href="route('dashboard.hall-of-fame')"
@@ -155,6 +156,12 @@
                         <flux:sidebar.item icon="swatch" :href="route('dashboard.competition-colors')"
                             :current="request()->routeIs('dashboard.competition-colors')" wire:navigate>
                             {{ __('Competition colors') }}
+                        </flux:sidebar.item>
+                    @endif
+                    @if ($canRoles)
+                        <flux:sidebar.item icon="wrench-screwdriver" :href="route('dashboard.maintenance')"
+                            :current="request()->routeIs('dashboard.maintenance')" wire:navigate>
+                            {{ __('Maintenance mode') }}
                         </flux:sidebar.item>
                     @endif
                     @if ($canRoles)

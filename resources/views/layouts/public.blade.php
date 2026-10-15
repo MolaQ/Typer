@@ -6,6 +6,7 @@
 </head>
 
 <body class="bg-zinc-50 antialiased dark:bg-zinc-950">
+    <x-maintenance-notice />
     @php
         // 4rem = header (także dla gości, bo jest w nim wyszukiwarka), 3rem = stopka.
         $asideClasses = 'top-16 h-[calc(100dvh-7rem)]';
