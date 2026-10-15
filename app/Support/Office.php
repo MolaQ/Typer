@@ -94,7 +94,7 @@ final class Office
             'user_id' => $user->id,
             'type' => $type,
             'bot_id' => $bot?->id,
-            'bot_name' => $bot ? $data['bot_name'] : null,
+            'bot_name' => $bot ? ($data['bot_name'] ?? null) : null,
             'old_bot_name' => $bot?->name,
             'body' => $data['body'],
             'status' => $type === OfficeRequest::BOT_RENAME ? OfficeRequest::VOTING : OfficeRequest::PENDING,
@@ -141,7 +141,12 @@ final class Office
         });
     }
 
-    /** Głosy gracza na podanych wnioskach: id wniosku => 1 / -1. @param array<int, int> $ids @return array<int, int> */
+    /**
+     * Głosy gracza na podanych wnioskach: id wniosku => 1 / -1.
+     *
+     * @param  array<int, int>  $ids
+     * @return array<int, int>
+     */
     public static function votesOf(?User $user, array $ids): array
     {
         if (! $user || $ids === []) {
