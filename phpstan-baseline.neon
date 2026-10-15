@@ -891,13 +891,13 @@ parameters:
 		-
 			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$type\.$#'
 			identifier: property.notFound
-			count: 6
+			count: 7
 			path: app/Support/PlayerStats.php
 
 		-
 			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:trophyKey\(\)\.$#'
 			identifier: method.notFound
-			count: 1
+			count: 2
 			path: app/Support/PlayerStats.php
 
 		-

@@ -42,6 +42,7 @@ class GameStars
             ]);
 
         $outcomes = self::outcomes($seasonId);
+        /** @var array<string, array{user_id: int|null, bot_id: int|null, player_id: int, fielded: int, played: int, goals: int, assists: int, own_goals: int, clean_sheets: int, attack: float, defense: float, contribution: float, experience: float, yellow: int, red: int, won: int, games: int, win_pct: float|null}> $rows */
         $rows = [];
 
         foreach ($picks as $pick) {
@@ -76,13 +77,13 @@ class GameStars
             unset($row);
         }
 
-        foreach ($rows as &$row) {
+        return array_values(array_map(function (array $row): array {
+            $games = $row['games'];
             $row['contribution'] = $row['attack'] + $row['defense'];
-            $row['win_pct'] = $row['games'] > 0 ? round($row['won'] / $row['games'] * 100, 1) : null;
-        }
-        unset($row);
+            $row['win_pct'] = $games > 0 ? round($row['won'] / $games * 100, 1) : null;
 
-        return array_values($rows);
+            return $row;
+        }, $rows));
     }
 
     /**
