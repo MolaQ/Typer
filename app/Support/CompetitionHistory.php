@@ -12,6 +12,7 @@ use App\Models\HallOfFameAward;
 use App\Models\Season;
 use App\Models\User;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 /**
@@ -151,8 +152,11 @@ final class CompetitionHistory
 
         if ($knockout) {
             $entries = $competitions->keys();
-            $won = Fixture::with('winner.seasonTeam:id,user_id,bot_id')->whereIn('competition_id', $entries)->whereNotNull('winner_entry_id')->get()
-                ->map(fn ($f) => (object) ['user_id' => $f->winner?->seasonTeam?->user_id, 'bot_id' => $f->winner?->seasonTeam?->bot_id]);
+            $won = DB::table('fixtures')
+                ->join('competition_entries', 'competition_entries.id', '=', 'fixtures.winner_entry_id')
+                ->join('season_teams', 'season_teams.id', '=', 'competition_entries.season_team_id')
+                ->whereIn('fixtures.competition_id', $entries)
+                ->get(['season_teams.user_id', 'season_teams.bot_id']);
 
             return array_values(array_filter([
                 self::top(__('Most titles'), 'trophy', $first, fn ($rows) => $rows->count()),
@@ -315,7 +319,7 @@ final class CompetitionHistory
                 self::$owners[$key] = ['name' => $user ? ($user->team_name ?: $user->name) : '—', 'url' => $user ? route('team.show', $user) : null, 'bot' => false];
             } else {
                 $bot = $botId ? Bot::find($botId) : null;
-                self::$owners[$key] = ['name' => $bot?->name ?? '—', 'url' => $bot ? route('bot.show', $bot) : null, 'bot' => true];
+                self::$owners[$key] = ['name' => $bot ? $bot->name : '—', 'url' => $bot ? route('bot.show', $bot) : null, 'bot' => true];
             }
         }
 
