@@ -8,6 +8,7 @@ use App\Models\CompetitionEntry;
 use App\Models\Fixture;
 use App\Models\Season;
 use App\Support\Audit;
+use App\Support\PageCache;
 use DomainException;
 use Illuminate\Support\Facades\DB;
 
@@ -23,6 +24,9 @@ class RevertApproval
     public function handle(Season $season): void
     {
         DB::transaction(function () use ($season): void {
+            // Policzone bloki stron (tabele, mistrzowie) do odświeżenia po zatwierdzeniu zmian.
+            PageCache::flush();
+
             $season = Season::query()->lockForUpdate()->findOrFail($season->id);
 
             if ($season->status !== SeasonStatus::Approved) {

@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Support\BotNames;
+use App\Support\PageCache;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Str;
@@ -18,6 +19,16 @@ use Illuminate\Support\Str;
 class Bot extends Model
 {
     protected $fillable = ['sort_order', 'name', 'is_active'];
+
+    /** Nowa nazwa bota odświeża zapamiętane bloki stron (App\Support\PageCache). */
+    protected static function booted(): void
+    {
+        static::updated(function (self $bot): void {
+            if ($bot->wasChanged('name')) {
+                PageCache::flush();
+            }
+        });
+    }
 
     protected function casts(): array
     {

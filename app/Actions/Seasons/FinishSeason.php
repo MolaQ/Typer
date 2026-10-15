@@ -20,6 +20,7 @@ use App\Support\Audit;
 use App\Support\CupBracket;
 use App\Support\EuropeanCup;
 use App\Support\HallOfFame;
+use App\Support\PageCache;
 use App\Support\Roster;
 use App\Support\Standings;
 use App\Support\SystemFeed;
@@ -49,6 +50,9 @@ class FinishSeason
     public function handle(Season $season, ?string $note = null): array
     {
         $result = DB::transaction(function () use ($season, $note): array {
+            // Policzone bloki stron (tabele, mistrzowie) do odświeżenia po zatwierdzeniu zmian.
+            PageCache::flush();
+
             $season = Season::query()->lockForUpdate()->findOrFail($season->id);
 
             if ($season->status !== SeasonStatus::Active) {

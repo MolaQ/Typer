@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Notifications\VerificationCode;
+use App\Support\PageCache;
 use Database\Factories\UserFactory;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -46,6 +47,16 @@ class User extends Authenticatable implements MustVerifyEmail
      *
      * @return array<string, string>
      */
+    /** Nowa nazwa zespołu odświeża zapamiętane bloki stron (App\Support\PageCache). */
+    protected static function booted(): void
+    {
+        static::updated(function (self $user): void {
+            if ($user->wasChanged(['name', 'team_name'])) {
+                PageCache::flush();
+            }
+        });
+    }
+
     protected function casts(): array
     {
         return [

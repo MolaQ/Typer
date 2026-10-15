@@ -47,10 +47,12 @@ final class Standings
             ];
         }
 
+        // Surowe wiersze zamiast modeli (szybkość, 15.10.2026): w Lidze podwórkowej to tysiące meczów i dorobków.
         $fixtures = Fixture::where('competition_id', $competition->id)
             ->whereNotNull('home_goals')
             ->when($maxRound !== null, fn ($q) => $q->where('round', '<=', $maxRound))
-            ->get();
+            ->toBase()
+            ->get(['round', 'home_entry_id', 'away_entry_id', 'home_goals', 'away_goals']);
 
         if ($fixtures->isEmpty()) {
             return self::sort($rows);
@@ -62,14 +64,17 @@ final class Standings
         $scores = TeamScore::whereIn('matchday_id', $matchdayIds->values())
             ->whereIn('season_team_id', $teamOfEntry->values())
             ->where('score_set', $competition->type->scoreSet()->value)
-            ->get()
-            ->groupBy(fn ($s) => $s->matchday_id.'-'.$s->season_team_id);
+            ->toBase()
+            ->get(['matchday_id', 'season_team_id', 'exact_hit', 'diff_hit', 'outcome_hit', 'offense_bonus', 'defense_bonus', 'red_cards', 'yellow_cards'])
+            ->keyBy(fn ($s) => $s->matchday_id.'-'.$s->season_team_id);
 
         foreach ($fixtures as $fixture) {
-            $sides = [[$fixture->home_entry_id, $fixture->home_goals, $fixture->away_goals]];
+            $home = (int) $fixture->home_goals;
+            $away = (int) $fixture->away_goals;
+            $sides = [[(int) $fixture->home_entry_id, $home, $away]];
 
             if ($fixture->away_entry_id !== null) {
-                $sides[] = [$fixture->away_entry_id, $fixture->away_goals, $fixture->home_goals];
+                $sides[] = [(int) $fixture->away_entry_id, $away, $home];
             }
 
             foreach ($sides as [$entryId, $for, $against]) {
@@ -84,14 +89,14 @@ final class Standings
                 $row['points'] += Scoring::matchPoints($for, $against);
                 $row[$for > $against ? 'won' : ($for === $against ? 'drawn' : 'lost')]++;
 
-                $score = $scores->get(($matchdayIds[$fixture->round] ?? 0).'-'.$teamOfEntry[$entryId])?->first();
+                $score = $scores->get(($matchdayIds[$fixture->round] ?? 0).'-'.$teamOfEntry[$entryId]);
                 if ($score) {
                     $row['exact'] += (int) $score->exact_hit;
                     $row['diff_hits'] += (int) $score->diff_hit;
                     $row['outcome_hits'] += (int) $score->outcome_hit;
-                    $row['bonus'] += $score->bonus();
-                    $row['red'] += $score->red_cards;
-                    $row['yellow'] += $score->yellow_cards;
+                    $row['bonus'] += (int) $score->offense_bonus + (int) $score->defense_bonus;
+                    $row['red'] += (int) $score->red_cards;
+                    $row['yellow'] += (int) $score->yellow_cards;
                 }
                 unset($row);
             }
@@ -140,9 +145,13 @@ final class Standings
      */
     public static function seasonMoves(int $seasonId): array
     {
-        if (isset(self::$seasonMoves[$seasonId])) {
-            return self::$seasonMoves[$seasonId];
-        }
+        // Zapamiętane między żądaniami (App\Support\PageCache, odświeżane po rozliczeniu kolejki i zmianach listy).
+        return self::$seasonMoves[$seasonId] ??= PageCache::remember('standings:season-moves:'.$seasonId, fn () => self::computeSeasonMoves($seasonId));
+    }
+
+    /** @return array<int, string> */
+    private static function computeSeasonMoves(int $seasonId): array
+    {
 
         $competitions = Competition::where('season_id', $seasonId)
             ->whereIn('type', [CompetitionType::League->value, CompetitionType::Swiss->value])
@@ -154,7 +163,7 @@ final class Standings
             && ! (clone $fixtures)->where('round', $lastRound)->whereNull('home_goals')->exists();
 
         if (! $finished) {
-            return self::$seasonMoves[$seasonId] = [];
+            return [];
         }
 
         $eligible = Players::eligible()->pluck('id')->flip();
@@ -167,7 +176,7 @@ final class Standings
             }
         }
 
-        return self::$seasonMoves[$seasonId] = $tiers === [] ? [] : Promotion::moves($tiers);
+        return $tiers === [] ? [] : Promotion::moves($tiers);
     }
 
     /**

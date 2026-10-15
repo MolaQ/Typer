@@ -16,6 +16,7 @@ use App\Support\CupBracket;
 use App\Support\EuropeanCup;
 use App\Support\HallOfFame;
 use App\Support\Ownership;
+use App\Support\PageCache;
 use App\Support\Promotion;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -61,6 +62,9 @@ class AwardHallOfFame
         Ownership::flush(); // świeże rozliczenia kolejki z tego samego żądania
 
         return DB::transaction(function (): int {
+            // Policzone bloki stron (tabele, mistrzowie) do odświeżenia po zatwierdzeniu zmian.
+            PageCache::flush();
+
             HallOfFameAward::where('season_id', $this->season->id)->delete();
 
             $standings = FinalStanding::where('season_id', $this->season->id)->orderBy('place')->get()->groupBy('competition_id');

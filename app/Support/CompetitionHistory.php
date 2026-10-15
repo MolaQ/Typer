@@ -73,6 +73,13 @@ final class CompetitionHistory
      */
     public static function honours(string $key): array
     {
+        // Zapamiętane do następnej zmiany (App\Support\PageCache: koniec sezonu, nagrody, nazwy zespołów).
+        return self::hydrate(PageCache::remember('history:honours:'.$key, fn () => self::dehydrate(self::computeHonours($key))));
+    }
+
+    /** Liczy honours() bez pamięci. */
+    private static function computeHonours(string $key): array
+    {
         $seasons = self::seasons();
         $out = [];
 
@@ -132,6 +139,13 @@ final class CompetitionHistory
      */
     public static function records(string $key): array
     {
+        // Zapamiętane do następnej zmiany (App\Support\PageCache: koniec sezonu, nagrody, nazwy zespołów).
+        return self::hydrate(PageCache::remember('history:records:'.$key, fn () => self::dehydrate(self::computeRecords($key))));
+    }
+
+    /** Liczy records() bez pamięci. */
+    private static function computeRecords(string $key): array
+    {
         $seasons = self::seasons();
 
         if (self::isAward($key)) {
@@ -186,6 +200,13 @@ final class CompetitionHistory
      */
     public static function latestChampions(): array
     {
+        // Zapamiętane do następnej zmiany (App\Support\PageCache: koniec sezonu, nagrody, nazwy zespołów).
+        return self::hydrate(PageCache::remember('history:latest-champions', fn () => self::dehydrate(self::computeLatestChampions())));
+    }
+
+    /** Liczy latestChampions() bez pamięci. */
+    private static function computeLatestChampions(): array
+    {
         $season = self::seasons()->first();
         if (! $season) {
             return ['season' => null, 'rows' => []];
@@ -202,6 +223,50 @@ final class CompetitionHistory
         }
 
         return ['season' => $season, 'rows' => $rows];
+    }
+
+    /**
+     * Pamięć podręczna nie przyjmuje obiektów (cache.serializable_classes), więc sezony zapisujemy jako id
+     * i po odczycie zamieniamy z powrotem na modele (jedno zapytanie).
+     */
+    private static function dehydrate(mixed $value): mixed
+    {
+        if ($value instanceof Season) {
+            return ['__season' => $value->id];
+        }
+
+        return is_array($value) ? array_map(self::dehydrate(...), $value) : $value;
+    }
+
+    /**
+     * @template T
+     *
+     * @param  T  $value
+     * @return T
+     */
+    private static function hydrate(mixed $value): mixed
+    {
+        $ids = [];
+        array_walk_recursive($value, function ($v, $k) use (&$ids): void {
+            if ($k === '__season') {
+                $ids[] = $v;
+            }
+        });
+
+        if ($ids === []) {
+            return $value;
+        }
+
+        $seasons = Season::whereIn('id', array_unique($ids))->get()->keyBy('id');
+        $restore = function (mixed $v) use (&$restore, $seasons): mixed {
+            if (is_array($v) && array_keys($v) === ['__season']) {
+                return $seasons[$v['__season']] ?? null;
+            }
+
+            return is_array($v) ? array_map($restore, $v) : $v;
+        };
+
+        return $restore($value);
     }
 
     /** @return Collection<int, Season> zakończone sezony od ostatniego, po id */

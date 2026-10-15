@@ -13,6 +13,7 @@ use App\Models\TeamScore;
 use App\Models\Tip;
 use App\Support\EuropeanCup;
 use App\Support\LegendsLeague;
+use App\Support\PageCache;
 use App\Support\Scoring;
 use App\Support\Squad;
 use DomainException;
@@ -49,6 +50,9 @@ class ScoreMatchday
         }
 
         return DB::transaction(function () use ($matchday): array {
+            // Policzone bloki stron (tabele, mistrzowie) do odświeżenia po zatwierdzeniu zmian.
+            PageCache::flush();
+
             $kickoff = ($matchday->kickoff_at ?? now())->format('Y-m-d H:i:s.u');
 
             $teams = SeasonTeam::where('season_id', $matchday->season_id)->get(['id', 'user_id', 'bot_id']);

@@ -46,6 +46,8 @@ class Roster
 
     private static function placeTeam(int $seasonId, int $userId, League $league): bool
     {
+        PageCache::flush();
+
         $bot = SeasonTeam::where('season_id', $seasonId)
             ->whereNull('user_id')
             ->inLeague($league)
@@ -206,6 +208,7 @@ class Roster
 
         // Bot nie gra w Lidze Legend.
         self::leaveLegends($team);
+        PageCache::flush();
 
         // Nierozliczone typy gracza (kolejki bez wyniku) znikają: ban, nieaktywność albo odejście z gry.
         if ($team->user_id) {

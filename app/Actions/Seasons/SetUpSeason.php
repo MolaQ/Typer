@@ -8,6 +8,7 @@ use App\Models\Bot;
 use App\Models\Season;
 use App\Models\SeasonTeam;
 use App\Support\Audit;
+use App\Support\PageCache;
 use App\Support\Players;
 use App\Support\Roster;
 use DomainException;
@@ -36,6 +37,9 @@ class SetUpSeason
     public function handle(Season $season): array
     {
         return DB::transaction(function () use ($season): array {
+            // Policzone bloki stron (tabele, mistrzowie) do odświeżenia po zatwierdzeniu zmian.
+            PageCache::flush();
+
             $season = Season::query()->lockForUpdate()->findOrFail($season->id);
 
             if ($season->status !== SeasonStatus::Draft) {
