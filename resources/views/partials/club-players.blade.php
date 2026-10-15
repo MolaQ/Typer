@@ -1,10 +1,10 @@
 {{--
-    Zawodnicy klubu (Support\ClubStats::players) jako tabela do porównań (15.10.2026, wcześniej karty): numer, zawodnik, pozycja,
-    doświadczenie w klubie łącznie (pasek względem najlepszego) i dorobek w bieżącym sezonie albo w całej karierze (przełącznik).
-    Statystyki kluczowe dla pozycji są pogrubione, pozostałe wyciszone (B, O: czyste konta i obrona, O też gole; P, N: gole, asysty, atak).
-    Sortowanie kliknięciem w nagłówek (Alpine, atrybuty data-*), filtr pozycji B/O/P/N. Klik w wiersz otwiera okno: suma wszystkich sezonów,
-    a pod nią sezony od ostatniego, każdy rozwijany z meczami od pierwszej kolejki. Używane w zakładce „Moja kadra” na /tips i na profilu bota.
-    Zmienne: $clubPlayers, opcjonalnie $clubTitle.
+    Zawodnicy klubu (Support\ClubStats::players) jako tabela do porównań (15.10.2026, wcześniej karty): numer w kolorze pozycji (legenda pod tabelą),
+    zawodnik (biret = wychowanek), doświadczenie w klubie łącznie (pasek względem najlepszego) i dorobek w bieżącym sezonie albo w całej karierze (przełącznik).
+    Czyste konta tylko przy bramkarzach i obrońcach. Kolumny włączane przyciskami (Alpine `cols`, zapamiętane w localStorage); domyślnie ukryte:
+    doświadczenie z sezonu i status (gotowy / wolny od). Sortowanie kliknięciem w nagłówek (atrybuty data-*), filtr pozycji B/O/P/N.
+    Klik w wiersz otwiera okno: suma wszystkich sezonów, a pod nią sezony od ostatniego, każdy rozwijany z meczami od pierwszej kolejki.
+    Używane w zakładce „Moja kadra” na /tips i na profilu bota. Zmienne: $clubPlayers, opcjonalnie $clubTitle.
 --}}
 @php
     $statCols = [
@@ -17,19 +17,26 @@
         'defense' => [__('Def.'), __('Defence points')],
         'experience' => [__('Exp.'), __('Experience')],
     ];
-    // Kolumny tabeli (sezon albo kariera), bez doświadczenia łącznie, które ma osobną kolumnę
-    $tableCols = ['fielded', 'play_time', 'goals', 'assists', 'clean_sheets', 'attack', 'defense', 'experience'];
-    // Statystyki kluczowe dla pozycji (pogrubione w tabeli)
-    $keyStats = [
-        'goalkeeper' => ['clean_sheets', 'defense'],
-        'defender' => ['clean_sheets', 'defense', 'goals'],
-        'midfielder' => ['goals', 'assists', 'attack'],
-        'forward' => ['goals', 'assists', 'attack'],
+    // Kolumny tabeli (sezon albo kariera); czas gry tylko w oknie zawodnika
+    $tableCols = ['fielded', 'goals', 'assists', 'clean_sheets', 'attack', 'defense', 'experience'];
+    // Przełączniki kolumn: klucz => [etykieta, domyślnie widoczna]
+    $toggles = [
+        'fielded' => [__('Fielded'), true],
+        'goals' => [__('Goals'), true],
+        'assists' => [__('Assists'), true],
+        'clean_sheets' => [__('Clean sheets'), true],
+        'attack' => [__('Attack points'), true],
+        'defense' => [__('Defence points'), true],
+        'cards' => [__('Cards'), true],
+        'experience' => [__('Experience (season or career)'), false],
+        'status' => [__('Status'), false],
     ];
+    // Czyste konto liczy się tylko bramkarzom i obrońcom
+    $sheetPositions = ['goalkeeper', 'defender'];
     $fmt = fn ($v) => \App\Support\ClubStats::format($v);
     $exp = fn ($v) => \App\Support\ClubStats::experience($v);
     $maxExp = max(1, collect($clubPlayers)->max(fn ($c) => $c['career']['experience']) ?: 1);
-    // Barwy pozycji (B/O/P/N)
+    // Barwy pozycji (B/O/P/N): kolor kwadratu z numerem
     $posTone = [
         'goalkeeper' => 'bg-amber-400 text-amber-950',
         'defender' => 'bg-sky-400 text-sky-950',
@@ -37,11 +44,16 @@
         'forward' => 'bg-rose-400 text-rose-950',
     ];
     $posOrder = array_flip(\App\Enums\PlayerPosition::values());
+    $defaults = collect($toggles)->map(fn ($t) => $t[1])->all();
 @endphp
 <div class="space-y-3" x-on:keydown.escape.window="open = null"
     x-data="{
         open: null, season: null, pos: 'all', scope: 'season', sort: 'total', dir: -1,
-        {{-- Sortowanie wierszy według atrybutu data-*: total, number, name, pos albo season-/career- + kolumna --}}
+        cols: Object.assign({{ json_encode($defaults) }}, (() => { try { return JSON.parse(localStorage.getItem('club-cols') || '{}') } catch (e) { return {} } })()),
+        toggle(key) {
+            this.cols[key] = ! this.cols[key];
+            try { localStorage.setItem('club-cols', JSON.stringify(this.cols)) } catch (e) {}
+        },
         sortBy(key) {
             if (this.sort === key) { this.dir = -this.dir } else { this.sort = key; this.dir = ['name', 'number', 'pos'].includes(key) ? 1 : -1 }
             this.apply();
@@ -63,13 +75,13 @@
                 @foreach (['season' => __('This season'), 'career' => __('All seasons')] as $scopeKey => $scopeLabel)
                     <button type="button" x-on:click="scope = '{{ $scopeKey }}'"
                         x-bind:class="scope === '{{ $scopeKey }}' ? 'bg-white text-lech-800 shadow' : 'text-white/80 hover:text-white'"
-                        class="rounded-full px-3 py-1 text-xs font-bold transition">{{ $scopeLabel }}</button>
+                        class="whitespace-nowrap rounded-full px-3 py-1 text-xs font-bold transition">{{ $scopeLabel }}</button>
                 @endforeach
             </div>
         </x-slot:actions>
 
-        {{-- Filtr pozycji --}}
-        <div class="flex flex-wrap items-center justify-between gap-2 border-b border-zinc-200 px-4 py-2.5 dark:border-zinc-700">
+        {{-- Filtr pozycji i przełączniki kolumn --}}
+        <div class="flex flex-wrap items-center gap-2 border-b border-zinc-200 px-4 py-2.5 dark:border-zinc-700">
             <div class="inline-flex rounded-full bg-zinc-100 p-1 dark:bg-white/10">
                 @foreach (['all' => __('Everyone')] + collect(\App\Enums\PlayerPosition::cases())->mapWithKeys(fn ($pos) => [$pos->value => $pos->short()])->all() as $posKey => $posLabel)
                     <button type="button" x-on:click="pos = '{{ $posKey }}'" title="{{ $posKey === 'all' ? $posLabel : \App\Enums\PlayerPosition::from($posKey)->label() }}"
@@ -77,15 +89,22 @@
                         class="min-w-9 rounded-full px-3 py-1 text-xs font-bold transition">{{ $posLabel }}</button>
                 @endforeach
             </div>
-            <span class="text-xs text-zinc-500">{{ __('Key statistics for the position are in bold.') }}</span>
+            <div class="flex flex-wrap items-center gap-1">
+                <span class="me-1 text-[11px] font-semibold uppercase tracking-wide text-zinc-500">{{ __('Columns') }}</span>
+                @foreach ($toggles as $colKey => [$colLabel, $on])
+                    <button type="button" x-on:click="toggle('{{ $colKey }}')"
+                        x-bind:class="cols['{{ $colKey }}'] ? 'border-lech-600 bg-lech-50 text-lech-800 dark:border-lech-400 dark:bg-lech-900/40 dark:text-lech-100' : 'border-zinc-200 text-zinc-400 line-through dark:border-zinc-700'"
+                        class="rounded-full border px-2.5 py-0.5 text-[11px] font-semibold transition">{{ $colLabel }}</button>
+                @endforeach
+            </div>
         </div>
 
         <div class="overflow-x-auto">
-            <table class="w-full min-w-[56rem] text-sm">
+            <table class="w-full text-sm">
                 <thead class="bg-zinc-50 text-[11px] font-bold uppercase tracking-wider text-zinc-500 dark:bg-white/5">
                     <tr>
-                        @foreach (['number' => ['#', __('Number'), 'text-center w-12'], 'name' => [__('Footballer'), __('Footballer'), 'text-left'], 'pos' => [__('Pos.'), __('Position'), 'text-center'], 'total' => [__('Total exp.'), __('Experience in the club, all seasons'), 'text-left w-36']] as $sortKey => [$short, $long, $align])
-                            <th class="{{ $align }} px-2 py-2 first:ps-4" title="{{ $long }}">
+                        @foreach (['number' => ['#', __('Number'), 'text-center w-12'], 'name' => [__('Footballer'), __('Footballer'), 'text-left'], 'total' => [__('Total exp.'), __('Experience in the club, all seasons'), 'text-left w-32']] as $sortKey => [$short, $long, $align])
+                            <th class="{{ $align }} whitespace-nowrap px-2 py-2 first:ps-4" title="{{ $long }}">
                                 <button type="button" x-on:click="sortBy('{{ $sortKey }}')" class="inline-flex items-center gap-1 uppercase hover:text-lech-700 dark:hover:text-lech-300"
                                     x-bind:class="sort === '{{ $sortKey }}' && 'text-lech-700 dark:text-lech-300'">
                                     {{ $short }}<span x-show="sort === '{{ $sortKey }}'" x-text="dir > 0 ? '▲' : '▼'" class="text-[9px]"></span>
@@ -93,15 +112,15 @@
                             </th>
                         @endforeach
                         @foreach ($tableCols as $col)
-                            <th class="px-2 py-2 text-right" title="{{ $statCols[$col][1] }}">
+                            <th x-show="cols['{{ $col }}']" class="whitespace-nowrap px-2 py-2 text-right" title="{{ $statCols[$col][1] }}">
                                 <button type="button" x-on:click="sortBy('{{ $col }}')" class="inline-flex items-center gap-1 uppercase hover:text-lech-700 dark:hover:text-lech-300"
                                     x-bind:class="sort === '{{ $col }}' && 'text-lech-700 dark:text-lech-300'">
                                     <span x-show="sort === '{{ $col }}'" x-text="dir > 0 ? '▲' : '▼'" class="text-[9px]"></span>{{ $statCols[$col][0] }}
                                 </button>
                             </th>
                         @endforeach
-                        <th class="px-2 py-2 text-center" title="{{ __('Yellow and red cards') }}">{{ __('Cards') }}</th>
-                        <th class="px-4 py-2 text-right">{{ __('Status') }}</th>
+                        <th x-show="cols.cards" class="px-2 py-2 text-center" title="{{ __('Yellow and red cards') }}">{{ __('Cards') }}</th>
+                        <th x-show="cols.status" x-cloak class="px-4 py-2 text-right">{{ __('Status') }}</th>
                     </tr>
                 </thead>
                 <tbody x-ref="body" class="divide-y divide-zinc-100 dark:divide-white/5">
@@ -111,50 +130,49 @@
                             $careerExp = $club['career']['experience'];
                             $share = (int) round(100 * $careerExp / $maxExp);
                             $idle = $club['career']['fielded'] == 0;
-                            $key = $keyStats[$p->position->value] ?? [];
+                            $sheets = in_array($p->position->value, $sheetPositions, true);
                         @endphp
                         <tr wire:key="club-player-{{ $p->id }}" data-club-player x-show="pos === 'all' || pos === '{{ $p->position->value }}'"
                             x-on:click="open = {{ $p->id }}; season = null"
                             data-total="{{ $careerExp }}" data-number="{{ $p->number ?? 999 }}" data-name="{{ $p->name }}" data-pos="{{ $posOrder[$p->position->value] ?? 9 }}"
-                            @foreach ($tableCols as $col) data-season-{{ $col }}="{{ $club['season'][$col] }}" data-career-{{ $col }}="{{ $club['career'][$col] }}" @endforeach
-                            class="{{ $idle ? 'text-zinc-400 dark:text-zinc-500' : '' }} cursor-pointer transition hover:bg-lech-50/70 dark:hover:bg-white/5">
+                            @foreach ($tableCols as $col) data-season-{{ $col }}="{{ $col === 'clean_sheets' && ! $sheets ? -1 : $club['season'][$col] }}" data-career-{{ $col }}="{{ $col === 'clean_sheets' && ! $sheets ? -1 : $club['career'][$col] }}" @endforeach
+                            class="{{ $idle ? 'text-zinc-400 dark:text-zinc-500' : 'text-zinc-700 dark:text-zinc-200' }} cursor-pointer transition hover:bg-lech-50/70 dark:hover:bg-white/5">
                             <td class="ps-4 pe-2 py-2 text-center">
-                                <span class="grid size-8 place-items-center rounded-lg bg-lech-800 text-xs font-black tabular-nums text-white">{{ $p->number ?? '–' }}</span>
+                                <span class="{{ $posTone[$p->position->value] ?? 'bg-zinc-200 text-zinc-800' }} grid size-8 place-items-center rounded-lg text-xs font-black tabular-nums" title="{{ $p->position->label() }}">{{ $p->number ?? '–' }}</span>
                             </td>
                             <td class="px-2 py-2">
-                                <span class="block font-semibold {{ $idle ? '' : 'text-zinc-900 dark:text-white' }}">{{ $p->name }}</span>
-                                @if ($p->is_academy)
-                                    <span class="text-[10px] font-semibold uppercase tracking-wide text-lech-600 dark:text-lech-300">{{ __('Academy') }}</span>
-                                @endif
-                            </td>
-                            <td class="px-2 py-2 text-center">
-                                <span class="{{ $posTone[$p->position->value] ?? 'bg-white text-zinc-900' }} inline-grid size-7 place-items-center rounded-full text-[11px] font-black" title="{{ $p->position->label() }}">{{ $p->position->short() }}</span>
+                                <span class="flex items-center gap-1.5 whitespace-nowrap font-semibold {{ $idle ? '' : 'text-zinc-900 dark:text-white' }}">
+                                    {{ $p->name }}
+                                    @if ($p->is_academy)
+                                        <flux:icon.academic-cap variant="micro" class="shrink-0 text-lech-600 dark:text-lech-300" title="{{ __('Academy') }}" />
+                                    @endif
+                                </span>
                             </td>
                             <td class="px-2 py-2">
-                                <div class="font-black tabular-nums text-lech-700 dark:text-lech-300">{{ $exp($careerExp) }}</div>
-                                <div class="mt-1 h-1 w-28 overflow-hidden rounded-full bg-zinc-100 dark:bg-white/10">
+                                <div class="font-semibold tabular-nums text-lech-700 dark:text-lech-300">{{ $exp($careerExp) }}</div>
+                                <div class="mt-1 h-1 w-24 overflow-hidden rounded-full bg-zinc-100 dark:bg-white/10">
                                     <div class="h-full rounded-full bg-gradient-to-r from-lech-400 to-lech-800" style="width: {{ $share }}%"></div>
                                 </div>
                             </td>
                             @foreach ($tableCols as $col)
-                                @php
-                                    $isKey = in_array($col, $key, true);
-                                    $cellClass = $isKey ? 'font-bold' : ($col === 'experience' ? 'font-semibold text-lech-700 dark:text-lech-300' : 'text-zinc-500 dark:text-zinc-400');
-                                @endphp
-                                <td class="{{ $cellClass }} {{ $isKey ? 'bg-lech-50/60 dark:bg-lech-900/20' : '' }} px-2 py-2 text-right tabular-nums">
-                                    @foreach (['season', 'career'] as $scopeKey)
-                                        @php
-                                            $v = $club[$scopeKey][$col];
-                                        @endphp
-                                        <span x-show="scope === '{{ $scopeKey }}'" @if ($scopeKey === 'career') x-cloak @endif class="{{ $v ? '' : 'text-zinc-300 dark:text-zinc-600' }}">{{ $col === 'experience' ? $exp($v) : $fmt($v) }}</span>
-                                    @endforeach
+                                <td x-show="cols['{{ $col }}']" @if ($col === 'experience') x-cloak @endif class="px-2 py-2 text-right tabular-nums">
+                                    @if ($col === 'clean_sheets' && ! $sheets)
+                                        <span class="text-zinc-300 dark:text-zinc-600">·</span>
+                                    @else
+                                        @foreach (['season', 'career'] as $scopeKey)
+                                            @php
+                                                $v = $club[$scopeKey][$col];
+                                            @endphp
+                                            <span x-show="scope === '{{ $scopeKey }}'" @if ($scopeKey === 'career') x-cloak @endif class="{{ $v ? '' : 'text-zinc-300 dark:text-zinc-600' }}">{{ $col === 'experience' ? $exp($v) : $fmt($v) }}</span>
+                                        @endforeach
+                                    @endif
                                 </td>
                             @endforeach
-                            <td class="px-2 py-2 text-center text-xs tabular-nums">
+                            <td x-show="cols.cards" class="px-2 py-2 text-center text-xs tabular-nums">
                                 <span x-show="scope === 'season'">@include('partials.card-counts', ['yellow' => $club['season']['yellow'], 'red' => $club['season']['red']])</span>
                                 <span x-show="scope === 'career'" x-cloak>@include('partials.card-counts', ['yellow' => $club['career']['yellow'], 'red' => $club['career']['red']])</span>
                             </td>
-                            <td class="px-4 py-2 text-right text-xs">
+                            <td x-show="cols.status" x-cloak class="px-4 py-2 text-right text-xs">
                                 @if ($club['free_at'])
                                     <span class="{{ \App\Support\Squad::lockColor(\App\Support\Squad::hoursLeft($club['free_at'])) }} whitespace-nowrap rounded-full px-2 py-0.5 text-[10px] font-bold">
                                         {{ __('free from :date', ['date' => \Illuminate\Support\Carbon::createFromTimestamp($club['free_at'], config('app.timezone'))->format('d.m, H:i')]) }}
@@ -167,6 +185,15 @@
                     @endforeach
                 </tbody>
             </table>
+        </div>
+
+        {{-- Legenda: kolor numeru = pozycja, biret = wychowanek --}}
+        <div class="flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-zinc-200 px-4 py-2.5 text-xs text-zinc-500 dark:border-zinc-700">
+            @foreach (\App\Enums\PlayerPosition::cases() as $pos)
+                <span class="inline-flex items-center gap-1.5"><span class="{{ $posTone[$pos->value] }} size-3 rounded"></span>{{ $pos->label() }}</span>
+            @endforeach
+            <span class="inline-flex items-center gap-1.5"><flux:icon.academic-cap variant="micro" class="text-lech-600 dark:text-lech-300" />{{ __('Academy') }}</span>
+            <span class="inline-flex items-center gap-1.5"><span class="text-zinc-300">·</span>{{ __('Clean sheets count only for goalkeepers and defenders') }}</span>
         </div>
     </x-lech-panel>
     <flux:text class="text-xs">{{ __('Each club has its own Lech players: the numbers come only from matches that took place in matchdays in which this club fielded the player. Click a player to see all seasons, then a season to see its matches.') }}</flux:text>

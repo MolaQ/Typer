@@ -375,7 +375,7 @@ new class extends Component {
             return;
         }
 
-        $placed = DB::transaction(fn() => $this->placePlayer($user->id, $league));
+        $placed = DB::transaction(fn() => $this->placePlayer($user->id, $league), Roster::ATTEMPTS);
 
         if (!$placed) {
             Flux::toast(text: __('There are no bots in :league. Nothing was changed.', ['league' => $league->label()]), variant: 'warning');

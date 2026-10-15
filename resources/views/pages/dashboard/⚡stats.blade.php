@@ -116,7 +116,7 @@ new class extends Component {
         $placed = 0;
 
         foreach (\App\Support\Players::unlisted($season->id)->orderBy('created_at')->orderBy('id')->get() as $user) {
-            if (DB::transaction(fn() => \App\Support\Roster::place($season->id, $user->id, \App\Enums\League::Podworkowa))) {
+            if (DB::transaction(fn() => \App\Support\Roster::place($season->id, $user->id, \App\Enums\League::Podworkowa), \App\Support\Roster::ATTEMPTS)) {
                 $placed++;
                 Audit::log('season_list.player_assigned', $user, [], ['league' => \App\Enums\League::Podworkowa->label()], ($user->team_name ?: $user->name) . ' (' . $season->title . ')');
             }

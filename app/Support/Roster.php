@@ -28,6 +28,9 @@ use Illuminate\Support\Facades\DB;
  */
 class Roster
 {
+    /** Próby transakcji zmieniającej listę (Laravel powtarza ją po zakleszczeniu). */
+    public const ATTEMPTS = 3;
+
     /**
      * Wstawia gracza do ligi. Liga 1-10 bez botów: false (nic się nie zmienia).
      * Liga podwórkowa bez botów: gracz na koniec listy.
@@ -47,6 +50,7 @@ class Roster
     private static function placeTeam(int $seasonId, int $userId, League $league): bool
     {
         PageCache::flush();
+        self::lockSeason($seasonId);
 
         $bot = SeasonTeam::where('season_id', $seasonId)
             ->whereNull('user_id')
@@ -97,6 +101,17 @@ class Roster
         }
 
         return false;
+    }
+
+    /**
+     * Zmiany listy sezonu jedna po drugiej (15.10.2026): blokada wiersza sezonu przed blokadami miejsc. Bez niej dwa
+     * równoczesne zapisy (np. dwa kliknięcia, zmiana roli w trakcie dopisywania) blokowały zakresy season_teams
+     * w różnej kolejności i MySQL zgłaszał zakleszczenie (1213). Sezon blokują też SetUpSeason, ApproveSeason i FinishSeason,
+     * więc kolejność blokad jest wszędzie ta sama: najpierw sezon, potem lista. Działa w transakcji wołającego.
+     */
+    private static function lockSeason(int $seasonId): void
+    {
+        Season::query()->whereKey($seasonId)->lockForUpdate()->first(['id']);
     }
 
     /**
@@ -201,6 +216,8 @@ class Roster
      */
     public static function release(SeasonTeam $team): bool
     {
+        self::lockSeason($team->season_id);
+
         $bot = Bot::query()
             ->whereNotIn('id', SeasonTeam::where('season_id', $team->season_id)->whereNotNull('bot_id')->select('bot_id'))
             ->bestFirst()
@@ -258,7 +275,7 @@ class Roster
             ->get();
 
         foreach ($teams as $team) {
-            DB::transaction(fn () => self::release($team));
+            DB::transaction(fn () => self::release($team), self::ATTEMPTS);
         }
     }
 
@@ -326,7 +343,7 @@ class Roster
                         Audit::log('season_list.player_released', $user, [], [], $name.' ('.$season->title.')');
                     }
                 }
-            });
+            }, self::ATTEMPTS);
         }
 
         return ['added' => $added, 'released' => $released];
