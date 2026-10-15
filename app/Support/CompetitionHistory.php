@@ -18,15 +18,15 @@ use Illuminate\Support\Str;
 /**
  * Historia rozgrywek i rekordy (strona /history): triumfatorzy sezon po sezonie i rekordy wszech czasów
  * dla każdych rozgrywek (klucz trofeum: league_1…league_11, cup, champions, europa, conference, legends)
- * oraz nagród indywidualnych (mvp, golden_ball, golden_gloves). Tylko zakończone sezony.
+ * oraz nagród indywidualnych (mvp, golden_ball, golden_boot, golden_gloves). Tylko zakończone sezony.
  * Zespół w rekordach to właściciel miejsca na koniec sezonu (gracz albo bot, final_standings.user_id/bot_id).
  */
 final class CompetitionHistory
 {
-    public const AWARDS = ['mvp', 'golden_ball', 'golden_gloves'];
+    public const AWARDS = ['mvp', 'golden_ball', 'golden_boot', 'golden_gloves'];
 
     /** Rozgrywki pokazywane w „Ostatnich mistrzach” na stronie głównej (w kolejności ważności). */
-    public const HIGHLIGHTS = ['legends', 'league_1', 'cup', 'champions', 'europa', 'conference', 'mvp', 'golden_ball', 'golden_gloves'];
+    public const HIGHLIGHTS = ['legends', 'league_1', 'cup', 'champions', 'europa', 'conference', 'mvp', 'golden_ball', 'golden_boot', 'golden_gloves'];
 
     /** @var array<string, array{name: string, url: string|null, bot: bool}> */
     private static array $owners = [];
@@ -136,8 +136,8 @@ final class CompetitionHistory
 
         if (self::isAward($key)) {
             $awards = HallOfFameAward::where('kind', $key)->whereIn('season_id', $seasons->keys())->get();
-            $winners = $awards->filter(fn ($a) => ($a->meta['place'] ?? 1) === 1);
-            $metric = ['mvp' => 'exact', 'golden_ball' => 'goals', 'golden_gloves' => 'gloves'][$key];
+            $winners = $awards; // jedna nagroda na sezon (meta.place to miejsce w lidze, nie w klasyfikacji nagrody)
+            $metric = ['mvp' => 'mvp', 'golden_ball' => 'goals', 'golden_boot' => 'boot', 'golden_gloves' => 'gloves'][$key];
 
             return array_values(array_filter([
                 self::top(__('Most wins of the award'), 'trophy', $winners, fn ($rows) => $rows->count()),
@@ -243,8 +243,11 @@ final class CompetitionHistory
     {
         return match ($key) {
             'golden_ball' => __(':count goals', ['count' => $meta['goals'] ?? 0]),
+            'golden_boot' => __('Attack points: :count', ['count' => $meta['boot'] ?? 0]),
             'golden_gloves' => __('Clean sheets: :count', ['count' => $meta['gloves'] ?? 0]),
-            default => __('Exact tips: :count', ['count' => $meta['exact'] ?? 0]),
+            default => __(':count pts (outcomes :outcomes, attack :attack, defence :defense)', [
+                'count' => $meta['mvp'] ?? 0, 'outcomes' => $meta['outcomes'] ?? 0, 'attack' => $meta['attack'] ?? 0, 'defense' => $meta['defense'] ?? 0,
+            ]),
         };
     }
 

@@ -48,11 +48,11 @@ final class HallOfFame
         'legends_win' => 2, 'legends_draw' => 1, 'legends_survived' => 10,
         'legends_champion' => 500, 'legends_second' => 250, 'legends_third' => 150,
         // Nagrody indywidualne sezonu (gracze i boty, przy remisie wyższe miejsce w lidze).
-        'mvp' => 400, 'golden_ball' => 360, 'golden_gloves' => 330,
+        'mvp' => 400, 'golden_ball' => 360, 'golden_boot' => 345, 'golden_gloves' => 330,
     ];
 
     /** Klucze nagród indywidualnych (te same w trofeach i w punktacji). */
-    public const INDIVIDUAL = ['mvp', 'golden_ball', 'golden_gloves'];
+    public const INDIVIDUAL = ['mvp', 'golden_ball', 'golden_boot', 'golden_gloves'];
 
     /** @var array<string, float>|null */
     private static ?array $values = null;
@@ -152,6 +152,7 @@ final class HallOfFame
             __('Individual awards') => [
                 'mvp' => __('Season MVP'),
                 'golden_ball' => __('Golden Ball'),
+                'golden_boot' => __('Golden Boot'),
                 'golden_gloves' => __('Golden Gloves'),
             ],
         ];
@@ -159,7 +160,7 @@ final class HallOfFame
 
     /**
      * Trofea do gabloty: klucz => nazwa, w kolejności ważności (tak je pokazujemy):
-     * Liga Legend, Ekstraklasa, Puchar Polski, MVP, Złota Piłka, Złote Rękawice, Liga Mistrzów, Liga Europy,
+     * Liga Legend, Ekstraklasa, Puchar Polski, MVP, Złota Piłka, Złoty But, Złote Rękawice, Liga Mistrzów, Liga Europy,
      * Liga Konferencji, ligi od I ligi do podwórkowej, królowie strzelców lig (od Ekstraklasy).
      *
      * @return array<string, string>
@@ -172,6 +173,7 @@ final class HallOfFame
             CompetitionType::Cup->value => CompetitionType::Cup->label(),
             'mvp' => __('Season MVP'),
             'golden_ball' => __('Golden Ball'),
+            'golden_boot' => __('Golden Boot'),
             'golden_gloves' => __('Golden Gloves'),
             CompetitionType::Champions->value => CompetitionType::Champions->label(),
             CompetitionType::Europa->value => CompetitionType::Europa->label(),
