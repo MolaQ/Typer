@@ -308,8 +308,8 @@ final class Rivals
     /**
      * Mecze widza z rywalem jedną stroną (widz gospodarzem albo gościem).
      *
-     * @param  list<int>  $mineIds  wpisy rozgrywek widza
-     * @param  list<int>  $theirIds  wpisy rozgrywek rywala
+     * @param  array<int, int>  $mineIds  wpisy rozgrywek widza
+     * @param  array<int, int>  $theirIds  wpisy rozgrywek rywala
      * @param  literal-string  $select
      */
     private static function h2hSide(int $viewerId, SeasonTeam $rival, array $mineIds, array $theirIds, string $mine, string $theirs, string $select): QueryBuilder
