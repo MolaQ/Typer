@@ -289,13 +289,13 @@ final class PlayerStats
     }
 
     /**
-     * Moje skalpy (premium): rywale (gracze i boty), z którymi gracz ma lepszy bilans bezpośredni (więcej wygranych
+     * Moje skalpy (premium): rywale-gracze (bez botów i zbanowanych), z którymi gracz ma lepszy bilans bezpośredni (więcej wygranych
      * niż porażek) ze wszystkich sezonów i rozgrywek, od najwyżej w rankingu Hall of Fame (potem bilans, potem nazwa).
      *
      * $blacklist = true: Czarna lista (premium), czyli odwrotnie: rywale z gorszym dla gracza bilansem
      * (więcej porażek niż wygranych), od najgorszego bilansu (potem ranking Hall of Fame).
      *
-     * @return array<int, array{name: string, owner: ?string, user: ?User, url: string, bot: bool, won: int, drawn: int, lost: int, hof: float}>
+     * @return list<array{name: string, owner: string, url: string, bot: bool, won: int, drawn: int, lost: int, hof: float}>
      */
     public static function scalps(User $user, bool $blacklist = false): array
     {
