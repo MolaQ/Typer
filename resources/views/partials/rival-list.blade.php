@@ -1,7 +1,7 @@
 {{--
     Lista rywali z bilansem bezpośrednim (Moje skalpy i Czarna lista na /tips, PlayerStats::scalps), 16.10.2026:
     baner z podsumowaniem (rywale, bilans łączny, mecze), podium pierwszej trójki w stylu Hall of Fame,
-    dalej siatka kart z miejscem, zespołem, punktami HoF i paskiem W–R–P. Szybki filtr nazwy w Alpine (od 2 liter),
+    dalej siatka kart z miejscem, zespołem, punktami HoF i paskiem W–R–P. Wyszukiwarka nad podium w Alpine (od 2 liter, zespół albo gracz, przeszukuje wszystkich i chowa podium),
     najpierw 24 karty, reszta po „Pokaż wszystkie”. Tylko gracze (bez botów i zbanowanych).
     Zmienne: $rivals, $title, $subtitle, $icon, $tone ('scalps' albo 'blacklist').
 --}}
@@ -12,7 +12,7 @@
     $lost = array_sum(array_column($rivals, 'lost'));
     $games = max(1, $won + $drawn + $lost);
     $podium = array_slice($rivals, 0, 3);
-    $rest = array_slice($rivals, 3, null, true);
+    $rest = count($rivals) > 3 ? $rivals : [];
     $medal = [
         0 => ['ring' => 'ring-amber-400', 'badge' => 'bg-amber-400 text-amber-950', 'order' => 'sm:order-2 sm:-translate-y-3'],
         1 => ['ring' => 'ring-zinc-300', 'badge' => 'bg-zinc-300 text-zinc-800', 'order' => 'sm:order-1'],
@@ -52,8 +52,15 @@
         </div>
     </div>
 
+    {{-- Wyszukiwarka: od 2 liter przeszukuje wszystkich (także podium, które wtedy się chowa) --}}
+    @if (count($rivals) > 3)
+        <div class="rounded-2xl border border-zinc-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900">
+            <flux:input x-model="q" icon="magnifying-glass" :placeholder="__('Search team or player (min. 2 letters)')" />
+        </div>
+    @endif
+
     {{-- Podium --}}
-    <div class="grid gap-3 pt-3 sm:grid-cols-3 sm:items-end">
+    <div class="grid gap-3 pt-3 sm:grid-cols-3 sm:items-end" x-show="q.length < 2">
         @foreach ($podium as $i => $rival)
             @php
                 $m = $medal[$i];
@@ -91,18 +98,13 @@
     @if ($rest !== [])
         {{-- Pozostali: filtr i siatka kart --}}
         <x-lech-panel :title="__('Other rivals')" icon="users">
-            <x-slot:actions>
-                <div class="w-48 sm:w-64">
-                    <flux:input size="sm" x-model="q" icon="magnifying-glass" :placeholder="__('Search team (min. 2 letters)')" />
-                </div>
-            </x-slot:actions>
             <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
                 @foreach ($rest as $i => $rival)
                     @php
                         $g = max(1, $rival['won'] + $rival['drawn'] + $rival['lost']);
                     @endphp
                     <a href="{{ $rival['url'] }}" wire:navigate wire:key="{{ $tone }}-{{ $i }}"
-                        x-show="match(@js($rival['name'].' '.$rival['owner'])) && (all || q.length >= 2 || {{ $i < $limit ? 'true' : 'false' }})" @if ($i >= $limit) x-cloak @endif
+                        x-show="q.length >= 2 ? match(@js($rival['name'].' '.$rival['owner'])) : {{ $i < 3 ? 'false' : ($i < $limit ? 'true' : 'all') }}" @if ($i < 3 || $i >= $limit) x-cloak @endif
                         class="group flex items-center gap-3 rounded-xl border border-zinc-200 bg-white p-3 transition hover:-translate-y-0.5 hover:border-lech-300 hover:shadow-md dark:border-zinc-700 dark:bg-zinc-900 dark:hover:border-lech-500">
                         <span class="grid size-9 shrink-0 place-items-center rounded-full bg-lech-50 text-xs font-black tabular-nums text-lech-800 dark:bg-white/10 dark:text-lech-200">{{ $i + 1 }}</span>
                         <div class="min-w-0 flex-1">
