@@ -928,17 +928,6 @@ final class PlayerStats
     }
 
     /**
-     * Miejsca z list sezonów, którymi gracz kiedykolwiek grał: obecne i te, które po odejściu przejął bot
-     * (z rozliczeń kolejek, team_scores.user_id).
-     *
-     * @return Collection<int, int>
-     */
-    private static function userTeamIds(User $user): Collection
-    {
-        return self::ownerTeamIds($user->id, null);
-    }
-
-    /**
      * Miejsca, którymi grał gracz albo bot (obecne i z rozliczeń kolejek).
      *
      * @return Collection<int, int>
