@@ -263,8 +263,8 @@ final class Rivals
         // Liczą się tylko kolejki, w których oba miejsca zajmowali ci właściciele (gracz za bota nie przejmuje meczów bota):
         // strony meczu z team_scores kolejki, całość w SQL (16.10.2026).
         // Wpisy rozgrywek obu stron zawężają mecze (indeksy home/away_entry_id), właściciela kolejki sprawdza team_scores.
-        $mine = CompetitionEntry::whereIn('season_team_id', PlayerStats::ownerTeamIds($viewer->id, null))->pluck('id')->all();
-        $theirs = CompetitionEntry::whereIn('season_team_id', PlayerStats::ownerTeamIds($rival->user_id, $rival->bot_id))->pluck('id')->all();
+        $mine = CompetitionEntry::whereIn('season_team_id', PlayerStats::ownerTeamIds($viewer->id, null))->pluck('id')->map(fn ($id) => (int) $id)->values()->all();
+        $theirs = CompetitionEntry::whereIn('season_team_id', PlayerStats::ownerTeamIds($rival->user_id, $rival->bot_id))->pluck('id')->map(fn ($id) => (int) $id)->values()->all();
 
         if ($mine === [] || $theirs === []) {
             return ['won' => 0, 'drawn' => 0, 'lost' => 0, 'meetings' => []];
