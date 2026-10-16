@@ -22,6 +22,7 @@ use App\Support\EuropeanCup;
 use App\Support\HallOfFame;
 use App\Support\PageCache;
 use App\Support\Roster;
+use App\Support\SeasonArchive;
 use App\Support\Standings;
 use App\Support\SystemFeed;
 use DomainException;
@@ -52,6 +53,8 @@ class FinishSeason
         $result = DB::transaction(function () use ($season, $note): array {
             // Policzone bloki stron (tabele, mistrzowie) do odświeżenia po zatwierdzeniu zmian.
             PageCache::flush();
+            // Gotowe dane sezonu (season_archives) do policzenia od nowa.
+            SeasonArchive::forget($season->id);
 
             $season = Season::query()->lockForUpdate()->findOrFail($season->id);
 

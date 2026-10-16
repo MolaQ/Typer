@@ -545,9 +545,6 @@ final class PlayerStats
         return $minutes === null ? '—' : number_format($minutes, 0, ',', ' ').' min';
     }
 
-    /** @var array<int, array<int, array<string, mixed>>> */
-    private static array $seasonCache = [];
-
     /**
      * Statystyki wszystkich zespołów ludzi w sezonie: id zespołu => statystyki.
      *
@@ -555,10 +552,14 @@ final class PlayerStats
      */
     private static function seasonAll(Season $season): array
     {
-        if (isset(self::$seasonCache[$season->id])) {
-            return self::$seasonCache[$season->id];
-        }
+        // Zakończony sezon liczy się raz i leży gotowy w season_archives (16.10.2026), bieżący w PageCache.
+        /** @var array<int, array<string, mixed>> */
+        return SeasonArchive::remember($season->id, 'player-stats', fn (): array => self::computeSeasonAll($season));
+    }
 
+    /** @return array<int, array<string, mixed>> */
+    private static function computeSeasonAll(Season $season): array
+    {
         $userOfTeam = SeasonTeam::where('season_id', $season->id)->whereNotNull('user_id')->pluck('user_id', 'id');
         $teamIds = $userOfTeam->keys();
 
@@ -608,7 +609,7 @@ final class PlayerStats
             ] + ($duels[$teamId] ?? self::noDuels()) + $m;
         }
 
-        return self::$seasonCache[$season->id] = $out;
+        return $out;
     }
 
     /**
@@ -882,30 +883,48 @@ final class PlayerStats
      */
     private static function matches(User $user): array
     {
-        $teamOfEntry = CompetitionEntry::whereIn('season_team_id', self::userTeamIds($user))->pluck('season_team_id', 'id');
-        $entries = $teamOfEntry->keys();
-        $fixtures = Fixture::query()
-            ->join('competitions', 'competitions.id', '=', 'fixtures.competition_id')
-            ->join('seasons', 'seasons.id', '=', 'competitions.season_id')
-            ->where(fn ($q) => $q->whereIn('home_entry_id', $entries)->orWhereIn('away_entry_id', $entries))
-            ->whereNotNull('home_goals')
-            ->orderBy('seasons.number')->orderBy('fixtures.round')->orderBy('fixtures.id')
-            ->select('fixtures.*', 'competitions.season_id as fixture_season_id')
+        // Całość w SQL (16.10.2026): strona gracza = miejsce, którym grał w tej kolejce (team_scores.user_id).
+        $rows = DB::query()->fromSub(
+            self::ownSide($user->id, 'home_entry_id', 'se.number as sn, f.round as rnd, f.id as fid, f.home_goals as mine, f.away_goals as theirs,
+                CASE WHEN f.winner_entry_id IS NULL THEN 0 WHEN f.winner_entry_id = f.home_entry_id THEN 1 ELSE -1 END as tb')
+                ->unionAll(self::ownSide($user->id, 'away_entry_id', 'se.number as sn, f.round as rnd, f.id as fid, f.away_goals as mine, f.home_goals as theirs,
+                CASE WHEN f.winner_entry_id IS NULL THEN 0 WHEN f.winner_entry_id = f.away_entry_id THEN 1 ELSE -1 END as tb')),
+            'x')
+            ->orderBy('sn')->orderBy('rnd')->orderBy('fid')
             ->get();
 
         $results = [];
-        foreach ($fixtures as $fixture) {
-            $home = $entries->contains($fixture->home_entry_id);
-            $entryId = (int) ($home ? $fixture->home_entry_id : $fixture->away_entry_id);
-
-            if (! Ownership::playedBy((int) $fixture->getAttribute('fixture_season_id'), (int) $teamOfEntry[$entryId], (int) $fixture->round, $user->id)) {
-                continue;
-            }
-
-            $results[] = self::result($fixture, $entryId, $home);
+        foreach ($rows as $row) {
+            $mine = (int) $row->mine;
+            $theirs = (int) $row->theirs;
+            // Remis rozstrzygnięty czasem typu (puchar) liczymy jako wygraną albo porażkę.
+            $outcome = $mine === $theirs && (int) $row->tb !== 0
+                ? ((int) $row->tb > 0 ? 'W' : 'L')
+                : ($mine > $theirs ? 'W' : ($mine === $theirs ? 'D' : 'L'));
+            $results[] = [$outcome, $mine, $theirs];
         }
 
         return self::matchSummary($results);
+    }
+
+    /**
+     * Mecze gracza jedną stroną (gospodarz albo gość), także z wirtualnym Lechem w podwórkowej.
+     *
+     * @param  literal-string  $select
+     */
+    private static function ownSide(int $userId, string $mine, string $select): QueryBuilder
+    {
+        return DB::table('fixtures as f')
+            ->join('competitions as c', 'c.id', '=', 'f.competition_id')
+            ->join('seasons as se', 'se.id', '=', 'c.season_id')
+            ->join('matchdays as fm', fn (JoinClause $j) => $j->on('fm.season_id', '=', 'c.season_id')->on('fm.number', '=', 'f.round'))
+            ->join('competition_entries as me', 'me.id', '=', 'f.'.$mine)
+            ->join('team_scores as ms', fn (JoinClause $j) => $j->on('ms.matchday_id', '=', 'fm.id')
+                ->on('ms.season_team_id', '=', 'me.season_team_id')
+                ->on('ms.score_set', '=', DB::raw(GameStars::SCORE_SET_SQL)))
+            ->whereNotNull('f.home_goals')
+            ->where('ms.user_id', $userId)
+            ->selectRaw($select);
     }
 
     /**

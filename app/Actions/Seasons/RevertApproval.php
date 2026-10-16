@@ -9,6 +9,7 @@ use App\Models\Fixture;
 use App\Models\Season;
 use App\Support\Audit;
 use App\Support\PageCache;
+use App\Support\SeasonArchive;
 use DomainException;
 use Illuminate\Support\Facades\DB;
 
@@ -26,6 +27,8 @@ class RevertApproval
         DB::transaction(function () use ($season): void {
             // Policzone bloki stron (tabele, mistrzowie) do odświeżenia po zatwierdzeniu zmian.
             PageCache::flush();
+            // Gotowe dane sezonu (season_archives) do policzenia od nowa.
+            SeasonArchive::forget($season->id);
 
             $season = Season::query()->lockForUpdate()->findOrFail($season->id);
 

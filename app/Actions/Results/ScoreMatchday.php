@@ -16,6 +16,7 @@ use App\Support\GameStars;
 use App\Support\LegendsLeague;
 use App\Support\PageCache;
 use App\Support\Scoring;
+use App\Support\SeasonArchive;
 use App\Support\Squad;
 use DomainException;
 use Illuminate\Support\Facades\DB;
@@ -53,6 +54,8 @@ class ScoreMatchday
         return DB::transaction(function () use ($matchday): array {
             // Policzone bloki stron (tabele, mistrzowie) do odświeżenia po zatwierdzeniu zmian.
             PageCache::flush();
+            // Gotowe dane sezonu (season_archives) do policzenia od nowa.
+            SeasonArchive::forget($matchday->season_id);
             // Gwiazdy gry: gotowe sumy zawodników sezonu po zatwierdzeniu wyników.
             DB::afterCommit(fn () => GameStars::rebuild($matchday->season_id));
 
