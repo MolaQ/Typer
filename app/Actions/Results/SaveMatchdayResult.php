@@ -2,38 +2,54 @@
 
 namespace App\Actions\Results;
 
+use App\Actions\Competitions\DrawNextSwissRound;
+use App\Actions\Seasons\AwardHallOfFame;
 use App\Enums\MatchdayStatus;
 use App\Enums\SeasonStatus;
 use App\Models\Matchday;
-use App\Models\MatchdayQuestion;
-use App\Models\TipAnswer;
 use App\Support\Audit;
+use App\Support\LegendsLeague;
+use App\Support\MatchReport;
+use App\Support\SystemFeed;
 use App\Support\TipRules;
 use DomainException;
 use Illuminate\Support\Facades\DB;
 
 /**
- * Admin wpisuje wynik meczu Lecha (po 90 minutach, Lech : rywal) i poprawne odpowiedzi na wszystkie
- * pytania kolejki (regulamin, punkt 11). Kolejka przechodzi w stan "rozegrana" i od razu się przelicza.
+ * Admin wpisuje wynik meczu Lecha (po 90 minutach, Lech : rywal, regulamin, punkt 11). Wynik zapisuje się
+ * od razu (saveScore), a przeliczenie
+ * (recalculate) ustawia kolejkę na „rozegrana” i liczy punkty. Kolejka już przeliczona przelicza się
+ * od nowa po każdej zmianie (robi to strona wyników).
  *
  * Zasady:
  *  - tylko w aktywnym sezonie, po godzinie meczu, dla kolejki nieprzełożonej,
  *  - kolejki po kolei: poprzednia musi mieć wynik (puchar potrzebuje zwycięzców poprzedniej rundy),
- *  - poprawka jest możliwa, dopóki następna kolejka nie ma wyniku; przelicza kolejkę od nowa,
- *  - „brak odpowiedzi” przy pytaniu anuluje je: odpowiedzi wszystkich graczy na to pytanie są usuwane,
- *    jakby nigdy nie padły.
+ *  - poprawka jest możliwa, dopóki następna kolejka nie ma wyniku.
  */
 class SaveMatchdayResult
 {
     public function __construct(private ScoreMatchday $score) {}
 
     /**
-     * @param  array<int|string, mixed>  $correct  matchday_question_id => '1' | '0' | '' (pytanie anulowane)
+     * Zapis wyniku z przeliczeniem.
+     *
      * @return array{teams: int, fixtures: int, eliminated: int}
      *
      * @throws DomainException
      */
-    public function handle(Matchday $matchday, mixed $lechGoals, mixed $opponentGoals, array $correct): array
+    public function handle(Matchday $matchday, mixed $lechGoals, mixed $opponentGoals): array
+    {
+        $this->saveScore($matchday, $lechGoals, $opponentGoals);
+
+        return $this->recalculate($matchday->fresh());
+    }
+
+    /**
+     * Wynik meczu (bez przeliczenia).
+     *
+     * @throws DomainException
+     */
+    public function saveScore(Matchday $matchday, mixed $lechGoals, mixed $opponentGoals): void
     {
         self::ensureEditable($matchday);
 
@@ -44,49 +60,81 @@ class SaveMatchdayResult
             throw new DomainException(__('Enter the score as numbers from 0 to :max.', ['max' => TipRules::MAX_GOALS]));
         }
 
-        $slots = MatchdayQuestion::where('matchday_id', $matchday->id)->get();
-        $answers = [];
-
-        foreach ($slots as $slot) {
-            $answers[$slot->id] = TipRules::answer($correct[$slot->id] ?? null);
+        if ($matchday->lech_goals === $lech && $matchday->opponent_goals === $opponent) {
+            return;
         }
 
-        return DB::transaction(function () use ($matchday, $lech, $opponent, $slots, $answers): array {
-            $old = [
-                'result' => $matchday->lech_goals !== null ? $matchday->lech_goals . ':' . $matchday->opponent_goals : null,
-                'status' => $matchday->status->value,
-            ];
+        $old = $matchday->lech_goals !== null ? $matchday->lech_goals.':'.$matchday->opponent_goals : null;
+        $matchday->update(['lech_goals' => $lech, 'opponent_goals' => $opponent]);
 
-            $matchday->update([
-                'lech_goals' => $lech,
-                'opponent_goals' => $opponent,
-                'status' => MatchdayStatus::Played,
-            ]);
+        // Raport meczu Lecha trzyma kopię wyniku (czyste konta liczą się od straconych goli).
+        if ($match = $matchday->lechMatch) {
+            $match->update(['lech_goals' => $lech, 'opponent_goals' => $opponent]);
+            MatchReport::store($match);
+        }
 
-            foreach ($slots as $slot) {
-                if ($slot->correct_answer !== $answers[$slot->id]) {
-                    $slot->update(['correct_answer' => $answers[$slot->id]]);
-                }
-            }
+        Audit::log('matchday.result', null, ['result' => $old], ['result' => $lech.':'.$opponent], $this->label($matchday));
+    }
 
-            // Pytania anulowane: usuwamy odpowiedzi graczy, nie liczą się do niczego.
-            $cancelled = array_keys(array_filter($answers, fn($answer) => $answer === null));
-            if ($cancelled !== []) {
-                TipAnswer::whereIn('matchday_question_id', $cancelled)->delete();
-            }
+    /**
+     * Przeliczenie kolejki: status „rozegrana”, punkty i mecze.
+     *
+     * @return array{teams: int, fixtures: int, eliminated: int, swiss: int}
+     *
+     * @throws DomainException
+     */
+    public function recalculate(Matchday $matchday): array
+    {
+        self::ensureEditable($matchday);
+
+        if ($matchday->lech_goals === null || $matchday->opponent_goals === null) {
+            throw new DomainException(__('Enter the result of the Lech match first.'));
+        }
+
+        return DB::transaction(function () use ($matchday): array {
+            $wasPlayed = $matchday->status === MatchdayStatus::Played;
+            $matchday->update(['status' => MatchdayStatus::Played]);
 
             $stats = $this->score->handle($matchday->fresh());
+
+            // Liga podwórkowa: pary kolejnej rundy losujemy od razu według nowej klasyfikacji.
+            $stats['swiss'] = app(DrawNextSwissRound::class)->afterMatchday($matchday->fresh());
+            // Liga Legend: pary następnej kolejki według nowej tabeli, bez zespołów, które właśnie odpadły.
+            LegendsLeague::drawNext($matchday->fresh());
+
+            // Informacje systemowe: wynik kolejki i nowe pary Ligi podwórkowej (tylko przy pierwszym przeliczeniu).
+            if (! $wasPlayed && $stats['swiss'] > 0) {
+                SystemFeed::record('competitions', 'Liga podwórkowa: pairs for round :round drawn', ['round' => $matchday->number + 1], 'results', ['c' => 'swiss', 'round' => $matchday->number + 1]);
+            }
+            if (! $wasPlayed) {
+                $md = $matchday->fresh();
+                SystemFeed::record(
+                    'results',
+                    'Matchday :number settled: :fixture :score',
+                    ['number' => $md->number, 'fixture' => $md->fixture, 'score' => $md->lech_goals.':'.$md->opponent_goals],
+                    'results',
+                    ['round' => $md->number],
+                );
+            }
+
+            // Hall of Fame na bieżąco: punkty za mecze sezonu (tytuły i trofea dopiero po jego zakończeniu).
+            app(AwardHallOfFame::class)->handle($matchday->season);
 
             Audit::log(
                 'matchday.scored',
                 null,
-                $old,
-                ['result' => $lech . ':' . $opponent, 'matches' => $stats['fixtures'], 'cancelled_questions' => count($cancelled)],
-                __('Matchday :number', ['number' => $matchday->number]) . ' (' . $matchday->season->title . ')',
+                ['status' => $wasPlayed ? MatchdayStatus::Played->value : 'pending'],
+                ['result' => $matchday->lech_goals.':'.$matchday->opponent_goals, 'matches' => $stats['fixtures']],
+                $this->label($matchday),
             );
 
             return $stats;
         });
+    }
+
+    private function label(Matchday $matchday): string
+    {
+        return __('Matchday :number', ['number' => $matchday->number]).' ('.$matchday->season->title.')';
     }
 
     /**

@@ -1,0 +1,309 @@
+{{--
+    Pojedynek dwóch zespołów #LechTYPER (uniwersalne okno pages::home.duel-modal, zdarzenie „show-duel”):
+    rozgrywki i runda, tablica wyniku, mecz Lecha z tej kolejki, rozliczenie obu stron i informacja o widoczności na dole.
+    Parametry: $card (Rivals::fixture + round + matchday), $competitionName, $roundLabel, $isCup.
+    Rozliczenie po wynikach w barwach strony (paleta lech), przed wynikami kafelki x-tone-tile.
+--}}
+@php
+    $phase = $card['phase'];
+    [$home, $away] = $card['sides'];
+    $phaseBadge = match ($phase) {
+        \App\Support\Rivals::OPEN => ['green', __('Tipping open')],
+        \App\Support\Rivals::CLOSED => ['amber', __('Tipping closed')],
+        default => ['blue', __('Settled')],
+    };
+    $phaseInfo = match ($phase) {
+        \App\Support\Rivals::OPEN => __('Everyone sees whether a tip is in and how many players are fielded. Premium also sees the outcome of the tip and the positions.'),
+        \App\Support\Rivals::CLOSED => __('Everyone sees the outcome of the tip and the positions of the fielded players. Premium also sees the exact tip, when it was saved and the players.'),
+        default => __('Full settlement: tip, points for the tip and bonuses.'),
+    };
+    // Etykiety wierszy rozliczenia: jednolite tło.
+    $labelClass = 'rounded-md bg-lech-50 px-2 py-0.5 text-xs font-medium text-lech-800 dark:bg-lech-900/40 dark:text-lech-200';
+    // Wartości w rozliczeniu: barwy strony (granat Lecha), zero i brak przygaszone.
+    $siteTile = 'inline-flex h-8 items-center justify-center rounded-lg bg-lech-700 px-2 font-bold tabular-nums text-white shadow-sm dark:bg-lech-600';
+    $mutedTile = 'inline-flex h-8 items-center justify-center rounded-lg bg-lech-100 px-2 font-bold tabular-nums text-lech-400 dark:bg-lech-900/50 dark:text-lech-500';
+@endphp
+<div class="space-y-5">
+    <div class="flex flex-wrap items-center justify-between gap-2">
+        <div>
+            <flux:heading size="lg">{{ $competitionName }}</flux:heading>
+            <flux:text size="sm">{{ $roundLabel }}</flux:text>
+        </div>
+        <flux:badge :color="$phaseBadge[0]">{{ $phaseBadge[1] }}</flux:badge>
+    </div>
+
+    {{-- Tablica wyników: nazwy zespołów to przyciski do profili --}}
+    <div class="lech-banner grid grid-cols-[1fr_auto_1fr] items-center gap-3 rounded-xl px-4 py-5">
+        @foreach ([$home, null, $away] as $side)
+            @if ($side === null)
+                <div class="text-center text-3xl font-bold tabular-nums">{{ $card['score'] ?? '–' }}</div>
+            @else
+                <div class="min-w-0 space-y-1 {{ $loop->first ? 'text-right' : '' }}">
+                    @if ($side['profile'] ?? null)
+                        <a href="{{ $side['profile'] }}" wire:navigate
+                            class="inline-flex max-w-full truncate rounded-md bg-white/15 px-2.5 py-1 font-semibold text-white ring-1 ring-white/25 transition hover:bg-white/25 {{ $side['bot'] ? 'italic' : '' }}">{{ $side['name'] }}</a>
+                    @else
+                        <div class="truncate px-2.5 py-1 font-semibold {{ $side['virtual'] || $side['bot'] ? 'italic' : '' }}">{{ $side['name'] }}</div>
+                    @endif
+                    @if (($side['trophies'] ?? []) !== [])
+                        <div class="flex px-2.5 {{ $loop->first ? 'justify-end' : '' }}">
+                            <x-champion-trophies :keys="$side['trophies']" :size="20" framed />
+                        </div>
+                    @endif
+                    <div class="truncate px-2.5 text-xs text-white/70">
+                        {{ $side['owner'] ?? ($side['bot'] ? __('Bot') : '') }}
+                        @if ($side['winner'] && $isCup)
+                            &middot; {{ __('goes through') }}
+                        @endif
+                    </div>
+                </div>
+            @endif
+        @endforeach
+    </div>
+
+    {{-- Mecz Lecha z tej kolejki: Lech zawsze po lewej, rywal po prawej, dopisek DOM/WYJAZD --}}
+    @if ($lech = $card['matchday'] ?? null)
+        @php
+            $lechPlayed = $lech->lech_goals !== null && $lech->opponent_goals !== null;
+        @endphp
+        <div class="rounded-xl border border-lech-200 bg-lech-50/60 px-4 py-3 dark:border-lech-800 dark:bg-lech-950/40">
+            <div class="flex flex-wrap items-center justify-between gap-2 text-xs text-zinc-500">
+                <span class="font-semibold uppercase tracking-wide text-lech-700 dark:text-lech-300">{{ __('Lech match') }} &middot; {{ __('Matchday :number', ['number' => $lech->number]) }}</span>
+                <span class="flex items-center gap-1.5">
+                    @if ($lech->competitionLabel())
+                        <flux:badge size="sm" color="zinc">{{ $lech->competitionLabel() }}</flux:badge>
+                    @endif
+                    @if (filled($lech->opponent))
+                        <flux:badge size="sm" :color="$lech->is_home ? 'blue' : 'zinc'">{{ $lech->is_home ? __('HOME') : __('AWAY') }}</flux:badge>
+                    @endif
+                </span>
+            </div>
+            @if (filled($lech->opponent))
+                <div class="mt-2 grid grid-cols-[1fr_auto_1fr] items-center gap-3">
+                    <div class="truncate text-right font-bold text-lech-800 dark:text-lech-200">Lech Poznań</div>
+                    <div class="rounded-lg bg-white px-3 py-1 text-center text-2xl font-black tabular-nums text-lech-900 shadow-xs dark:bg-zinc-900 dark:text-white">
+                        {{ $lechPlayed ? $lech->lech_goals . ':' . $lech->opponent_goals : '–:–' }}
+                    </div>
+                    <div class="truncate font-semibold">{{ $lech->opponent }}</div>
+                </div>
+            @else
+                <div class="mt-2 text-sm text-zinc-500">{{ __('Opponent not set yet.') }}</div>
+            @endif
+            @if ($lech->kickoff_at)
+                <div class="mt-2 text-center text-xs text-zinc-500">
+                    {{ $lechPlayed ? __('Played on :date', ['date' => $lech->kickoff_at->translatedFormat('l, j F Y, H:i')]) : __('Kick-off: :date', ['date' => $lech->kickoff_at->translatedFormat('l, j F Y, H:i')]) }}
+                </div>
+            @endif
+            {{-- Protokół prawdziwego meczu w kolumnach (gole, samobóje, kartki, zmiany; puste kolumny pomijamy) --}}
+            @if ($lechPlayed && $lech->lech_match_id)
+                @php
+                    $lechEvents = \App\Models\MatchEvent::with(['player:id,name', 'other:id,name'])->where('lech_match_id', $lech->lech_match_id)->orderBy('id')->get();
+                @endphp
+                @if ($lechEvents->isNotEmpty())
+                    <div class="mt-3 border-t border-lech-200/70 pt-3 dark:border-lech-800">
+                        @include('partials.match-protocol-columns', ['events' => $lechEvents])
+                    </div>
+                @endif
+            @endif
+        </div>
+    @endif
+
+    {{--
+        Obie strony w lustrzanym układzie: etykiety przy zewnętrznych krawędziach, kafelki stałej szerokości w jednej
+        pionowej linii przy środku okna. Kolor kafelka mówi wszystko (App\Support\Tone), bez znaków +/−.
+    --}}
+    <div class="grid gap-3 sm:grid-cols-2">
+        @foreach ([[$home, $away], [$away, $home]] as [$side, $other])
+            @php
+                $left = $loop->first;
+                $mirror = $left ? '' : 'flex-row-reverse';
+                $inner = $left ? 'justify-end' : 'justify-start';
+                $tileWidth = 'w-14';
+                $bonusSides = [[__('Offensive bonus'), 'offense_bonus'], [__('Defensive bonus'), 'defense_bonus']];
+            @endphp
+            <div class="space-y-3 rounded-xl border border-lech-200 bg-lech-50/60 p-3 text-sm dark:border-lech-800 dark:bg-lech-950/40" wire:key="side-{{ $loop->index }}">
+                <div class="flex {{ $inner }}">
+                    @if ($side['profile'] ?? null)
+                        <a href="{{ $side['profile'] }}" wire:navigate
+                            class="lech-bar max-w-full truncate rounded-md px-2.5 py-1 font-semibold transition hover:opacity-90 {{ $side['bot'] ? 'italic' : '' }}">{{ $side['name'] }}</a>
+                    @else
+                        <span class="max-w-full truncate rounded-md bg-zinc-200 px-2.5 py-1 font-semibold text-zinc-700 dark:bg-zinc-700 dark:text-zinc-200 {{ $side['virtual'] || $side['bot'] ? 'italic' : '' }}">{{ $side['name'] }}</span>
+                    @endif
+                </div>
+
+                @if ($side['virtual'])
+                    <flux:text size="sm" class="{{ $left ? 'text-right' : '' }}">{{ __('Scores as many as Lech in the real match, minus the player\'s defence.') }}</flux:text>
+                @elseif ($side['bot'] && !$side['score'])
+                    <flux:text size="sm" class="{{ $left ? 'text-right' : '' }}">{{ __('Bot: random tip at the kick-off.') }}</flux:text>
+                @elseif ($side['score'])
+                    {{-- ============ Po wynikach: pełne rozliczenie ============ --}}
+                    @php
+                        $score = $side['score'];
+                        $rivalDefense = (int) ($other['score']?->defense_bonus ?? 0);
+                        $hits = [[__('Outcome'), $score->outcome_hit], [__('Goal difference'), $score->diff_hit], [__('Exact score'), $score->exact_hit]];
+                    @endphp
+
+                    {{-- Typ i punkty za typ: kafelki w barwach strony (granat Lecha), brak typu wyszarzony --}}
+                    <dl class="space-y-1.5">
+                        <div class="{{ $mirror }} flex items-center justify-between gap-2">
+                            <dt class="{{ $labelClass }}">{{ __('Tip') }}</dt>
+                            <dd class="{{ $tileWidth }} {{ $score->has_tip ? $siteTile : $mutedTile }}">{{ $score->has_tip ? ($side['tip'] ?? '—') : '—' }}</dd>
+                        </div>
+                        <div class="{{ $mirror }} flex items-center justify-between gap-2">
+                            <dt class="{{ $labelClass }}">{{ __('Points for the tip') }}</dt>
+                            <dd class="{{ $tileWidth }} {{ $score->tip_points > 0 ? $siteTile : $mutedTile }}">{{ $score->tip_points }}/3</dd>
+                        </div>
+                    </dl>
+
+                    {{-- Za co były punkty w typie (regulamin: po 1 pkt): trzy wskaźniki z ikoną, trafiony wypełniony, chybiony przygaszony --}}
+                    <div class="grid grid-cols-3 gap-1.5">
+                        @foreach ($hits as [$hitLabel, $hit])
+                            <div class="{{ $hit ? 'border-lech-600 bg-lech-600 text-white shadow-sm dark:border-lech-500 dark:bg-lech-600' : 'border-dashed border-lech-200 bg-white/60 text-lech-300 dark:border-lech-800 dark:bg-transparent dark:text-lech-700' }} flex flex-col items-center gap-0.5 rounded-lg border px-1 py-1.5 text-center">
+                                <flux:icon :name="$hit ? 'check-circle' : 'x-circle'" variant="mini" class="size-4" />
+                                <span class="w-full truncate text-[10px] font-semibold leading-tight">{{ $hitLabel }}</span>
+                            </div>
+                        @endforeach
+                    </div>
+
+                    {{-- Bonusy ataku i obrony (premium): kafelek z punktami --}}
+                    @if ($card['premium'])
+                        <div class="space-y-2 border-t border-lech-200/70 pt-3 dark:border-lech-800">
+                            @foreach ($bonusSides as [$bonusLabel, $bonusField])
+                                <div class="{{ $mirror }} flex items-center justify-between gap-2">
+                                    <span class="{{ $labelClass }}">{{ $bonusLabel }}</span>
+                                    <span class="{{ $tileWidth }} {{ (int) $score->{$bonusField} > 0 ? $siteTile : $mutedTile }}">{{ $score->{$bonusField} }}</span>
+                                </div>
+                            @endforeach
+                        </div>
+                    @endif
+
+                    {{--
+                        Skąd wzięły się bramki (regulamin: max(0, typ + bonus ofensywny − bonus defensywny rywala)).
+                        Lewa strona: Typ + Bonus − Obrona = Bramki, prawa: Bramki = Typ + Bonus − Obrona, więc bramki stoją przy środku.
+                        Składniki w jasnym odcieniu Lecha, bramki w gradiencie banera (lech-bar).
+                    --}}
+                    @php
+                        $terms = [[__('Tip'), $score->tip_points, 'term'], ['+', null, null], [__('Offensive bonus'), $score->offense_bonus, 'term']];
+                        // Samobóje wystawionych zawodników rywala to punkty ataku tej strony (R8).
+                        if ((int) ($other['score']?->own_goals ?? 0) > 0) {
+                            $terms[] = ['+', null, null];
+                            $terms[] = [__('Rival\'s own goals'), $other['score']->own_goals, 'term'];
+                        }
+                        if (!$other['virtual']) {
+                            $terms[] = ['−', null, null];
+                            $terms[] = [__('Rival\'s defence'), $rivalDefense, 'term'];
+                        }
+                        $goalsTerm = [__('Goals'), $side['goals'], 'goals'];
+                        $terms = $left ? [...$terms, ['=', null, null], $goalsTerm] : [$goalsTerm, ['=', null, null], ...$terms];
+                    @endphp
+                    <div class="border-t border-lech-200/70 pt-3 dark:border-lech-800">
+                        <div class="flex items-start justify-center gap-1">
+                            @foreach ($terms as $term)
+                                @if ($term[2] === null)
+                                    <span class="flex h-8 items-center text-lg font-bold text-lech-400 dark:text-lech-500">{{ $term[0] }}</span>
+                                @elseif ($term[2] === 'goals')
+                                    <div class="flex w-12 flex-col items-center gap-1 text-center">
+                                        <span class="lech-bar flex h-8 w-full items-center justify-center rounded-lg text-base font-black tabular-nums shadow-sm">{{ $term[1] ?? '—' }}</span>
+                                        <span class="text-[10px] font-bold leading-tight text-lech-800 dark:text-lech-200">{{ $term[0] }}</span>
+                                    </div>
+                                @else
+                                    <div class="flex w-12 flex-col items-center gap-1 text-center">
+                                        <span class="flex h-8 w-full items-center justify-center rounded-lg bg-lech-100 font-bold tabular-nums text-lech-900 ring-1 ring-lech-200 dark:bg-lech-900/60 dark:text-lech-100 dark:ring-lech-800">{{ $term[1] ?? '—' }}</span>
+                                        <span class="text-[10px] leading-tight text-zinc-500">{{ $term[0] }}</span>
+                                    </div>
+                                @endif
+                            @endforeach
+                        </div>
+                    </div>
+
+                    @if ($side['tipped_at'] && $isCup)
+                        <div class="{{ $mirror }} flex items-center justify-between gap-2 border-t border-lech-200/70 pt-2 text-xs dark:border-lech-800">
+                            <span class="{{ $labelClass }}">{{ __('Tip saved') }}</span>
+                            {{-- Remis w meczu pucharowym rozstrzyga kolejność zapisu typu (numer), nie same milisekundy --}}
+                            <span class="tabular-nums text-zinc-500">
+                                {{ $side['tipped_at']->translatedFormat('j M, H:i:s') }}@if ($side['tip_order']) · {{ __('save no. :number', ['number' => $side['tip_order']]) }}@endif
+                            </span>
+                        </div>
+                    @endif
+                @else
+                    {{--
+                        ============ Przed wynikami ============
+                        Typ: otwarte bez premium = czy typował; otwarte premium i zamknięte bez premium = rozstrzygnięcie
+                        (Lech / Remis / rywal); zamknięte premium = dokładny typ i czas zapisu. „−” = brak typu.
+                    --}}
+                    <dl class="space-y-1.5">
+                        <div class="{{ $mirror }} flex items-center justify-between gap-2">
+                            <dt class="{{ $labelClass }}">{{ __('Tip') }}</dt>
+                            <dd>
+                                @if ($side['tip'])
+                                    <x-tone-tile tone="neutral" class="{{ $tileWidth }}">{{ $side['tip'] }}</x-tone-tile>
+                                @elseif ($side['outcome'])
+                                    <x-tone-tile tone="neutral" class="min-w-14 max-w-40 truncate">{{ $side['outcome'] }}</x-tone-tile>
+                                @elseif ($side['tipped'])
+                                    <x-tone-tile tone="neutral" class="min-w-14 text-xs">{{ __('Tipped') }}</x-tone-tile>
+                                @else
+                                    <x-tone-tile tone="zinc" class="{{ $tileWidth }}">−</x-tone-tile>
+                                @endif
+                            </dd>
+                        </div>
+                        @if ($side['tip'] && $side['tipped_at'])
+                            <div class="{{ $mirror }} flex items-center justify-between gap-2 text-xs">
+                                <dt class="{{ $labelClass }}">{{ __('Tip saved') }}</dt>
+                                <dd class="tabular-nums text-zinc-500">{{ $side['tipped_at']->translatedFormat('j M, H:i:s') }}</dd>
+                            </div>
+                        @endif
+                    </dl>
+                @endif
+
+                {{--
+                    Wystawieni zawodnicy (desygnowanie): przed gwizdkiem liczba (premium: pozycje),
+                    po gwizdku pozycje B O P N (premium: nazwiska), Rivals::lineup.
+                --}}
+                @if ($side['lineup'] ?? null)
+                    @php
+                        $lineup = $side['lineup'];
+                    @endphp
+                    <div class="space-y-1.5 border-t border-lech-200/70 pt-2 text-xs dark:border-lech-800">
+                        <div class="{{ $mirror }} flex items-center justify-between gap-2">
+                            <span class="{{ $labelClass }}">{{ __('Fielded players') }}</span>
+                            @if ($lineup['positions'])
+                                <span class="flex gap-1">
+                                    @foreach ($lineup['positions'] as $short => $onPos)
+                                        <span class="{{ $onPos > 0 ? 'bg-lech-100 text-lech-900 ring-1 ring-lech-200 dark:bg-lech-900/60 dark:text-lech-100 dark:ring-lech-800' : 'bg-zinc-100 text-zinc-400 dark:bg-white/5' }} rounded px-1.5 py-0.5 font-bold tabular-nums">{{ $short }} {{ $onPos }}</span>
+                                    @endforeach
+                                </span>
+                            @else
+                                <x-tone-tile :tone="$lineup['count'] > 0 ? 'neutral' : 'zinc'" class="{{ $tileWidth }}">{{ $lineup['count'] }}</x-tone-tile>
+                            @endif
+                        </div>
+                        @if ($lineup['names'])
+                            <div class="flex flex-wrap gap-1 {{ $left ? 'justify-end' : '' }}">
+                                @foreach ($lineup['names'] as $lineupName)
+                                    @php
+                                        // Niebieski: punkty ataku dla nas (gol, asysta), jasnoniebieski: punkty obrony (czyste konto).
+                                        $chipTone = match ($lineupName['tone']) {
+                                            'attack' => 'bg-lech-700 text-white ring-lech-700',
+                                            'defense' => 'bg-sky-100 text-sky-900 ring-sky-300 dark:bg-sky-500/20 dark:text-sky-100 dark:ring-sky-700',
+                                            default => 'bg-white text-zinc-700 ring-lech-200 dark:bg-zinc-800 dark:text-zinc-200 dark:ring-lech-800',
+                                        };
+                                    @endphp
+                                    <span class="{{ $chipTone }} rounded-full px-2 py-0.5 text-[11px] font-medium ring-1">{{ $lineupName['label'] }}</span>
+                                @endforeach
+                            </div>
+                        @endif
+                    </div>
+                @endif
+            </div>
+        @endforeach
+    </div>
+
+    @if (!$card['premium'] && $phase !== \App\Support\Rivals::PLAYED)
+        <div class="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-purple-50 px-3 py-2 text-sm dark:bg-purple-500/10">
+            <span class="flex items-center gap-2"><x-premium-badge /> {{ __('Premium shows the rival\'s tip before the results.') }}</span>
+            <flux:link :href="route('support')" wire:navigate>{{ __('From 5 zł a week') }}</flux:link>
+        </div>
+    @endif
+
+    {{-- Szczegóły widoczności rozliczenia: na samym dole, kursywą --}}
+    <p class="text-xs italic text-zinc-500">{{ $phaseInfo }}</p>
+</div>

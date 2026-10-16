@@ -2,13 +2,14 @@
 
 namespace App\Models;
 
+use App\Enums\MatchCompetition;
+use App\Enums\MatchdayStatus;
 use App\Enums\SeasonStatus;
 use App\Support\Roman;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-use Illuminate\Support\Facades\Storage;
 
 /**
  * Sezon rozgrywek. Do sezonu należą kolejki (mecze Lecha), a w kolejnych
@@ -20,6 +21,8 @@ use Illuminate\Support\Facades\Storage;
  * @property string|null $sponsor_logo_path
  * @property string|null $sponsor_url
  * @property SeasonStatus $status
+ * @property-read string $title nazwa sezonu, np. „IV sezon” (akcesor title())
+ * @property-read string $roman_number
  */
 class Season extends Model
 {
@@ -30,8 +33,6 @@ class Season extends Model
         'sponsor_logo_path',
         'sponsor_url',
         'status',
-        'starts_on',
-        'ends_on',
     ];
 
     /** Nowy sezon domyślnie jest szkicem (także zanim zapisze się do bazy). */
@@ -44,8 +45,6 @@ class Season extends Model
         return [
             'number' => 'integer',
             'status' => SeasonStatus::class,
-            'starts_on' => 'date',
-            'ends_on' => 'date',
         ];
     }
 
@@ -92,6 +91,30 @@ class Season extends Model
         return $created;
     }
 
+    /**
+     * Każda nierozegrana kolejka bez meczu dostaje „mecz bez nazwy” w kalendarzu Lecha (bez rywala i terminu).
+     * Admin uzupełnia go później w „Kolejkach” albo w kalendarzu, a zmiana od razu trafia do kolejki.
+     *
+     * @return int ile meczów utworzono
+     */
+    public function createPlaceholderMatches(): int
+    {
+        $created = 0;
+
+        foreach (Matchday::where('season_id', $this->id)->whereNull('lech_match_id')->where('status', '!=', MatchdayStatus::Played->value)->get() as $matchday) {
+            $matchday->assignMatch(LechMatch::create([
+                'opponent' => '',
+                'is_home' => true,
+                'competition' => MatchCompetition::DEFAULT->value,
+                'kickoff_at' => null,
+                'postponed' => false,
+            ]));
+            $created++;
+        }
+
+        return $created;
+    }
+
     /* ------------------------------------------------------------------
      | Atrybuty wyliczane
      * ----------------------------------------------------------------*/
@@ -115,7 +138,7 @@ class Season extends Model
     protected function sponsorLogoUrl(): Attribute
     {
         return Attribute::get(fn () => $this->sponsor_logo_path
-            ? Storage::disk('public')->url($this->sponsor_logo_path)
+            ? asset('storage/'.$this->sponsor_logo_path)
             : null);
     }
 

@@ -13,8 +13,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property int|null $season_team_id
  * @property int|null $user_id
  * @property int|null $bot_id
- * @property string $kind  matches, champion, second, third, promotion, top_scorer, cup_rounds, cup_winner, title, legends_stages, golden_title
- * @property string|null $trophy  klucz trofeum do gabloty (App\Support\HallOfFame::trophies())
+ * @property string $kind matches, champion, second, third, promotion, top_scorer, cup_rounds, cup_winner, title, european_stages, group_first, legends_stages, mvp, golden_ball, golden_boot, golden_gloves
+ * @property string|null $trophy klucz trofeum do gabloty (App\Support\HallOfFame::trophies())
  * @property float $points
  * @property array|null $meta
  */
@@ -43,5 +43,11 @@ class HallOfFameAward extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    /** @return BelongsTo<Bot, $this> */
+    public function bot(): BelongsTo
+    {
+        return $this->belongsTo(Bot::class);
     }
 }

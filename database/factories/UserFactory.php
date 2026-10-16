@@ -45,6 +45,11 @@ class UserFactory extends Factory
 
     /**
      * Indicate that the model has two-factor authentication configured.
+     * Dwuetapowe logowanie jest wyłączone (brak kolumn two_factor_* w users), więc stan się nie zmienia;
+     * test, który go używa, jest pomijany przez skipUnlessFortifyHas().
      */
-    public function withTwoFactor(): static {}
+    public function withTwoFactor(): static
+    {
+        return $this;
+    }
 }

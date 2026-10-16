@@ -2,6 +2,8 @@
 
 namespace App\Support;
 
+use App\Enums\KnockoutStage;
+
 /**
  * Stała drabinka Pucharu Polski (regulamin, punkt 7.3): 512 zespołów, 9 rund.
  *
@@ -63,14 +65,9 @@ final class CupBracket
         return $list;
     }
 
-    /** Nazwa rundy do wyświetlenia, np. 1/256 finału, ćwierćfinał, finał. */
+    /** Nazwa rundy do wyświetlenia (enum KnockoutStage), np. „I runda eliminacji”, „1/8”, „Ćwierćfinał”, „Finał”. */
     public static function roundName(int $round): string
     {
-        return match ($round) {
-            self::ROUNDS => __('Final'),
-            self::ROUNDS - 1 => __('Semi-final'),
-            self::ROUNDS - 2 => __('Quarter-final'),
-            default => __('Round of :count', ['count' => self::seatsInRound($round)]),
-        };
+        return KnockoutStage::labelFor($round);
     }
 }

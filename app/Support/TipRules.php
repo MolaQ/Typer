@@ -23,14 +23,4 @@ final class TipRules
 
         return $number >= 0 && $number <= self::MAX_GOALS ? $number : null;
     }
-
-    /** Odpowiedź tak/nie: "1"/1/true => true, "0"/0/false => false, wszystko inne (np. "") => null. */
-    public static function answer(mixed $value): ?bool
-    {
-        return match (true) {
-            $value === true, $value === 1, $value === '1' => true,
-            $value === false, $value === 0, $value === '0' => false,
-            default => null,
-        };
-    }
 }

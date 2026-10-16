@@ -14,13 +14,3 @@ it('rejects invalid goals', function () {
         expect(TipRules::goals($bad))->toBeNull();
     }
 });
-
-it('normalises yes/no answers', function () {
-    expect(TipRules::answer('1'))->toBeTrue()
-        ->and(TipRules::answer(true))->toBeTrue()
-        ->and(TipRules::answer('0'))->toBeFalse()
-        ->and(TipRules::answer(false))->toBeFalse()
-        ->and(TipRules::answer(''))->toBeNull()
-        ->and(TipRules::answer(null))->toBeNull()
-        ->and(TipRules::answer('yes'))->toBeNull();
-});

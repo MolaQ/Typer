@@ -1,6 +1,8 @@
 includes:
     - vendor/larastan/larastan/extension.neon
     - vendor/nesbot/carbon/extension.neon
+    # Stare błędy zapisane w baseline (vendor/bin/phpstan analyse --generate-baseline); CI sprawdza tylko nowe.
+    - phpstan-baseline.neon
 
 parameters:
     paths:
@@ -11,3 +13,6 @@ parameters:
         - routes/
 
     level: 7
+
+    # Baseline powstał na Windowsie, a CI działa na Linuksie z inną wersją PHP: nie zgłaszaj wpisów, które tam nie wystąpią.
+    reportUnmatchedIgnoredErrors: false

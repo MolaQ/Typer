@@ -9,16 +9,23 @@ use App\Enums\SeasonStatus;
 use App\Models\Competition;
 use App\Models\FinalStanding;
 use App\Models\Fixture;
+use App\Models\HallOfFameAward;
 use App\Models\Matchday;
 use App\Models\Season;
 use App\Models\SeasonTeam;
+use App\Models\TeamScore;
 use App\Models\Tip;
 use App\Models\User;
 use App\Support\Audit;
 use App\Support\CupBracket;
-use App\Support\LegendsRanking;
+use App\Support\EuropeanCup;
+use App\Support\HallOfFame;
+use App\Support\PageCache;
+use App\Support\PlayerStats;
 use App\Support\Roster;
+use App\Support\SeasonArchive;
 use App\Support\Standings;
+use App\Support\SystemFeed;
 use DomainException;
 use Illuminate\Support\Facades\DB;
 use Spatie\Permission\Models\Role;
@@ -45,6 +52,13 @@ class FinishSeason
     public function handle(Season $season, ?string $note = null): array
     {
         $result = DB::transaction(function () use ($season, $note): array {
+            // Policzone bloki stron (tabele, mistrzowie) do odświeżenia po zatwierdzeniu zmian.
+            PageCache::flush();
+            // Gotowe dane sezonu (season_archives) do policzenia od nowa.
+            SeasonArchive::forget($season->id);
+            // Statystyki zakończonego sezonu od razu do archiwum.
+            DB::afterCommit(fn () => PlayerStats::warm($season->id));
+
             $season = Season::query()->lockForUpdate()->findOrFail($season->id);
 
             if ($season->status !== SeasonStatus::Active) {
@@ -62,7 +76,7 @@ class FinishSeason
                 null,
                 ['status' => SeasonStatus::Active->label()],
                 ['status' => SeasonStatus::Finished->label(), 'inactive' => count($inactive)],
-                $season->title . ($note ? ' (' . $note . ')' : ''),
+                $season->title.($note ? ' ('.$note.')' : ''),
             );
 
             return ['standings' => $standings, 'inactive' => $inactive];
@@ -79,7 +93,42 @@ class FinishSeason
             Audit::log('roles.updated', $user, ['roles' => RoleName::User->value], ['roles' => RoleName::Inactive->value], __('No tips in :count matchdays in a row', ['count' => self::INACTIVE_STREAK]));
         }
 
+        $this->recordFeed($season);
+
         return ['standings' => $result['standings'], 'inactive' => count($result['inactive'])];
+    }
+
+    /** Informacje systemowe: koniec sezonu i trofea zdobyte przez ludzi. */
+    private function recordFeed(Season $season): void
+    {
+        SystemFeed::record('seasons', 'Season :season finished', ['season' => $season->title], 'hall-of-fame');
+
+        $awards = HallOfFameAward::with(['user', 'competition'])
+            ->where('season_id', $season->id)
+            ->whereNotNull('trophy')
+            ->whereNotNull('user_id')
+            ->get();
+
+        foreach ($awards as $award) {
+            if (! $award->user) {
+                continue;
+            }
+
+            SystemFeed::record(
+                'trophies',
+                ':team won :competition',
+                [
+                    'team' => $award->user->team_name ?: $award->user->name,
+                    // Nagrody indywidualne (MVP, Złota Piłka, Złote Rękawice) pod własną nazwą, nie nazwą ligi.
+                    'competition' => in_array($award->trophy, HallOfFame::INDIVIDUAL, true)
+                        ? HallOfFame::trophies()[$award->trophy]
+                        : ($award->competition?->name ?? $season->title),
+                ],
+                'team.show',
+                ['user' => $award->user_id],
+                $award->user_id,
+            );
+        }
     }
 
     /** Zapisuje tabele końcowe. Zwraca liczbę zapisanych miejsc. */
@@ -87,14 +136,13 @@ class FinishSeason
     {
         FinalStanding::where('season_id', $season->id)->delete();
 
-        $lastRound = (int) Matchday::where('season_id', $season->id)->where('status', MatchdayStatus::Played->value)->max('number');
         $rows = [];
         $now = now();
 
         foreach (Competition::where('season_id', $season->id)->get() as $competition) {
             $ranked = match (true) {
                 $competition->type === CompetitionType::Cup => $this->cupPlaces($competition),
-                $competition->type === CompetitionType::Legends => $this->legendsPlaces($competition, $lastRound),
+                $competition->type->isEuropean() => EuropeanCup::finalOrder($competition),
                 default => Standings::for($competition)->map(fn ($row) => [
                     'team' => $row['team'],
                     'stats' => collect($row)->except(['team', 'entry_id'])->all(),
@@ -145,30 +193,10 @@ class FinishSeason
         ]);
     }
 
-    /** Liga Legend: najpierw ci, którzy dotrwali najdłużej, w każdej grupie według rankingu z kolejki odpadnięcia. */
-    private function legendsPlaces(Competition $competition, int $lastRound)
-    {
-        if ($lastRound < 1) {
-            return collect();
-        }
-
-        $places = collect();
-
-        for ($round = $lastRound; $round >= 1; $round--) {
-            $group = LegendsRanking::for($competition, $round)
-                ->filter(fn ($row) => $round === $lastRound ? ($row['eliminated_round'] === null || $row['eliminated_round'] >= $round) : $row['eliminated_round'] === $round);
-
-            $places = $places->concat($group->map(fn ($row) => [
-                'team' => $row['team'],
-                'stats' => collect($row)->except(['team', 'entry_id'])->all() + ['round_reached' => $round],
-            ]));
-        }
-
-        return $places;
-    }
-
     /**
      * Gracze z listy sezonu, którzy nie typowali w 5 kolejnych rozegranych kolejkach.
+     * Liczą się tylko kolejki, w których gracz miał już miejsce na liście (team_scores.user_id, Ownership):
+     * kto dołączył w trakcie sezonu, nie dostaje „braków” za kolejki sprzed dołączenia.
      *
      * @return array<int, User>
      */
@@ -185,6 +213,10 @@ class FinishSeason
             ->groupBy('user_id')
             ->map(fn ($tips) => $tips->pluck('matchday_id')->flip());
 
+        $played = TeamScore::whereIn('matchday_id', $matchdays)->whereIn('user_id', $userIds)->get(['matchday_id', 'user_id'])
+            ->groupBy('user_id')
+            ->map(fn ($scores) => $scores->pluck('matchday_id')->flip());
+
         $inactive = [];
 
         foreach ($userIds as $userId) {
@@ -192,6 +224,9 @@ class FinishSeason
             $best = 0;
 
             foreach ($matchdays as $matchdayId) {
+                if (! isset($played[$userId][$matchdayId])) {
+                    continue;
+                }
                 $streak = isset($tipped[$userId][$matchdayId]) ? 0 : $streak + 1;
                 $best = max($best, $streak);
             }

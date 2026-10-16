@@ -6,8 +6,6 @@ namespace App\Support;
  * Punktacja (regulamin, punkt 3). Czyste funkcje bez bazy, łatwe do przetestowania.
  *
  *  - Typ: 1 pkt za rozstrzygnięcie, 1 za różnicę goli, 1 za dokładny wynik (0-3).
- *  - Zestaw pytań: 1 pkt za poprawną odpowiedź, brak odpowiedzi nic nie daje,
- *    jedna zła odpowiedź zeruje cały zestaw tej strony.
  *  - Wynik zespołu w meczu = max(0, własny wynik ofensywny − defensywa rywala).
  *  - Mecz ligowy: wygrana 3, remis 1, porażka 0.
  */
@@ -36,32 +34,6 @@ final class Scoring
         ];
     }
 
-    /**
-     * Punkty zestawu pytań jednej strony.
-     *
-     * @param  array<int, bool>  $answers  id miejsca => odpowiedź gracza (brak klucza = brak odpowiedzi)
-     * @param  array<int, bool|null>  $correct  id miejsca => poprawna odpowiedź (null = pytanie bez rozstrzygnięcia, nie liczy się)
-     * @return array{points: int, zeroed: bool}
-     */
-    public static function set(array $answers, array $correct): array
-    {
-        $points = 0;
-
-        foreach ($correct as $slotId => $right) {
-            if ($right === null || !array_key_exists($slotId, $answers)) {
-                continue;
-            }
-
-            if ($answers[$slotId] !== $right) {
-                return ['points' => 0, 'zeroed' => true];
-            }
-
-            $points++;
-        }
-
-        return ['points' => $points, 'zeroed' => false];
-    }
-
     /** Bramki zespołu w meczu. */
     public static function goals(int $offense, int $opponentDefense): int
     {
@@ -79,16 +51,17 @@ final class Scoring
     }
 
     /**
-     * Kto awansuje w pucharze przy remisie? Wcześniejszy czas typu; przy równym czasie gospodarz
-     * (wyższe rozstawienie). Czasy jako napisy "Y-m-d H:i:s.u" porównują się poprawnie.
+     * Kto awansuje przy remisie w meczu pucharowym? Wcześniej zapisany typ, czyli mniejszy numer zapisu
+     * (Tip::save_order, każdy zapis ma inny). Bot i brak typu (null) są za wszystkimi
+     * typami ludzi; gdy obaj go nie mają, wygrywa gospodarz (wyższe rozstawienie).
      */
-    public static function homeWinsOnTime(?string $homeTippedAt, ?string $awayTippedAt): bool
+    public static function homeWinsOnTime(?int $homeOrder, ?int $awayOrder): bool
     {
-        if ($homeTippedAt === null || $awayTippedAt === null) {
-            return $awayTippedAt === null;
+        if ($homeOrder === null || $awayOrder === null) {
+            return $awayOrder === null;
         }
 
-        return $homeTippedAt <= $awayTippedAt;
+        return $homeOrder < $awayOrder;
     }
 
     private static function sign(int $value): int

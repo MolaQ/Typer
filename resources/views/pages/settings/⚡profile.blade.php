@@ -63,9 +63,10 @@ new #[Title('Profile settings')]
             return;
         }
 
+        // Nowy kod potwierdzający i przejście do strony, na której się go wpisuje.
         $user->sendEmailVerificationNotification();
 
-        Session::flash('status', 'verification-link-sent');
+        $this->redirect(route('verification.notice'), navigate: false);
     }
 
     #[Computed]
@@ -132,7 +133,7 @@ new #[Title('Profile settings')]
                                 {{ __('Your email address is unverified.') }}
 
                                 <flux:link class="text-sm cursor-pointer" wire:click.prevent="resendVerificationNotification">
-                                    {{ __('Click here to re-send the verification email.') }}
+                                    {{ __('Send a code and confirm it.') }}
                                 </flux:link>
                             </flux:text>
 

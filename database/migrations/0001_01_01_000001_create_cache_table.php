@@ -4,6 +4,9 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
+/**
+ * Pamięć podręczna i blokady Laravela w bazie (CACHE_STORE=database).
+ */
 return new class extends Migration
 {
     /**

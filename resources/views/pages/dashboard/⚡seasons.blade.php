@@ -126,7 +126,7 @@ new class extends Component {
         }
 
         if ($this->currentLogoPath && !$this->removeLogo) {
-            return Storage::disk('public')->url($this->currentLogoPath);
+            return asset('storage/' . $this->currentLogoPath);
         }
 
         return null;
@@ -318,9 +318,10 @@ new class extends Component {
         if ($isNew) {
             Audit::log('season.created', null, [], $after, $season->title);
 
-            // Nowy sezon dostaje od razu 9 pustych kolejek (rywala i termin uzupełnia admin).
+            // Nowy sezon dostaje od razu 9 kolejek z „meczami bez nazwy” w kalendarzu (rywala i termin uzupełnia admin).
             $matchdays = $season->createMissingMatchdays();
-            Audit::log('matchday.created', null, [], ['matchdays' => $matchdays], $season->title);
+            $placeholders = $season->createPlaceholderMatches();
+            Audit::log('matchday.created', null, [], ['matchdays' => $matchdays, 'placeholder_matches' => $placeholders], $season->title);
         } elseif ($before !== $after) {
             Audit::log('season.updated', null, $before, $after, $season->title);
         }
@@ -329,7 +330,27 @@ new class extends Component {
         $this->resetForm();
         $this->clearCaches();
 
-        Flux::toast(text: __('Season saved.'), variant: 'success');
+        if (!$isNew) {
+            Flux::toast(text: __('Season saved.'), variant: 'success');
+
+            return;
+        }
+
+        // „Utwórz sezon” jednym kliknięciem: lista, zatwierdzenie ze wszystkimi rozgrywkami (SetUpSeason).
+        // Rywali i terminy „meczów bez nazwy” admin uzupełnia potem w kolejkach. Przy błędzie sezon zostaje szkicem.
+        try {
+            $result = app(\App\Actions\Seasons\SetUpSeason::class)->handle($season);
+        } catch (DomainException $e) {
+            Flux::toast(text: __('The season was created as a draft. It could not be set up: :reason', ['reason' => $e->getMessage()]), variant: 'warning');
+
+            return;
+        }
+
+        $this->clearCaches();
+        Flux::toast(
+            text: __('Season created and approved: :players players, :leagues leagues, :fixtures fixtures. Fill in the unnamed Lech matches of the matchdays.', $result),
+            variant: 'success',
+        );
     }
 
     public function clearLogo(): void
@@ -404,6 +425,7 @@ new class extends Component {
             $season->update(['status' => SeasonStatus::Active]);
 
             Audit::log('season.activated', null, ['status' => $old], ['status' => SeasonStatus::Active->label()], $season->title);
+            \App\Support\SystemFeed::record('seasons', 'Season :season started', ['season' => $season->title], 'results');
 
             return true;
         });
@@ -441,7 +463,7 @@ new class extends Component {
     }
 
     /**
-     * Zatwierdza sezon: zamyka listę, dodaje wszystkie boty i generuje terminarz lig.
+     * Zatwierdza sezon: zamyka listę, dopełnia ją botami do 512 zespołów i generuje terminarz lig.
      * Cała logika jest w App\Actions\Seasons\ApproveSeason (jedna transakcja).
      */
     public function approve(int $id): void
@@ -512,7 +534,7 @@ new class extends Component {
                 'total' => Matchday::PER_SEASON,
             ]),
             $action === 'finish' => $season->title,
-            $action === 'approve' => __('Approval closes the team list, adds all bots and generates the league fixtures. You can revert it until the season is activated.'),
+            $action === 'approve' => __('Approval closes the team list, fills it with bots up to 512 teams and generates the league fixtures. You can revert it until the season is activated.'),
             $action === 'unapprove' => __('The league fixtures will be deleted and the team list can be edited again.'),
             $current && $current->id !== $season->id => __('Activating this season will finish :title. Continue?', ['title' => $current->title]),
             default => $season->title,

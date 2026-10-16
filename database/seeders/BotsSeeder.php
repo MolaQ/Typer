@@ -30,13 +30,13 @@ class BotsSeeder extends Seeder
 
             // Jeśli admin nadał komuś tę nazwę, dopisujemy numer slotu (nazwy są unikalne).
             if (Bot::where('name', $name)->exists()) {
-                $name = mb_substr($name, 0, 35) . ' ' . $slot;
+                $name = mb_substr($name, 0, 35).' '.$slot;
             }
 
             Bot::create(['sort_order' => $slot, 'name' => $name]);
             $created++;
         }
 
-        $this->command?->info("Boty: dodano {$created}, razem " . Bot::count() . '.');
+        $this->command?->info("Boty: dodano {$created}, razem ".Bot::count().'.');
     }
 }

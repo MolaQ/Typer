@@ -10,6 +10,9 @@ use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Password;
 use Laravel\Fortify\Contracts\CreatesNewUsers;
 
+/**
+ * Rejestracja nowego konta (Fortify): walidacja, nazwa zespołu i zapis użytkownika.
+ */
 class CreateNewUser implements CreatesNewUsers
 {
     /**
@@ -26,12 +29,8 @@ class CreateNewUser implements CreatesNewUsers
             'email' => ['required', 'string', 'email', 'max:255', Rule::unique(User::class)],
             'password' => ['required', 'string', Password::default(), 'confirmed'],
             'team_name' => TeamRules::name(),
-            'team_short_name' => TeamRules::shortName(),
-            'team_abbr' => TeamRules::abbr(),
         ], [], [
             'team_name' => __('Team name'),
-            'team_short_name' => __('Team short name'),
-            'team_abbr' => __('Team abbreviation'),
         ])->validate();
 
         return User::create([
@@ -39,8 +38,6 @@ class CreateNewUser implements CreatesNewUsers
             'email' => $input['email'],
             'password' => Hash::make($input['password']),
             'team_name' => $input['team_name'],
-            'team_short_name' => $input['team_short_name'],
-            'team_abbr' => $input['team_abbr'],
         ]);
     }
 }

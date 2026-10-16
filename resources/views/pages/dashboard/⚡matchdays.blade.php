@@ -3,14 +3,13 @@
 use App\Enums\MatchdayStatus;
 use App\Enums\Permission;
 use App\Enums\SeasonStatus;
+use App\Models\LechMatch;
 use App\Models\Matchday;
 use App\Models\Season;
 use App\Support\Audit;
-use Carbon\Carbon;
 use Flux\Flux;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Url;
@@ -18,7 +17,9 @@ use Livewire\Component;
 
 /**
  * Kolejki sezonu = 9 rzeczywistych meczów Lecha (regulamin, punkty 1 i 3).
- * Admin wybiera sezon, tworzy 9 pustych kolejek i uzupełnia: rywal, termin, status.
+ * Sezon dostaje przy utworzeniu 9 kolejek z „meczami bez nazwy” w kalendarzu Lecha (Season::createPlaceholderMatches).
+ * Admin uzupełnia mecz kolejki od razu tutaj (rywal, gospodarz, rozgrywki, termin) albo wybiera inny mecz z kalendarza.
+ * Dane meczu są kopiowane do kolejki (Matchday::assignMatch), typy graczy zostają.
  * Uprawnienia: podgląd season-list, zmiany season-edit (bez nowych uprawnień w bazie).
  */
 new class extends Component {
@@ -28,11 +29,12 @@ new class extends Component {
 
     // --- formularz edycji kolejki ---
     public ?int $matchdayId = null;
+    public string $mode = 'edit'; // 'edit' = uzupełnij mecz kolejki, 'pick' = wybierz inny mecz z kalendarza
+    public string $lechMatchId = '';
     public string $opponent = '';
     public bool $isHome = true;
-    public string $competition = '';
-    public string $kickoffAt = ''; // format pola datetime-local: 2026-10-18T17:30
-    public string $status = 'planned';
+    public string $competition = 'league';
+    public string $kickoffAt = '';
 
     /** Domyślnie pokazujemy sezon aktywny, a gdy go nie ma, ostatni z numerem. */
     public function mount(): void
@@ -67,6 +69,52 @@ new class extends Component {
     public function matchdays()
     {
         return $this->season?->matchdays()->get() ?? collect();
+    }
+
+    /**
+     * Trafność typów w rozegranych kolejkach: id kolejki => [typy, trafione rozstrzygnięcia %, dokładne %].
+     *
+     * @return array<int, array{tips: int, outcome: ?int, exact: ?int}>
+     */
+    #[Computed]
+    public function accuracy(): array
+    {
+        $played = $this->matchdays->where('status', MatchdayStatus::Played)->keyBy('id');
+
+        if ($played->isEmpty()) {
+            return [];
+        }
+
+        $out = [];
+        foreach (\App\Models\Tip::whereIn('matchday_id', $played->keys())->get(['matchday_id', 'lech_goals', 'opponent_goals'])->groupBy('matchday_id') as $id => $tips) {
+            $m = $played[$id];
+            $real = $m->lech_goals <=> $m->opponent_goals;
+            $outcome = $tips->filter(fn($t) => ($t->lech_goals <=> $t->opponent_goals) === $real)->count();
+            $exact = $tips->filter(fn($t) => $t->lech_goals === $m->lech_goals && $t->opponent_goals === $m->opponent_goals)->count();
+
+            $out[$id] = [
+                'tips' => $tips->count(),
+                'outcome' => (int) round($outcome / $tips->count() * 100),
+                'exact' => (int) round($exact / $tips->count() * 100),
+            ];
+        }
+
+        return $out;
+    }
+
+    /**
+     * Postęp kolejek do kart (mecz, typy, wynik): liczba typów każdej kolejki.
+     *
+     * @return array{tips: array<int, int>}
+     */
+    #[Computed]
+    public function progress(): array
+    {
+        $ids = $this->matchdays->pluck('id');
+
+        return [
+            'tips' => \App\Models\Tip::whereIn('matchday_id', $ids)->selectRaw('matchday_id, count(*) as total')->groupBy('matchday_id')->pluck('total', 'matchday_id')->map(fn($n) => (int) $n)->all(),
+        ];
     }
 
     /** Liczba uzupełnionych kolejek i najbliższy mecz. */
@@ -119,6 +167,8 @@ new class extends Component {
                 }
             }
 
+            $season->createPlaceholderMatches();
+
             return $created;
         });
 
@@ -126,7 +176,7 @@ new class extends Component {
             Audit::log('matchday.created', null, [], ['matchdays' => $created], $season->title);
         }
 
-        unset($this->matchdays, $this->stats);
+        unset($this->matchdays, $this->stats, $this->progress);
         Flux::toast(text: __('Matchdays created.'), variant: 'success');
     }
 
@@ -144,42 +194,42 @@ new class extends Component {
             return;
         }
 
+        $match = $matchday->lechMatch;
+
         $this->matchdayId = $matchday->id;
-        $this->opponent = (string) $matchday->opponent;
-        $this->isHome = $matchday->is_home;
-        $this->competition = (string) $matchday->competition;
-        $this->kickoffAt = $matchday->kickoff_at?->format('Y-m-d\TH:i') ?? '';
-        $this->status = $matchday->status->value;
+        $this->mode = 'edit';
+        $this->lechMatchId = (string) ($matchday->lech_match_id ?? '');
+        $this->opponent = (string) $match?->opponent;
+        $this->isHome = $match?->is_home ?? true;
+        $this->competition = \App\Enums\MatchCompetition::tryFrom((string) $match?->competition)?->value ?? \App\Enums\MatchCompetition::DEFAULT->value;
+        $this->kickoffAt = $match?->kickoff_at?->format('Y-m-d\TH:i') ?? '';
         $this->resetValidation();
+        unset($this->availableMatches);
 
         Flux::modal('matchday-form')->show();
     }
 
-    protected function rules(): array
+    /**
+     * Mecze z kalendarza do wyboru: wolne (bez kolejki) i z terminem w przyszłości albo bez terminu,
+     * plus mecz obecnie przypisany do edytowanej kolejki.
+     */
+    #[Computed]
+    public function availableMatches()
     {
-        return [
-            'opponent' => ['required', 'string', 'max:80'],
-            'isHome' => ['boolean'],
-            'competition' => ['nullable', 'string', 'max:60'],
-            // Termin jest wymagany dla kolejki zaplanowanej. Przełożona może być bez daty.
-            'kickoffAt' => [Rule::requiredIf(fn() => $this->status === MatchdayStatus::Planned->value), 'nullable', 'date_format:Y-m-d\TH:i'],
-            'status' => ['required', Rule::in([MatchdayStatus::Planned->value, MatchdayStatus::Postponed->value])],
-        ];
-    }
+        $current = $this->matchdayId ? Matchday::whereKey($this->matchdayId)->value('lech_match_id') : null;
 
-    protected function validationAttributes(): array
-    {
-        return [
-            'opponent' => __('Opponent'),
-            'competition' => __('Competition'),
-            'kickoffAt' => __('Kickoff'),
-            'status' => __('Status'),
-        ];
+        return LechMatch::query()
+            ->where(fn($q) => $q->whereDoesntHave('matchday')->where(fn($q) => $q->whereNull('kickoff_at')->orWhere('kickoff_at', '>', now())))
+            ->when($current, fn($q) => $q->orWhere('id', $current))
+            ->orderByRaw('kickoff_at is null')
+            ->orderBy('kickoff_at')
+            ->get();
     }
 
     /**
-     * Zapis kolejki. Pilnujemy, żeby terminy rosły razem z numerami kolejek
-     * (kolejka 3 nie może być przed kolejką 2).
+     * Zapis kolejki. Tryb „edit”: dane meczu kolejki (zwykle „meczu bez nazwy”) zmieniamy w kalendarzu i kopiujemy do kolejki,
+     * termin może zostać pusty. Tryb „pick”: wybrany mecz z kalendarza (z terminem, nieprzełożony).
+     * Pilnujemy, żeby terminy rosły razem z numerami kolejek (kolejka 3 nie może być przed kolejką 2).
      */
     public function save(): void
     {
@@ -191,38 +241,44 @@ new class extends Component {
             return;
         }
 
-        $this->opponent = Str::squish($this->opponent);
-        $this->competition = Str::squish($this->competition);
+        $match = $this->mode === 'pick' ? $this->pickedMatch($matchday) : $this->editedMatch($matchday);
 
-        $this->validate();
-
-        $kickoff = $this->kickoffAt !== '' ? Carbon::createFromFormat('Y-m-d\TH:i', $this->kickoffAt) : null;
-
-        if ($kickoff && $this->status === MatchdayStatus::Planned->value && !$this->checkOrder($matchday, $kickoff)) {
+        if ($match === null) {
             return;
         }
 
         $before = $this->snapshot($matchday);
 
-        $matchday
-            ->fill([
-                'opponent' => $this->opponent,
-                'is_home' => $this->isHome,
-                'competition' => $this->competition !== '' ? $this->competition : null,
-                'kickoff_at' => $kickoff,
-                'status' => $this->status,
-            ])
-            ->save();
+        DB::transaction(function () use ($matchday, $match): void {
+            if (!$match->exists || $match->isDirty()) {
+                $snapshot = $match->exists ? $this->matchSnapshot($match->fresh()) : [];
+                $match->save();
+                Audit::log($snapshot ? 'lech_match.updated' : 'lech_match.created', null, $snapshot, $this->matchSnapshot($match), $match->fixture());
+            }
+
+            $matchday->assignMatch($match);
+        });
 
         $after = $this->snapshot($matchday);
 
         if ($before !== $after) {
             Audit::log('matchday.updated', null, $before, $after, $this->season->title . ', ' . __('matchday :n', ['n' => $matchday->number]));
+
+            // Informacje systemowe: nowy albo przełożony mecz (rywal lub godzina), tylko dla kompletnych kolejek.
+            if ($matchday->isFilled() && ($before['opponent'] !== $after['opponent'] || $before['kickoff_at'] !== $after['kickoff_at'])) {
+                \App\Support\SystemFeed::record(
+                    'matches',
+                    filled($before['opponent']) ? 'Match updated: :fixture (matchday :number, :date)' : 'Match added: :fixture (matchday :number, :date)',
+                    ['fixture' => $matchday->fixture, 'number' => $matchday->number, 'date' => $matchday->kickoff_at->format('d.m.Y H:i')],
+                    'results',
+                    ['round' => $matchday->number],
+                );
+            }
         }
 
         Flux::modal('matchday-form')->close();
         $this->resetForm();
-        unset($this->matchdays, $this->stats);
+        unset($this->matchdays, $this->stats, $this->progress);
 
         Flux::toast(text: __('Matchday saved.'), variant: 'success');
     }
@@ -230,8 +286,73 @@ new class extends Component {
     /** Wywoływana także przez @close modala, więc jest publiczna. */
     public function resetForm(): void
     {
-        $this->reset('matchdayId', 'opponent', 'isHome', 'competition', 'kickoffAt', 'status');
+        $this->reset('matchdayId', 'mode', 'lechMatchId', 'opponent', 'isHome', 'competition', 'kickoffAt');
         $this->resetValidation();
+    }
+
+    /** Tryb „pick”: mecz z kalendarza musi mieć termin, nie być przełożony i pasować do kolejności kolejek. */
+    private function pickedMatch(Matchday $matchday): ?LechMatch
+    {
+        $this->validate(['lechMatchId' => ['required', 'integer', Rule::in($this->availableMatches->pluck('id')->all())]], [], ['lechMatchId' => __('Match')]);
+
+        $match = LechMatch::findOrFail((int) $this->lechMatchId);
+
+        if ($match->postponed || $match->kickoff_at === null) {
+            $this->addError('lechMatchId', __('This match is postponed or has no kickoff yet. Update it in the Lech calendar first.'));
+
+            return null;
+        }
+
+        if ($error = $matchday->kickoffOrderError($match->kickoff_at)) {
+            $this->addError('lechMatchId', $error);
+
+            return null;
+        }
+
+        return $match;
+    }
+
+    /** Tryb „edit”: mecz kolejki (albo nowy, gdy kolejka nie ma meczu) z danymi z formularza, jeszcze niezapisany. */
+    private function editedMatch(Matchday $matchday): ?LechMatch
+    {
+        $this->opponent = \Illuminate\Support\Str::squish($this->opponent);
+
+        $this->validate(
+            [
+                'opponent' => ['required', 'string', 'max:80'],
+                'isHome' => ['boolean'],
+                'competition' => ['required', Rule::enum(\App\Enums\MatchCompetition::class)],
+                'kickoffAt' => ['nullable', 'date_format:Y-m-d\TH:i'],
+            ],
+            [],
+            ['opponent' => __('Opponent'), 'competition' => __('Competition'), 'kickoffAt' => __('Kickoff')],
+        );
+
+        $kickoff = $this->kickoffAt !== '' ? \Carbon\Carbon::createFromFormat('Y-m-d\TH:i', $this->kickoffAt) : null;
+
+        if ($kickoff && ($error = $matchday->kickoffOrderError($kickoff))) {
+            $this->addError('kickoffAt', $error);
+
+            return null;
+        }
+
+        return ($matchday->lechMatch ?? new LechMatch(['postponed' => false]))->fill([
+            'opponent' => $this->opponent,
+            'is_home' => $this->isHome,
+            'competition' => $this->competition,
+            'kickoff_at' => $kickoff,
+        ]);
+    }
+
+    /** Pola meczu w kalendarzu do dziennika (jak w panelu kalendarza). */
+    private function matchSnapshot(LechMatch $match): array
+    {
+        return [
+            'opponent' => $match->opponent,
+            'home_away' => $match->is_home ? __('Home') : __('Away'),
+            'competition' => $match->competitionLabel(),
+            'kickoff_at' => $match->kickoff_at?->format('Y-m-d H:i'),
+        ];
     }
 
     /* ==================================================================
@@ -262,51 +383,13 @@ new class extends Component {
         return true;
     }
 
-    /**
-     * Sprawdza, czy termin mieści się między sąsiednimi zaplanowanymi kolejkami.
-     * Przy naruszeniu dodaje błąd do pola i zwraca false.
-     */
-    private function checkOrder(Matchday $matchday, Carbon $kickoff): bool
-    {
-        $neighbours = Matchday::where('season_id', $matchday->season_id)->where('status', MatchdayStatus::Planned->value)->whereNotNull('kickoff_at');
-
-        $previous = (clone $neighbours)->where('number', '<', $matchday->number)->orderByDesc('number')->first();
-        $next = (clone $neighbours)->where('number', '>', $matchday->number)->orderBy('number')->first();
-
-        if ($previous && $kickoff->lte($previous->kickoff_at)) {
-            $this->addError(
-                'kickoffAt',
-                __('The kickoff must be later than matchday :n (:date).', [
-                    'n' => $previous->number,
-                    'date' => $previous->kickoff_at->format('d.m.Y H:i'),
-                ]),
-            );
-
-            return false;
-        }
-
-        if ($next && $kickoff->gte($next->kickoff_at)) {
-            $this->addError(
-                'kickoffAt',
-                __('The kickoff must be earlier than matchday :n (:date).', [
-                    'n' => $next->number,
-                    'date' => $next->kickoff_at->format('d.m.Y H:i'),
-                ]),
-            );
-
-            return false;
-        }
-
-        return true;
-    }
-
     /** Pola zapisywane w dzienniku (do porównania "było -> jest"). */
     private function snapshot(Matchday $matchday): array
     {
         return [
             'opponent' => $matchday->opponent,
             'home_away' => $matchday->is_home ? __('Home') : __('Away'),
-            'competition' => $matchday->competition,
+            'competition' => $matchday->competitionLabel(),
             'kickoff_at' => $matchday->kickoff_at?->format('Y-m-d H:i'),
             'status' => $matchday->status->label(),
         ];
@@ -321,6 +404,8 @@ new class extends Component {
 ?>
 
 <div class="flex h-full w-full flex-1 flex-col gap-6">
+    @include('partials.matchday-tabs', ['tab' => 'matchdays'])
+
 
     {{-- Nagłówek i wybór sezonu --}}
     <div class="flex flex-wrap items-start justify-between gap-4">
@@ -405,70 +490,83 @@ new class extends Component {
                 @endif
             </flux:card>
         @else
-            <flux:table>
-                <flux:table.columns>
-                    <flux:table.column>#</flux:table.column>
-                    <flux:table.column>{{ __('Match') }}</flux:table.column>
-                    <flux:table.column>{{ __('Competition') }}</flux:table.column>
-                    <flux:table.column>{{ __('Kickoff') }}</flux:table.column>
-                    <flux:table.column>{{ __('Status') }}</flux:table.column>
-                    <flux:table.column />
-                </flux:table.columns>
+            {{-- Karty kolejek: każda prowadzi przez kroki kolejki (mecz, typowanie, wynik) z szybkimi akcjami --}}
+            @php
+                $progress = $this->progress;
+                $canEdit = auth()->user()->can(\App\Enums\Permission::SeasonEdit->value) && !$this->isLocked;
+            @endphp
+            <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                @foreach ($this->matchdays as $matchday)
+                    @php
+                        $played = $matchday->status === \App\Enums\MatchdayStatus::Played;
+                        $started = $matchday->kickoff_at && now()->gte($matchday->kickoff_at);
+                        $hasScore = $matchday->lech_goals !== null && $matchday->opponent_goals !== null;
+                        $tips = $progress['tips'][$matchday->id] ?? 0;
+                        $routeParams = ['season' => $this->season->id, 'matchday' => $matchday->number];
 
-                <flux:table.rows>
-                    @foreach ($this->matchdays as $matchday)
-                        <flux:table.row :key="'matchday-'.$matchday->id">
-                            <flux:table.cell variant="strong">{{ $matchday->number }}</flux:table.cell>
+                        // Kroki: [ikona stanu, kolor, tytuł, opis, akcja]; stan: done / todo / urgent / wait
+                        $steps = [];
+                        $steps[] = [
+                            $matchday->isFilled() ? 'done' : 'todo',
+                            __('Match'),
+                            $matchday->isFilled()
+                                ? $matchday->fixture . ' · ' . $matchday->kickoff_at->format('d.m.Y H:i')
+                                : ($matchday->lech_match_id ? __('Unnamed match: add the opponent and the kickoff.') : __('No match yet.')),
+                        ];
+                        $steps[] = [
+                            $started || $played ? 'done' : ($matchday->isOpenForTips() ? 'wait' : 'todo'),
+                            __('Tipping'),
+                            ($matchday->isOpenForTips() ? __('Tips open') : __('Tips closed')) . ' · ' . __('Tips: :count', ['count' => $tips]),
+                        ];
+                        $steps[] = [
+                            $played ? 'done' : ($started && $matchday->status !== \App\Enums\MatchdayStatus::Postponed ? 'urgent' : 'todo'),
+                            __('Result and points'),
+                            $played
+                                ? $matchday->lech_goals . ':' . $matchday->opponent_goals . (isset($this->accuracy[$matchday->id]) ? ' · ' . __('Outcome :outcome%, exact :exact%', $this->accuracy[$matchday->id]) : '')
+                                : ($hasScore ? __('The score is saved, but the points are not counted yet.') : __('After the final whistle.')),
+                        ];
+                        $stateIcons = ['done' => 'check-circle', 'todo' => 'minus-circle', 'urgent' => 'exclamation-circle', 'wait' => 'clock'];
+                        $stateColors = ['done' => 'text-green-600', 'todo' => 'text-zinc-400', 'urgent' => 'text-red-600', 'wait' => 'text-lech-600'];
+                    @endphp
+                    <flux:card class="flex flex-col gap-4" wire:key="matchday-card-{{ $matchday->id }}">
+                        <div class="flex items-start justify-between gap-3">
+                            <div>
+                                <flux:heading size="lg">{{ __('Matchday :number', ['number' => $matchday->number]) }}</flux:heading>
+                                <flux:text size="sm">{{ $matchday->competitionLabel() ?? '—' }}@if (filled($matchday->opponent)) · {{ $matchday->is_home ? __('Home') : __('Away') }}@endif</flux:text>
+                            </div>
+                            <flux:badge size="sm" :color="$matchday->status->color()">{{ $matchday->status->label() }}</flux:badge>
+                        </div>
 
-                            <flux:table.cell>
-                                @if (filled($matchday->opponent))
-                                    <div class="flex flex-wrap items-center gap-2">
-                                        <span>{{ $matchday->fixture }}</span>
-                                        <flux:badge size="sm" color="zinc">
-                                            {{ $matchday->is_home ? __('Home') : __('Away') }}</flux:badge>
+                        <ol class="space-y-3">
+                            @foreach ($steps as [$state, $title, $detail])
+                                <li class="flex items-start gap-3">
+                                    <flux:icon :name="$stateIcons[$state]" class="{{ $stateColors[$state] }} mt-0.5 size-5 shrink-0" />
+                                    <div class="min-w-0">
+                                        <div class="text-sm font-medium">{{ $title }}</div>
+                                        <div class="truncate text-sm text-zinc-500" title="{{ $detail }}">{{ $detail }}</div>
                                     </div>
-                                @else
-                                    <span class="text-zinc-400">{{ __('Not set') }}</span>
-                                @endif
-                            </flux:table.cell>
+                                </li>
+                            @endforeach
+                        </ol>
 
-                            <flux:table.cell class="text-zinc-500">{{ $matchday->competition ?: '—' }}
-                            </flux:table.cell>
-
-                            <flux:table.cell>
-                                @if ($matchday->kickoff_at)
-                                    <div class="flex flex-wrap items-center gap-2">
-                                        <span>{{ $matchday->kickoff_at->format('d.m.Y H:i') }}</span>
-                                        @if ($matchday->isOpenForTips())
-                                            <flux:badge size="sm" color="green">{{ __('Tips open') }}
-                                            </flux:badge>
-                                        @else
-                                            <flux:badge size="sm" color="zinc">{{ __('Tips closed') }}
-                                            </flux:badge>
-                                        @endif
-                                    </div>
-                                @else
-                                    <span class="text-zinc-400">—</span>
-                                @endif
-                            </flux:table.cell>
-
-                            <flux:table.cell>
-                                <flux:badge size="sm" :color="$matchday->status->color()">
-                                    {{ $matchday->status->label() }}</flux:badge>
-                            </flux:table.cell>
-
-                            <flux:table.cell align="end">
-                                @can(\App\Enums\Permission::SeasonEdit->value)
-                                    @if (!$this->isLocked && $matchday->status !== \App\Enums\MatchdayStatus::Played)
-                                        <flux:button variant="ghost" size="sm" icon="pencil-square" inset="top bottom"
-                                            wire:click="edit({{ $matchday->id }})" :aria-label="__('Edit')" />
-                                    @endif
-                                @endcan
-                            </flux:table.cell>
-                        </flux:table.row>
-                    @endforeach
-                </flux:table.rows>
-            </flux:table>
+                        {{-- Akcje kolejki: najważniejsza (pierwszy niezałatwiony krok) jako główny przycisk --}}
+                        <div class="mt-auto flex flex-wrap gap-2 border-t border-zinc-100 pt-3 dark:border-zinc-700">
+                            @if ($canEdit && !$played)
+                                <flux:button size="sm" icon="pencil-square" wire:click="edit({{ $matchday->id }})"
+                                    :variant="$matchday->isFilled() ? 'filled' : 'primary'">
+                                    {{ $matchday->isFilled() ? __('Edit match') : __('Fill in') }}
+                                </flux:button>
+                            @endif
+                            <flux:button size="sm" variant="ghost" icon="check-badge" :href="route('dashboard.tips', $routeParams)" wire:navigate>
+                                {{ __('Tips') }}
+                            </flux:button>
+                            <flux:button size="sm" :variant="$started && !$played ? 'primary' : 'ghost'" icon="flag" :href="route('dashboard.results', $routeParams)" wire:navigate>
+                                {{ __('Result') }}
+                            </flux:button>
+                        </div>
+                    </flux:card>
+                @endforeach
+            </div>
 
             {{-- Dobranie brakujących kolejek, gdyby któraś została usunięta z bazy --}}
             @if ($this->matchdays->count() < \App\Models\Matchday::PER_SEASON && !$this->isLocked)
@@ -490,19 +588,38 @@ new class extends Component {
                 <flux:text class="mt-1">{{ $this->season?->title }}</flux:text>
             </div>
 
-            <flux:input wire:model="opponent" :label="__('Opponent')" placeholder="Legia Warszawa" />
+            <flux:radio.group wire:model.live="mode" variant="segmented">
+                <flux:radio value="edit" :label="__('This match')" />
+                <flux:radio value="pick" :label="__('Another match from the calendar')" />
+            </flux:radio.group>
 
-            <flux:switch wire:model="isHome" :label="__('Home match')" />
+            @if ($mode === 'edit')
+                {{-- Dane meczu kolejki: zapis zmienia mecz w kalendarzu Lecha i kolejkę, typy graczy zostają --}}
+                <flux:input wire:model="opponent" :label="__('Opponent')" placeholder="Legia Warszawa" />
+                <flux:switch wire:model="isHome" :label="__('Home match')" />
+                <flux:select wire:model="competition" :label="__('Competition')">
+                    @foreach (\App\Enums\MatchCompetition::options() as $value => $label)
+                        <flux:select.option :value="$value">{{ $label }}</flux:select.option>
+                    @endforeach
+                </flux:select>
+                <flux:input wire:model="kickoffAt" type="datetime-local" :label="__('Kickoff')"
+                    :description="__('Polish time. Can be empty when the date is not known yet.')" />
+            @else
+                {{-- Mecz z kalendarza Lecha: dane meczu trafiają do kolejki, typy graczy zostają --}}
+                <flux:select wire:model="lechMatchId" :label="__('Match')" :placeholder="__('Choose a match...')">
+                    @foreach ($this->availableMatches as $option)
+                        <flux:select.option :value="$option->id">
+                            {{ $option->kickoff_at?->format('d.m.Y H:i') ?? __('No date') }} · {{ $option->fixture() }}
+                            ({{ $option->competitionLabel() }}){{ $option->postponed ? ' · ' . __('Postponed') : '' }}
+                        </flux:select.option>
+                    @endforeach
+                </flux:select>
 
-            <flux:input wire:model="competition" :label="__('Competition')" placeholder="Ekstraklasa" />
-
-            <flux:input wire:model="kickoffAt" type="datetime-local" :label="__('Kickoff')"
-                :description="__('Tips close at this time.')" />
-
-            <flux:select wire:model="status" :label="__('Status')">
-                <flux:select.option value="planned">{{ __('Planned') }}</flux:select.option>
-                <flux:select.option value="postponed">{{ __('Postponed') }}</flux:select.option>
-            </flux:select>
+                <flux:text class="text-sm">
+                    {{ __('Missing match? Add it in the') }}
+                    <flux:link :href="route('dashboard.lech-calendar')" wire:navigate>{{ __('Lech calendar') }}</flux:link>.
+                </flux:text>
+            @endif
 
             <div class="flex justify-end gap-2">
                 <flux:modal.close>

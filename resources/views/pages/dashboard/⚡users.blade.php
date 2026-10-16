@@ -34,6 +34,9 @@ new class extends Component {
     /** @var array<int, string> nazwy zaznaczonych ról */
     public array $selected = [];
 
+    /** @var array<int, string> id zaznaczonych kont do akcji zbiorczych (zdjęcie bana, zdjęcie Inactive) */
+    public array $checked = [];
+
     public function render(): View
     {
         return $this->view()->title(__('Users'));
@@ -49,6 +52,7 @@ new class extends Component {
         return [
             'users' => User::count(),
             'withoutRole' => User::doesntHave('roles')->count(),
+            'unverified' => User::whereNull('email_verified_at')->count(),
             'admins' => User::whereHas('roles', fn($q) => $q->where('name', self::ADMIN_ROLE))->count(),
         ];
     }
@@ -59,20 +63,34 @@ new class extends Component {
         return Role::orderBy('name')->get(['id', 'name']);
     }
 
+    /** Konta pasujące do wyszukiwarki (imię, e-mail, nazwa drużyny) i filtra ról. */
+    private function filtered()
+    {
+        return User::query()
+            ->when($this->search !== '', function ($q) {
+                $term = '%' . $this->search . '%';
+                $q->where(fn($q) => $q->where('name', 'like', $term)->orWhere('email', 'like', $term)->orWhere('team_name', 'like', $term));
+            })
+            ->when($this->roleFilter === '__none', fn($q) => $q->doesntHave('roles'))
+            ->when($this->roleFilter === '__unverified', fn($q) => $q->whereNull('email_verified_at'))
+            ->when($this->roleFilter !== '' && !str_starts_with($this->roleFilter, '__'), fn($q) => $q->whereHas('roles', fn($r) => $r->where('name', $this->roleFilter)));
+    }
+
     #[Computed]
     public function users()
     {
-        return User::query()
+        return $this->filtered()
             ->with('roles:id,name')
             ->withCount('roles')
-            ->when($this->search !== '', function ($q) {
-                $term = '%' . $this->search . '%';
-                $q->where(fn($q) => $q->where('name', 'like', $term)->orWhere('email', 'like', $term));
-            })
-            ->when($this->roleFilter === '__none', fn($q) => $q->doesntHave('roles'))
-            ->when($this->roleFilter !== '' && $this->roleFilter !== '__none', fn($q) => $q->whereHas('roles', fn($r) => $r->where('name', $this->roleFilter)))
             ->orderBy($this->safeSortBy(), $this->safeDirection())
             ->paginate(10, pageName: 'usersPage');
+    }
+
+    /** Liczba kont pasujących do filtra (przycisk „zaznacz wszystkie z filtra”). */
+    #[Computed]
+    public function filteredCount(): int
+    {
+        return $this->filtered()->count();
     }
 
     /* ------------------------------------------------------------------
@@ -118,6 +136,51 @@ new class extends Component {
     public function updatedRoleFilter(): void
     {
         $this->resetPage('usersPage');
+        $this->checked = [];
+    }
+
+    /* ------------------------------------------------------------------
+     | Akcje zbiorcze: zdjęcie bana albo statusu Inactive z zaznaczonych kont
+     * ----------------------------------------------------------------*/
+
+    /** Zaznacza wszystkie konta pasujące do filtra (ze wszystkich stron listy). */
+    public function checkAllFiltered(): void
+    {
+        $this->checked = $this->filtered()->pluck('id')->map(fn($id) => (string) $id)->all();
+    }
+
+    public function clearChecked(): void
+    {
+        $this->checked = [];
+    }
+
+    /**
+     * Zdejmuje rolę Banned albo Inactive z zaznaczonych kont. Konto bez innej roli dostaje User,
+     * więc wraca do gry (nowy gracz trafia do Ligi podwórkowej, Roster::syncUser).
+     */
+    public function releaseRole(string $role): void
+    {
+        $this->authorizeAdmin();
+
+        if (!in_array($role, \App\Support\Players::BLOCKING_ROLES, true)) {
+            return;
+        }
+
+        $ids = array_map('intval', $this->checked);
+        $users = User::whereIn('id', $ids)->whereHas('roles', fn($q) => $q->where('name', $role))->get();
+        $added = 0;
+
+        foreach ($users as $user) {
+            $added += \App\Support\Office::liftRole($user, $role, __('Bulk action'));
+        }
+
+        $this->checked = [];
+        unset($this->users, $this->stats, $this->filteredCount);
+
+        Flux::toast(text: __(':role removed from :count accounts.', ['role' => $role, 'count' => $users->count()]), variant: 'success');
+        if ($added > 0) {
+            Flux::toast(text: __('Added to the season list: :count.', ['count' => $added]), variant: 'success');
+        }
     }
 
     /* ------------------------------------------------------------------
@@ -173,7 +236,19 @@ new class extends Component {
             $this->selected = array_values(array_diff($this->selected, [$inactive]));
         }
 
+        $wasPlayer = \App\Support\Players::canPlay($user);
+        $wasBanned = $user->hasRole(RoleName::Banned->value);
+
         $user->syncRoles($this->selected);
+        $user->unsetRelation('roles');
+
+        // Informacje systemowe: nowy gracz albo ban.
+        if (!$wasPlayer && \App\Support\Players::canPlay($user)) {
+            \App\Support\SystemFeed::record('players', ':name joined the game', ['name' => $user->team_name ?: $user->name], 'team.show', ['user' => $user->id], $user->id);
+        }
+        if (!$wasBanned && $user->hasRole(RoleName::Banned->value)) {
+            \App\Support\SystemFeed::record('moderation', ':name was banned', ['name' => $user->name], null, [], $user->id);
+        }
 
         // Rola decyduje o udziale w zabawie: gracz (bez bana) trafia na listy sezonów,
         // a zbanowany albo bez roli traci miejsce na rzecz bota (patrz App\Support\Roster).
@@ -190,6 +265,41 @@ new class extends Component {
             Flux::toast(text: __('The player was removed from the season list.'), variant: 'warning');
         }
         $this->resetForm();
+    }
+
+    /* ------------------------------------------------------------------
+     | Potwierdzenie e-maila kodem: admin widzi kod, może wygenerować nowy albo potwierdzić ręcznie.
+     * ----------------------------------------------------------------*/
+
+    /** Nowy kod (bez wysyłki maila), np. gdy gracz dzwoni, że mail nie dotarł. */
+    public function newCode(int $id): void
+    {
+        $this->authorizeAdmin();
+
+        $user = User::findOrFail($id);
+
+        if ($user->hasVerifiedEmail()) {
+            return;
+        }
+
+        $code = $user->newVerificationCode();
+        Flux::toast(text: __('New code for :name: :code', ['name' => $user->name, 'code' => $code]), variant: 'success');
+    }
+
+    /** Potwierdza adres bez kodu. */
+    public function confirmEmail(int $id): void
+    {
+        $this->authorizeAdmin();
+
+        $user = User::findOrFail($id);
+
+        if (!$user->hasVerifiedEmail()) {
+            $user->confirmEmail();
+            event(new \Illuminate\Auth\Events\Verified($user));
+        }
+
+        unset($this->stats);
+        Flux::toast(text: __('Email of :name confirmed.', ['name' => $user->name]), variant: 'success');
     }
 
     public function resetForm(): void
@@ -218,7 +328,7 @@ new class extends Component {
     </div>
 
     {{-- Statystyki --}}
-    <div class="grid gap-4 md:grid-cols-3">
+    <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <flux:card class="flex items-center gap-4">
             <flux:icon.users class="size-8 text-zinc-400" />
             <div>
@@ -240,19 +350,27 @@ new class extends Component {
                 <flux:heading size="xl">{{ $this->stats['withoutRole'] }}</flux:heading>
             </div>
         </flux:card>
+        <flux:card class="flex items-center gap-4">
+            <flux:icon.envelope class="size-8 text-zinc-400" />
+            <div>
+                <flux:text>{{ __('Email not confirmed') }}</flux:text>
+                <flux:heading size="xl">{{ $this->stats['unverified'] }}</flux:heading>
+            </div>
+        </flux:card>
     </div>
 
     {{-- Wyszukiwarka i filtr --}}
     <div class="flex flex-wrap items-center gap-4">
         <div class="w-full sm:w-72">
             <flux:input wire:model.live.debounce.300ms="search" icon="magnifying-glass"
-                :placeholder="__('Search by name or email...')" clearable />
+                :placeholder="__('Search by name, email or team...')" clearable />
         </div>
 
         <div class="w-full sm:w-56">
             <flux:select wire:model.live="roleFilter">
                 <flux:select.option value="">{{ __('All roles') }}</flux:select.option>
                 <flux:select.option value="__none">{{ __('Without a role') }}</flux:select.option>
+                <flux:select.option value="__unverified">{{ __('Email not confirmed') }}</flux:select.option>
                 @foreach ($this->roles as $role)
                     <flux:select.option :value="$role->name">{{ $role->name }}</flux:select.option>
                 @endforeach
@@ -260,9 +378,26 @@ new class extends Component {
         </div>
     </div>
 
+    {{-- Akcje zbiorcze: zdjęcie bana i statusu Inactive z zaznaczonych kont --}}
+    @php
+        $checkedCount = count($checked);
+    @endphp
+    <div class="flex flex-wrap items-center gap-2 rounded-lg border border-zinc-200 px-3 py-2 dark:border-zinc-700">
+        <flux:text class="me-2">{{ __('Selected: :count', ['count' => $checkedCount]) }}</flux:text>
+        <flux:button size="sm" variant="ghost" icon="check" wire:click="checkAllFiltered">
+            {{ __('Select all matching (:count)', ['count' => $this->filteredCount]) }}
+        </flux:button>
+        @if ($checkedCount > 0)
+            <flux:button size="sm" variant="ghost" icon="x-mark" wire:click="clearChecked">{{ __('Clear selection') }}</flux:button>
+            <flux:button size="sm" icon="lock-open" x-on:click="$dispatch('confirm-action', { message: @js(__('Remove the ban from the selected accounts?')), run: () => $wire.releaseRole(@js(\App\Enums\RoleName::Banned->value)) })">{{ __('Remove ban') }}</flux:button>
+            <flux:button size="sm" icon="arrow-uturn-left" x-on:click="$dispatch('confirm-action', { message: @js(__('Remove Inactive from the selected accounts?')), run: () => $wire.releaseRole(@js(\App\Enums\RoleName::Inactive->value)) })">{{ __('Remove Inactive') }}</flux:button>
+        @endif
+    </div>
+
     {{-- Tabela użytkowników --}}
     <flux:table :paginate="$this->users">
         <flux:table.columns>
+            <flux:table.column class="w-8" />
             <flux:table.column sortable :sorted="$sortBy === 'name'" :direction="$sortDirection"
                 wire:click="sort('name')">
                 {{ __('User') }}
@@ -271,6 +406,7 @@ new class extends Component {
                 wire:click="sort('email')">
                 {{ __('Email') }}
             </flux:table.column>
+            <flux:table.column>{{ __('Email confirmation') }}</flux:table.column>
             <flux:table.column sortable :sorted="$sortBy === 'roles_count'" :direction="$sortDirection"
                 wire:click="sort('roles_count')">
                 {{ __('Roles') }}
@@ -285,16 +421,51 @@ new class extends Component {
         <flux:table.rows>
             @forelse ($this->users as $user)
                 <flux:table.row :key="'user-'.$user->id">
+                    <flux:table.cell>
+                        <input type="checkbox" wire:model.live="checked" value="{{ $user->id }}" aria-label="{{ __('Select') }}"
+                            class="size-4 rounded border-zinc-300 text-lech-700 dark:border-zinc-600">
+                    </flux:table.cell>
                     <flux:table.cell variant="strong">
                         <div class="flex items-center gap-3">
                             <flux:avatar size="sm" :name="$user->name" />
-                            <span>{{ $user->name }}</span>
-                            @if ($user->is(auth()->user()))
-                                <flux:badge size="sm" color="zinc">{{ __('You') }}</flux:badge>
-                            @endif
+                            <div class="min-w-0">
+                                <div class="flex items-center gap-2">
+                                    <span>{{ $user->name }}</span>
+                                    @if ($user->is(auth()->user()))
+                                        <flux:badge size="sm" color="zinc">{{ __('You') }}</flux:badge>
+                                    @endif
+                                </div>
+                                {{-- Nazwa drużyny z linkiem do profilu --}}
+                                @if ($user->team_name)
+                                    <a href="{{ route('team.show', $user) }}" target="_blank" class="block truncate text-xs font-normal text-zinc-500 hover:text-lech-700 hover:underline">{{ $user->team_name }}</a>
+                                @else
+                                    <span class="block text-xs font-normal text-zinc-400">{{ __('No team name') }}</span>
+                                @endif
+                            </div>
                         </div>
                     </flux:table.cell>
                     <flux:table.cell class="text-zinc-500">{{ $user->email }}</flux:table.cell>
+                    <flux:table.cell>
+                        @if ($user->email_verified_at)
+                            <flux:badge size="sm" color="green" icon="check">{{ __('Confirmed') }}</flux:badge>
+                        @else
+                            @php
+                                $codeValid = $user->verification_code && $user->verification_code_expires_at?->isFuture();
+                            @endphp
+                            <div class="flex items-center gap-1">
+                                @if ($codeValid)
+                                    <span class="rounded bg-amber-100 px-2 py-0.5 font-mono text-sm font-semibold tracking-widest text-amber-800 dark:bg-amber-500/20 dark:text-amber-200"
+                                        title="{{ __('Valid until :time', ['time' => $user->verification_code_expires_at->format('d.m H:i')]) }}">{{ $user->verification_code }}</span>
+                                @else
+                                    <flux:badge size="sm" color="zinc">{{ $user->verification_code ? __('Code expired') : __('No code') }}</flux:badge>
+                                @endif
+                                <flux:button variant="ghost" size="xs" icon="arrow-path" wire:click="newCode({{ $user->id }})"
+                                    :aria-label="__('New code')" :tooltip="__('New code')" />
+                                <flux:button variant="ghost" size="xs" icon="check-badge" x-on:click="$dispatch('confirm-action', { message: @js(__('Confirm this email without a code?')), run: () => $wire.confirmEmail({{ $user->id }}) })" :aria-label="__('Confirm without a code')"
+                                    :tooltip="__('Confirm without a code')" />
+                            </div>
+                        @endif
+                    </flux:table.cell>
                     <flux:table.cell>
                         <div class="flex flex-wrap gap-1">
                             @forelse ($user->roles as $role)
@@ -314,7 +485,7 @@ new class extends Component {
                 </flux:table.row>
             @empty
                 <flux:table.row>
-                    <flux:table.cell colspan="5" class="py-10 text-center text-zinc-500">
+                    <flux:table.cell colspan="7" class="py-10 text-center text-zinc-500">
                         {{ __('No users match your filters.') }}
                     </flux:table.cell>
                 </flux:table.row>

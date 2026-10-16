@@ -7,96 +7,118 @@ namespace App\Support;
  *
  * Wejście: poziom ligi (1-10, 11 = Liga podwórkowa) => zespoły w kolejności tabeli końcowej,
  * każdy jako ['id' => int, 'human' => bool]. Wyjście: poziom => id w kolejności nowej listy.
+ * Nagrody (tytuły, miejsca, MVP, Złota Piłka, Rękawice) liczą się wcześniej z prawdziwych tabel, także dla botów.
  *
- * Zasady:
- *  - między sąsiednimi ligami 4 najgorsze spadają, 4 najlepsze z niższej awansują,
- *    z Ekstraklasy nikt nie awansuje, z podwórkowej nikt nie spada,
- *  - czyszczenie z botów: po podstawowej wymianie, dopóki najgorszy z pozostałych w wyższej lidze
- *    jest botem, a najlepszy z pozostałych w niższej człowiekiem, zamieniamy ich (do EXTRA_SWAPS razy).
- *    "Pozostali" to zespoły, które jeszcze nigdzie się nie przenoszą, więc każdy zmienia ligę najwyżej o jedną,
- *  - kolejność w nowej lidze: spadkowicze z wyższej, potem pozostali według tabeli, na końcu beniaminkowie.
+ * Zasady (wersja z 15.10.2026, symulacja: notes/symulacja-awansow.md):
+ *  1. w każdej lidze boty przesuwamy na koniec tabeli (ludzie i boty zachowują swoją kolejność),
+ *  2. między sąsiednimi ligami 4 ostatnie spadają, 4 pierwsze z niższej awansują,
+ *     z Ekstraklasy nikt nie awansuje, z podwórkowej nikt nie spada;
+ *     kolejność w nowej lidze: spadkowicze z wyższej, pozostali, beniaminkowie,
+ *  3. wypychanie botów: każdy bot zamienia się z najwyżej sklasyfikowanym człowiekiem pod nim (bez limitu lig).
+ *     Wynik: najpierw wszyscy ludzie, potem wszystkie boty, każda grupa w kolejności listy po kroku 2,
+ *     więc najlepszy bot otwiera listę botów pod ludźmi. Ligi zachowują swoje rozmiary.
+ *     Człowiek, który wskoczył za bota, staje w nowej lidze za beniaminkami (rozstawienie w pucharze).
  */
 final class Promotion
 {
     public const MOVES = 4;
 
-    public const EXTRA_SWAPS = 6;
-
     /**
      * @param  array<int, array<int, array{id: int, human: bool}>>  $tiers
      * @return array<int, array<int, int>>
      */
-    public static function apply(array $tiers, int $moves = self::MOVES, int $extraSwaps = self::EXTRA_SWAPS): array
+    public static function apply(array $tiers, int $moves = self::MOVES): array
     {
         ksort($tiers);
         $levels = array_keys($tiers);
         $lowest = max($levels);
 
-        $down = []; // poziom => zespoły spadające z tego poziomu (do poziom + 1)
-        $up = [];   // poziom => zespoły awansujące z tego poziomu (do poziom - 1)
-        $moving = [];
+        // 1. Boty na koniec każdej tabeli.
+        $sorted = [];
+        foreach ($tiers as $level => $teams) {
+            $sorted[$level] = array_merge(
+                array_values(array_filter($teams, fn ($t) => $t['human'])),
+                array_values(array_filter($teams, fn ($t) => ! $t['human'])),
+            );
+        }
 
-        // Podstawowa wymiana po $moves zespołów.
+        // 2. Wymiana po $moves zespołów na posortowanych tabelach.
+        $up = [];
+        $down = [];
         foreach ($levels as $level) {
-            $teams = array_values($tiers[$level]);
+            $teams = $sorted[$level];
             $up[$level] = $level > 1 ? array_slice($teams, 0, $moves) : [];
             $down[$level] = $level < $lowest ? array_slice($teams, -$moves) : [];
 
             // Mała liga (np. pusta podwórkowa): awans i spadek nie mogą dotyczyć tych samych zespołów.
             $upIds = array_column($up[$level], 'id');
-            $down[$level] = array_values(array_filter($down[$level], fn($t) => !in_array($t['id'], $upIds, true)));
-
-            foreach (array_merge($up[$level], $down[$level]) as $team) {
-                $moving[$team['id']] = true;
-            }
+            $down[$level] = array_values(array_filter($down[$level], fn ($t) => ! in_array($t['id'], $upIds, true)));
         }
 
-        // Czyszczenie z botów, granica po granicy od góry.
+        $flat = [];
+        $sizes = [];
         foreach ($levels as $level) {
-            if ($level === $lowest) {
-                break;
-            }
+            $moving = array_column(array_merge($up[$level], $down[$level]), 'id');
+            $stayers = array_filter($sorted[$level], fn ($t) => ! in_array($t['id'], $moving, true));
+            $league = array_merge($level > 1 ? $down[$level - 1] : [], array_values($stayers), $level < $lowest ? $up[$level + 1] : []);
+            $sizes[$level] = count($league);
+            array_push($flat, ...$league);
+        }
 
-            $upper = array_values(array_filter(array_reverse($tiers[$level]), fn($t) => !isset($moving[$t['id']])));
-            $lower = array_values(array_filter($tiers[$level + 1], fn($t) => !isset($moving[$t['id']])));
+        // 3. Wypychanie botów: ludzie przed botami, kolejność w obu grupach jak po kroku 2.
+        $order = array_merge(
+            array_values(array_filter($flat, fn ($t) => $t['human'])),
+            array_values(array_filter($flat, fn ($t) => ! $t['human'])),
+        );
 
-            for ($swap = 0; $swap < $extraSwaps && $upper !== [] && $lower !== []; $swap++) {
-                if ($upper[0]['human'] || !$lower[0]['human']) {
-                    break;
-                }
-
-                $bot = array_shift($upper);
-                $human = array_shift($lower);
-                $down[$level][] = $bot;
-                $up[$level + 1][] = $human;
-                $moving[$bot['id']] = true;
-                $moving[$human['id']] = true;
+        // Kolejność w lidze: najpierw zespoły, które były tu po kroku 2 (spadkowicze, pozostali, beniaminkowie),
+        // za nimi ludzie, którzy wskoczyli za boty; boty zawsze na końcu, w kolejności listy (najlepszy pierwszy).
+        $levelAfterStep2 = [];
+        $index = [];
+        $position = 0;
+        foreach ($levels as $level) {
+            foreach (array_splice($flat, 0, $sizes[$level]) as $team) {
+                $levelAfterStep2[$team['id']] = $level;
+                $index[$team['id']] = $position++;
             }
         }
 
         $result = [];
-
         foreach ($levels as $level) {
-            $relegated = $level > 1 ? self::inTableOrder($down[$level - 1], $tiers[$level - 1]) : [];
-            $stayers = array_filter($tiers[$level], fn($t) => !isset($moving[$t['id']]));
-            $promoted = $level < $lowest ? self::inTableOrder($up[$level + 1], $tiers[$level + 1]) : [];
-
-            $result[$level] = array_merge(
-                array_column($relegated, 'id'),
-                array_column(array_values($stayers), 'id'),
-                array_column($promoted, 'id'),
-            );
+            $members = array_splice($order, 0, $sizes[$level]);
+            $key = fn ($t) => [! $t['human'], $t['human'] && $levelAfterStep2[$t['id']] !== $level, $index[$t['id']]];
+            usort($members, fn ($a, $b) => $key($a) <=> $key($b));
+            $result[$level] = array_column($members, 'id');
         }
 
         return $result;
     }
 
-    /** Zespoły w kolejności tabeli końcowej ich dotychczasowej ligi. */
-    private static function inTableOrder(array $teams, array $table): array
+    /**
+     * Kierunek zmiany ligi każdego przenoszonego zespołu (do oznaczeń w tabelach ostatniej kolejki):
+     * id => 'up' (awans) albo 'down' (spadek), razem z zamianami z czyszczenia z botów.
+     *
+     * @param  array<int, array<int, array{id: int, human: bool}>>  $tiers
+     * @return array<int, string>
+     */
+    public static function moves(array $tiers): array
     {
-        $order = array_flip(array_column($table, 'id'));
-        usort($teams, fn($a, $b) => $order[$a['id']] <=> $order[$b['id']]);
+        $from = [];
+        foreach ($tiers as $level => $teams) {
+            foreach ($teams as $team) {
+                $from[$team['id']] = $level;
+            }
+        }
 
-        return $teams;
+        $moves = [];
+        foreach (self::apply($tiers) as $level => $ids) {
+            foreach ($ids as $id) {
+                if ($from[$id] !== $level) {
+                    $moves[$id] = $from[$id] > $level ? 'up' : 'down';
+                }
+            }
+        }
+
+        return $moves;
     }
 }

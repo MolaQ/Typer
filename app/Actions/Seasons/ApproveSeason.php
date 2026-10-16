@@ -7,16 +7,16 @@ use App\Enums\League;
 use App\Enums\SeasonStatus;
 use App\Models\Season;
 use App\Models\SeasonTeam;
+use App\Support\Audit;
 use App\Support\Players;
 use App\Support\Roster;
-use App\Support\Audit;
 use DomainException;
 use Illuminate\Support\Facades\DB;
 
 /**
  * Zatwierdzenie sezonu (szkic -> zatwierdzony). Wszystko w jednej transakcji:
  *  1. sprawdza, czy lista jest zbudowana i czy żaden gracz nie został pominięty,
- *  2. dodaje wszystkie boty z puli (lista zamknięta, min. 512 zespołów),
+ *  2. dopełnia listę botami do 512 zespołów (FillTeamListWithBots; przy ponad 512 graczach bez botów),
  *  3. tworzy rozgrywki (App\Actions\Competitions\BuildCompetitions): 10 lig z terminarzem
  *     (9 kolejek po 5 meczów), Puchar Polski (drabinka 512, 9 rund) i Ligę podwórkową,
  *  5. zmienia status i zapisuje wpis w dzienniku.

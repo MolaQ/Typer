@@ -68,9 +68,7 @@ new class extends Component {
 
                 $q->where(function ($q) use ($term) {
                     $q->whereHas('user', fn($u) => $u->where('name', 'like', $term)->orWhere('email', 'like', $term))
-                        ->orWhere('requested_team_name', 'like', $term)
-                        ->orWhere('requested_team_short_name', 'like', $term)
-                        ->orWhere('requested_team_abbr', 'like', $term);
+                        ->orWhere('requested_team_name', 'like', $term);
                 });
             })
             ->orderBy('created_at', $this->sortDirection === 'asc' ? 'asc' : 'desc')
@@ -121,14 +119,10 @@ new class extends Component {
 
                 $old = [
                     'team_name' => $user->team_name,
-                    'team_short_name' => $user->team_short_name,
-                    'team_abbr' => $user->team_abbr,
                 ];
 
                 $new = [
                     'team_name' => $request->requested_team_name,
-                    'team_short_name' => $request->requested_team_short_name,
-                    'team_abbr' => $request->requested_team_abbr,
                 ];
 
                 $user->update($new);
@@ -163,8 +157,6 @@ new class extends Component {
     {
         $checks = [
             'team_name' => [$request->requested_team_name, __('Team name')],
-            'team_short_name' => [$request->requested_team_short_name, __('Team short name')],
-            'team_abbr' => [$request->requested_team_abbr, __('Team abbreviation')],
         ];
 
         $taken = [];
@@ -232,13 +224,9 @@ new class extends Component {
                 $user,
                 [
                     'team_name' => $user?->team_name,
-                    'team_short_name' => $user?->team_short_name,
-                    'team_abbr' => $user?->team_abbr,
                 ],
                 [
                     'team_name' => $request->requested_team_name,
-                    'team_short_name' => $request->requested_team_short_name,
-                    'team_abbr' => $request->requested_team_abbr,
                 ],
                 __('Request #:id rejected.', ['id' => $request->id]) . ($reason ? ' ' . $reason : ''),
             );
@@ -341,7 +329,7 @@ new class extends Component {
 
                     <flux:table.cell>
                         <div class="space-y-1 text-sm">
-                            @foreach ([['team_name', __('Team name')], ['team_short_name', __('Team short name')], ['team_abbr', __('Team abbreviation')]] as [$field, $label])
+                            @foreach ([['team_name', __('Team name')]] as [$field, $label])
                                 @php
                                     $old = $req->{'current_' . $field};
                                     $new = $req->{'requested_' . $field};
@@ -390,8 +378,7 @@ new class extends Component {
                     <flux:table.cell align="end">
                         @if ($req->status === \App\Enums\TeamNameRequestStatus::Pending)
                             <div class="flex justify-end gap-2">
-                                <flux:button size="sm" variant="primary" icon="check" wire:click="approve({{ $req->id }})"
-                                    wire:confirm="{{ __('Approve this change?') }}">
+                                <flux:button size="sm" variant="primary" icon="check" x-on:click="$dispatch('confirm-action', { message: @js(__('Approve this change?')), run: () => $wire.approve({{ $req->id }}) })">
                                     {{ __('Approve') }}
                                 </flux:button>
                                 <flux:button size="sm" variant="ghost" icon="x-mark" wire:click="confirmReject({{ $req->id }})">

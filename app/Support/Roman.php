@@ -11,6 +11,7 @@ class Roman
 {
     /** Zakres, w którym zapis rzymski jest poprawny. */
     public const MIN = 1;
+
     public const MAX = 3999;
 
     public static function toRoman(int $number): string

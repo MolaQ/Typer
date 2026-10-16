@@ -9,34 +9,50 @@ use App\Models\Season;
 use App\Models\TrophyIcon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
-use Illuminate\Support\Facades\Storage;
 
 /**
  * Hall of Fame (regulamin, punkt 12): punktacja wszech czasów za sukcesy w zakończonych sezonach.
  * Wartości są konfigurowalne w panelu (tabela hall_of_fame_settings), tu są wartości domyślne.
- * Punkty ligowe mnożymy przez mnożnik poziomu: Ekstraklasa 10, I liga 9 … C klasa 1, podwórkowa 0,5.
- * Złota Liga nie daje punktów, tylko unikalne trofeum.
+ * Punkty ligowe mnożymy przez mnożnik poziomu. Wartości domyślne ułożone są tak, żeby tytuły dawały punkty
+ * zgodnie z ważnością rozgrywek (pełny tytuł z meczami i awansem):
+ *   Liga Legend (zwycięzca 500 + pojedynki i przetrwane kolejki, wstępnie) > Ekstraklasa 500 > Puchar Polski 450
+ *   > MVP 400 > Złota Piłka 360 > Złote Rękawice 330 > Liga Mistrzów 300 > Liga Europy 250 > Liga Konferencji 180
+ *   (za samo zwycięstwo; z meczami grupowymi i premiami za etapy zdobywca LM ma do 445, mniej niż Puchar Polski)
+ *   > I liga 168 > II liga 144 … > podwórkowa 12.
  */
 final class HallOfFame
 {
-    /** @var array<string, float> */
+    /** @var array<string, int|float> */
     public const DEFAULTS = [
         // Mnożniki poziomów (League 1-11).
-        'multiplier_1' => 10, 'multiplier_2' => 9, 'multiplier_3' => 8, 'multiplier_4' => 7, 'multiplier_5' => 6,
-        'multiplier_6' => 5, 'multiplier_7' => 4, 'multiplier_8' => 3, 'multiplier_9' => 2, 'multiplier_10' => 1,
-        'multiplier_11' => 0.5,
-        // Ligi i podwórkowa (× mnożnik poziomu).
-        'league_champion' => 50, 'league_second' => 30, 'league_third' => 20, 'league_promotion' => 10,
-        'league_top_scorer' => 20, 'league_win' => 2, 'league_draw' => 1,
-        // Puchar Polski: za wygraną w każdej rundzie, a zwycięzca finału osobno.
-        'cup_round_1' => 5, 'cup_round_2' => 5, 'cup_round_3' => 5, 'cup_round_4' => 10, 'cup_round_5' => 10,
-        'cup_round_6' => 15, 'cup_round_7' => 20, 'cup_round_8' => 30, 'cup_winner' => 100,
-        // Ligi europejskie: zwycięzca i wygrany mecz.
-        'champions_winner' => 150, 'europa_winner' => 100, 'conference_winner' => 70,
-        'champions_win' => 3, 'europa_win' => 2, 'conference_win' => 1,
-        // Liga Legend: etapy narastająco (16, 8, 4 najlepszych, finał, zwycięstwo).
-        'legends_top16' => 10, 'legends_top8' => 20, 'legends_top4' => 40, 'legends_final' => 70, 'legends_winner' => 120,
+        // Ekstraklasa wyraźnie wyżej niż reszta: między nią a I ligą są nagrody indywidualne i ligi europejskie.
+        'multiplier_1' => 10, 'multiplier_2' => 2.8, 'multiplier_3' => 2.4, 'multiplier_4' => 2, 'multiplier_5' => 1.6,
+        'multiplier_6' => 1.3, 'multiplier_7' => 1, 'multiplier_8' => 0.8, 'multiplier_9' => 0.6, 'multiplier_10' => 0.4,
+        'multiplier_11' => 0.2,
+        // Ligi i podwórkowa (× mnożnik poziomu): mistrz Ekstraklasy 500, I ligi 140 + awans 28, podwórkowej 10 + awans 2.
+        'league_champion' => 50, 'league_second' => 25, 'league_third' => 15, 'league_promotion' => 10,
+        'league_top_scorer' => 10, 'league_win' => 1, 'league_draw' => 0.5,
+        // Puchar Polski (zaraz po Ekstraklasie): za wygraną w każdej rundzie (razem 75), zwycięzca finału osobno (375), łącznie 450.
+        'cup_round_1' => 2, 'cup_round_2' => 2, 'cup_round_3' => 3, 'cup_round_4' => 5, 'cup_round_5' => 8,
+        'cup_round_6' => 12, 'cup_round_7' => 18, 'cup_round_8' => 25, 'cup_winner' => 375,
+        // Puchary europejskie (EuropeanCup): wygrana i remis w fazie grupowej, 1. miejsce w grupie, premie za etapy
+        // (narastająco: wyjście z grupy = 1/8 finału, ćwierćfinał, półfinał, finał) i zwycięstwo.
+        'champions_win' => 3, 'champions_draw' => 1.5, 'champions_group_first' => 10,
+        'champions_round_6' => 10, 'champions_round_7' => 20, 'champions_round_8' => 35, 'champions_round_9' => 55, 'champions_winner' => 300,
+        'europa_win' => 2, 'europa_draw' => 1, 'europa_group_first' => 8,
+        'europa_round_6' => 8, 'europa_round_7' => 15, 'europa_round_8' => 26, 'europa_round_9' => 42, 'europa_winner' => 250,
+        'conference_win' => 1, 'conference_draw' => 0.5, 'conference_group_first' => 6,
+        'conference_round_6' => 6, 'conference_round_7' => 10, 'conference_round_8' => 18, 'conference_round_9' => 30, 'conference_winner' => 180,
+        // Liga Legend (LegendsLeague): wygrany i zremisowany pojedynek, każda przetrwana kolejka oraz miejsca 1-3 tabeli
+        // końcowej (wstępnie, do przemyślenia; wszystko w panelu).
+        'legends_win' => 2, 'legends_draw' => 1, 'legends_survived' => 10,
+        'legends_champion' => 500, 'legends_second' => 250, 'legends_third' => 150,
+        // Nagrody indywidualne sezonu (gracze i boty, przy remisie wyższe miejsce w lidze).
+        'mvp' => 400, 'golden_ball' => 360, 'golden_boot' => 345, 'golden_gloves' => 330,
     ];
+
+    /** Klucze nagród indywidualnych (te same w trofeach i w punktacji). */
+    public const INDIVIDUAL = ['mvp', 'golden_ball', 'golden_boot', 'golden_gloves'];
 
     /** @var array<string, float>|null */
     private static ?array $values = null;
@@ -55,7 +71,7 @@ final class HallOfFame
     {
         if (self::$values === null) {
             $saved = Schema::hasTable('hall_of_fame_settings')
-                ? DB::table('hall_of_fame_settings')->pluck('value', 'key')->map(fn($v) => (float) $v)->all()
+                ? DB::table('hall_of_fame_settings')->pluck('value', 'key')->map(fn ($v) => (float) $v)->all()
                 : [];
 
             self::$values = array_map('floatval', array_merge(self::DEFAULTS, array_intersect_key($saved, self::DEFAULTS)));
@@ -80,7 +96,7 @@ final class HallOfFame
     /** Mnożnik poziomu ligi (1-10, 11 = podwórkowa). */
     public static function multiplier(int $tier): float
     {
-        return self::value('multiplier_' . $tier);
+        return self::value('multiplier_'.$tier);
     }
 
     /**
@@ -92,12 +108,12 @@ final class HallOfFame
     {
         $multipliers = [];
         foreach (League::cases() as $league) {
-            $multipliers['multiplier_' . $league->value] = $league->label();
+            $multipliers['multiplier_'.$league->value] = $league->label();
         }
 
         $cup = [];
         foreach (range(1, CupBracket::ROUNDS - 1) as $round) {
-            $cup['cup_round_' . $round] = __('Win in round :round', ['round' => $round]);
+            $cup['cup_round_'.$round] = __('Win in round :round', ['round' => $round]);
         }
         $cup['cup_winner'] = __('Cup winner');
 
@@ -113,49 +129,78 @@ final class HallOfFame
                 'league_draw' => __('Match drawn'),
             ],
             CompetitionType::Cup->label() => $cup,
-            __('European leagues') => [
-                'champions_winner' => CompetitionType::Champions->label() . ': ' . __('winner'),
-                'europa_winner' => CompetitionType::Europa->label() . ': ' . __('winner'),
-                'conference_winner' => CompetitionType::Conference->label() . ': ' . __('winner'),
-                'champions_win' => CompetitionType::Champions->label() . ': ' . __('match won'),
-                'europa_win' => CompetitionType::Europa->label() . ': ' . __('match won'),
-                'conference_win' => CompetitionType::Conference->label() . ': ' . __('match won'),
-            ],
+            ...collect([CompetitionType::Champions, CompetitionType::Europa, CompetitionType::Conference])
+                ->mapWithKeys(fn (CompetitionType $type) => [$type->label() => [
+                    $type->value.'_win' => __('Group stage: match won'),
+                    $type->value.'_draw' => __('Group stage: match drawn'),
+                    $type->value.'_group_first' => __('Group winner'),
+                    $type->value.'_round_6' => __('Through to the round of 16'),
+                    $type->value.'_round_7' => __('Through to the quarter-final'),
+                    $type->value.'_round_8' => __('Through to the semi-final'),
+                    $type->value.'_round_9' => __('Through to the final'),
+                    $type->value.'_winner' => __('Winner'),
+                ]])
+                ->all(),
             CompetitionType::Legends->label() => [
-                'legends_top16' => __('Top :count', ['count' => 16]),
-                'legends_top8' => __('Top :count', ['count' => 8]),
-                'legends_top4' => __('Top :count', ['count' => 4]),
-                'legends_final' => __('Final'),
-                'legends_winner' => __('Winner'),
+                'legends_win' => __('Match won'),
+                'legends_draw' => __('Match drawn'),
+                'legends_survived' => __('Each survived matchday'),
+                'legends_champion' => __('Winner'),
+                'legends_second' => __('Second place'),
+                'legends_third' => __('Third place'),
+            ],
+            __('Individual awards') => [
+                'mvp' => __('Season MVP'),
+                'golden_ball' => __('Golden Ball'),
+                'golden_boot' => __('Golden Boot'),
+                'golden_gloves' => __('Golden Gloves'),
             ],
         ];
     }
 
     /**
-     * Trofea do gabloty: klucz => nazwa. Mistrzostwo i król strzelców osobno dla każdego poziomu (także podwórkowej).
+     * Trofea do gabloty: klucz => nazwa, w kolejności ważności (tak je pokazujemy):
+     * Liga Legend, Ekstraklasa, Puchar Polski, MVP, Złota Piłka, Złoty But, Złote Rękawice, Liga Mistrzów, Liga Europy,
+     * Liga Konferencji, ligi od I ligi do podwórkowej, królowie strzelców lig (od Ekstraklasy).
      *
      * @return array<string, string>
      */
     public static function trophies(): array
     {
-        $out = [];
+        $out = [
+            CompetitionType::Legends->value => CompetitionType::Legends->label(),
+            'league_1' => __('Champion: :league', ['league' => League::Ekstraklasa->label()]),
+            CompetitionType::Cup->value => CompetitionType::Cup->label(),
+            'mvp' => __('Season MVP'),
+            'golden_ball' => __('Golden Ball'),
+            'golden_boot' => __('Golden Boot'),
+            'golden_gloves' => __('Golden Gloves'),
+            CompetitionType::Champions->value => CompetitionType::Champions->label(),
+            CompetitionType::Europa->value => CompetitionType::Europa->label(),
+            CompetitionType::Conference->value => CompetitionType::Conference->label(),
+        ];
         foreach (League::cases() as $league) {
-            $out['league_' . $league->value] = __('Champion: :league', ['league' => $league->label()]);
+            $out['league_'.$league->value] ??= __('Champion: :league', ['league' => $league->label()]);
         }
         foreach (League::cases() as $league) {
-            $out['top_scorer_' . $league->value] = __('Top scorer: :league', ['league' => $league->label()]);
-        }
-        foreach ([CompetitionType::Cup, CompetitionType::Champions, CompetitionType::Europa, CompetitionType::Conference, CompetitionType::Legends, CompetitionType::Golden] as $type) {
-            $out[$type->value] = $type->label();
+            $out['top_scorer_'.$league->value] = __('Top scorer: :league', ['league' => $league->label()]);
         }
 
         return $out;
     }
 
+    /** Pozycja trofeum na liście ważności (do sortowania gabloty i ikon w rankingu). */
+    public static function trophyRank(string $key): int
+    {
+        $index = array_search($key, array_keys(self::trophies()), true);
+
+        return $index === false ? PHP_INT_MAX : $index;
+    }
+
     /** @return array<string, string> klucz trofeum => adres ikony */
     public static function iconUrls(): array
     {
-        return TrophyIcon::pluck('path', 'key')->map(fn($path) => Storage::disk('public')->url($path))->all();
+        return TrophyIcon::pluck('path', 'key')->map(fn ($path) => asset('storage/'.$path))->all();
     }
 
     /**
@@ -183,18 +228,18 @@ final class HallOfFame
     /** @return array<int, float> */
     private static function sumBefore(Season $season, string $column): array
     {
-        if (!Schema::hasTable('hall_of_fame_awards')) {
+        if (! Schema::hasTable('hall_of_fame_awards')) {
             return [];
         }
 
         return HallOfFameAward::query()
             ->join('seasons', 'seasons.id', '=', 'hall_of_fame_awards.season_id')
             ->where('seasons.number', '<', $season->number)
-            ->whereNotNull('hall_of_fame_awards.' . $column)
-            ->groupBy('hall_of_fame_awards.' . $column)
-            ->selectRaw('hall_of_fame_awards.' . $column . ' as owner, sum(hall_of_fame_awards.points) as total')
+            ->whereNotNull('hall_of_fame_awards.'.$column)
+            ->groupBy('hall_of_fame_awards.'.$column)
+            ->selectRaw('hall_of_fame_awards.'.$column.' as owner, sum(hall_of_fame_awards.points) as total')
             ->pluck('total', 'owner')
-            ->map(fn($v) => round((float) $v, 1))
+            ->map(fn ($v) => round((float) $v, 1))
             ->all();
     }
 }

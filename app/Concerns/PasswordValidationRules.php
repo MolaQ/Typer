@@ -5,6 +5,9 @@ namespace App\Concerns;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Validation\Rules\Password;
 
+/**
+ * Reguły walidacji hasła wspólne dla rejestracji, resetu i zmiany hasła.
+ */
 trait PasswordValidationRules
 {
     /**

@@ -70,11 +70,11 @@ class Fixture extends Model
     /** "2:1", "1:1 (k)" przy awansie po czasie typu albo "–" przed wynikiem. */
     public function score(): string
     {
-        if (!$this->isPlayed()) {
+        if (! $this->isPlayed()) {
             return '–';
         }
 
-        return $this->home_goals . ':' . $this->away_goals . ($this->decided_by_time ? ' ' . __('(pen.)') : '');
+        return $this->home_goals.':'.$this->away_goals.($this->decided_by_time ? ' '.__('(pen.)') : '');
     }
 
     /** Mecz z wirtualnym rywalem (wolny los w lidze szwajcarskiej). */

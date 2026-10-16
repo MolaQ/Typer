@@ -8,6 +8,9 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Validation\Rules\Password;
 
+/**
+ * Ustawienia aplikacji przy starcie: daty niezmienne, blokada niszczących poleceń i reguły haseł na produkcji.
+ */
 class AppServiceProvider extends ServiceProvider
 {
     /**

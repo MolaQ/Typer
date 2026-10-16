@@ -6,6 +6,9 @@ use App\Models\User;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Validation\Rule;
 
+/**
+ * Reguły walidacji profilu (imię, e-mail) wspólne dla rejestracji i ustawień konta.
+ */
 trait ProfileValidationRules
 {
     /**

@@ -134,8 +134,11 @@ new class extends Component {
             'unlisted' => $this->unlistedPlayers()->count(),
             // Użytkownicy bez żadnej roli: czekają na zatwierdzenie konta przez admina.
             'noRole' => Players::withoutRole()->count(),
-            // Boty z puli, których nie ma jeszcze na liście tego sezonu.
-            'freeBots' => Bot::whereNotIn('id', SeasonTeam::where('season_id', $this->seasonId)->whereNotNull('bot_id')->select('bot_id'))->count(),
+            // Ile botów brakuje do 512 zespołów (więcej nie dochodzi, reszta puli pauzuje).
+            'freeBots' => min(
+                max(0, SeasonTeam::CUP_SIZE - SeasonTeam::where('season_id', $this->seasonId)->count()),
+                Bot::whereNotIn('id', SeasonTeam::where('season_id', $this->seasonId)->whereNotNull('bot_id')->select('bot_id'))->count(),
+            ),
         ];
     }
 
@@ -160,7 +163,7 @@ new class extends Component {
     public function teams()
     {
         return SeasonTeam::query()
-            ->with(['user:id,name,email,team_name,team_short_name,team_abbr', 'bot:id,name,sort_order'])
+            ->with(['user:id,name,email,team_name', 'bot:id,name,sort_order'])
             ->where('season_id', $this->seasonId)
             ->inLeague($this->selectedLeague)
             ->orderBy('position')
@@ -180,7 +183,7 @@ new class extends Component {
     {
         $this->authorizeAbility(Permission::SeasonEdit);
 
-        if (!$this->ensureEditable()) {
+        if (!$this->ensureEditable() || !$this->ensurePreviousFinished()) {
             return;
         }
 
@@ -241,7 +244,7 @@ new class extends Component {
     {
         $this->authorizeAbility(Permission::SeasonEdit);
 
-        if (!$this->ensureEditable()) {
+        if (!$this->ensureEditable() || !$this->ensurePreviousFinished()) {
             return;
         }
 
@@ -276,7 +279,7 @@ new class extends Component {
         }
 
         // Każdy gracz zajmuje miejsce najwyżej sklasyfikowanego bota w lidze podwórkowej
-        // (bot wraca do puli), a gdy tam nie ma botów, trafia na koniec listy.
+        // (bot przechodzi na koniec listy), a gdy tam nie ma botów, trafia na koniec listy.
         DB::transaction(function () use ($ids): void {
             foreach ($ids as $userId) {
                 $this->placePlayer($userId, League::Podworkowa);
@@ -305,7 +308,7 @@ new class extends Component {
         $added = app(FillTeamListWithBots::class)->handle($this->season);
 
         if ($added === 0) {
-            Flux::toast(text: __('All bots are already on the list.'), variant: 'info');
+            Flux::toast(text: __('The list already has :count teams.', ['count' => \App\Models\SeasonTeam::CUP_SIZE]), variant: 'info');
 
             return;
         }
@@ -346,7 +349,7 @@ new class extends Component {
 
     /**
      * Przypisuje gracza do wybranej ligi wg tej samej zasady co ręczne przenoszenie:
-     * gracz zajmuje miejsce najwyżej sklasyfikowanego bota w tej lidze, a bot wraca do puli.
+     * gracz zajmuje miejsce najwyżej sklasyfikowanego bota w tej lidze, a bot przechodzi na koniec listy (Liga podwórkowa).
      * Po zatwierdzeniu sezonu zmienia się tylko właściciel miejsca, więc terminarz zostaje.
      * W lidze 1-10 bez botów nic się nie zmienia, w podwórkowej gracz idzie na koniec listy.
      */
@@ -372,7 +375,7 @@ new class extends Component {
             return;
         }
 
-        $placed = DB::transaction(fn() => $this->placePlayer($user->id, $league));
+        $placed = DB::transaction(fn() => $this->placePlayer($user->id, $league), Roster::ATTEMPTS);
 
         if (!$placed) {
             Flux::toast(text: __('There are no bots in :league. Nothing was changed.', ['league' => $league->label()]), variant: 'warning');
@@ -769,6 +772,36 @@ new class extends Component {
         return true;
     }
 
+    /**
+     * Wcześniejszy sezon, który jeszcze trwa. Lista nowego sezonu musi powstać z jego tabel końcowych
+     * (awanse i spadki, regulamin pkt 9), więc dopóki go nie zakończymy, listy nie budujemy.
+     * Inaczej aktywacja nowego sezonu zakończyłaby stary, a lista zostałaby ułożona według rejestracji.
+     */
+    #[Computed]
+    public function unfinishedPrevious(): ?Season
+    {
+        if (!$this->season) {
+            return null;
+        }
+
+        return Season::where('number', '<', $this->season->number)
+            ->whereIn('status', [SeasonStatus::Active->value, SeasonStatus::Approved->value])
+            ->orderByDesc('number')
+            ->first();
+    }
+
+    /** Blokada budowy listy, dopóki poprzedni sezon trwa. */
+    private function ensurePreviousFinished(): bool
+    {
+        if ($this->unfinishedPrevious) {
+            Flux::toast(text: __('Finish :season first. The new list is built from its final standings (promotion and relegation).', ['season' => $this->unfinishedPrevious->title]), variant: 'warning');
+
+            return false;
+        }
+
+        return true;
+    }
+
     private function clearCaches(): void
     {
         unset($this->teams, $this->stats, $this->leagueCounts, $this->unlistedPreview);
@@ -878,7 +911,11 @@ new class extends Component {
                     </flux:text>
                 @endif
 
-                @if ($this->isEditable)
+                @if ($this->isEditable && $this->unfinishedPrevious)
+                    {{-- Poprzedni sezon trwa: lista powstanie z jego tabel końcowych dopiero po zakończeniu --}}
+                    <flux:callout variant="warning" icon="exclamation-triangle"
+                        :heading="__('Finish :season first. The new list is built from its final standings (promotion and relegation).', ['season' => $this->unfinishedPrevious->title])" />
+                @elseif ($this->isEditable)
                     @can(\App\Enums\Permission::SeasonEdit->value)
                         <div class="flex flex-wrap gap-2">
                             @if ($this->previousSeason)
@@ -946,12 +983,12 @@ new class extends Component {
                 </flux:card>
             @endif
 
-            {{-- Uzupełnienie wszystkimi botami z puli --}}
+            {{-- Uzupełnienie botami z puli do 512 zespołów --}}
             @if ($this->stats['freeBots'] > 0 && $this->isEditable)
                 @can(\App\Enums\Permission::SeasonEdit->value)
                     <flux:card class="flex flex-wrap items-center justify-between gap-4">
                         <flux:text>
-                            {{ __(':count bots are not on the list yet. Add them all (this also happens when the season is approved).', ['count' => $this->stats['freeBots']]) }}
+                            {{ __(':count bots are missing to fill the list up to 512 teams. Add them now (this also happens when the season is approved).', ['count' => $this->stats['freeBots']]) }}
                         </flux:text>
                         <flux:button size="sm" icon="cpu-chip" wire:click="fillWithBots">
                             <span wire:loading.remove wire:target="fillWithBots">{{ __('Fill with bots') }}</span>
@@ -1013,9 +1050,6 @@ new class extends Component {
                                     <span>{{ $team->name }}</span>
                                     @if ($team->is_bot)
                                         <flux:badge size="sm" color="zinc">{{ __('Bot') }}</flux:badge>
-                                    @elseif ($team->user?->team_abbr)
-                                        <flux:badge size="sm" color="blue">{{ $team->user->team_abbr }}
-                                        </flux:badge>
                                     @endif
                                 </div>
                             </flux:table.cell>
@@ -1113,7 +1147,7 @@ new class extends Component {
             </flux:select>
 
             <flux:text class="text-sm">
-                {{ __('The player takes the place of the highest ranked bot in the chosen league, and the bot goes back to the pool. In Liga podwórkowa without bots the player goes to the end of the list.') }}
+                {{ __('The player takes the place of the highest ranked bot in the chosen league, and the bot moves to the end of the list (Liga podwórkowa). In Liga podwórkowa without bots the player goes to the end of the list.') }}
             </flux:text>
 
             <div class="flex justify-end gap-2">

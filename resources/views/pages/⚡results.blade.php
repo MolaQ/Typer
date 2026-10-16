@@ -1,41 +1,157 @@
 <?php
 
 use App\Enums\CompetitionType;
+use App\Enums\SeasonStatus;
 use App\Models\Competition;
 use App\Models\Fixture;
 use App\Models\Matchday;
 use App\Models\Season;
 use App\Models\SeasonTeam;
 use App\Support\CupBracket;
-use App\Support\LegendsRanking;
+use App\Support\EuropeanCup;
+use App\Support\PlayerStats;
+use App\Support\Premium;
+use App\Support\Rivals;
 use App\Support\Standings;
+use Flux\Flux;
 use Illuminate\Contracts\View\View;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Layout;
-use Livewire\Attributes\Url;
 use Livewire\Component;
 use Livewire\WithPagination;
 
 /**
- * Wyniki i tabele aktywnego sezonu na stronie głównej (dla wszystkich, także gości).
- * Ligi i Liga podwórkowa: tabela + mecze wybranej kolejki. Puchar Polski: mecze wybranej rundy.
+ * Wyniki i tabele sezonu (dla wszystkich, także gości). Domyślnie sezon aktywny, a gdy go nie ma, ostatnio zakończony.
+ * Strzałki w banerze przesuwają o jeden sezon wstecz albo do przodu (archiwum: sezony aktywne i zakończone).
+ * Ligi i Liga podwórkowa: tabela + mecze wybranej kolejki. Puchar Polski: pasek rund, „Twoja droga”, karty meczów rundy
+ * (partials/cup-fixture-card), objaśnienia i legenda jak w Lidze Legend. Puchary europejskie: pasek etapów, w kolejkach 1-5
+ * tabele grup A-D z meczami kolejki, od 1/8 finału karty meczów jak w Pucharze Polski (EuropeanCup).
+ * Kliknięcie zespołu otwiera okno ze statystykami (podstawowe i premium), kliknięcie meczu okno ze szczegółami
+ * (widoczność jak w podglądzie rywali: przed zamknięciem typowania, po zamknięciu i po wynikach).
  * Uwaga: nie nazywaj własności "slots" ani "rows" – Livewire rezerwuje część nazw.
  */
 new #[Layout('layouts::public')] class extends Component {
     use WithPagination;
 
-    // Wybrane rozgrywki: league-1..league-10, cup, swiss albo c-ID (rozgrywki ręczne).
-    #[Url(as: 'c', except: '')]
+    // Wybrane rozgrywki: stały klucz Competition::slug() (ekstraklasa, i-liga, puchar-polski, liga-legend …).
     public string $key = '';
 
-    #[Url(as: 'round', except: 0)]
     public int $round = 0;
 
-    public function mount(): void
+    // Numer oglądanego sezonu; 0 = domyślny (aktywny albo ostatnio zakończony).
+    public int $seasonNumber = 0;
+
+    /** Zespół (season_teams.id) i mecz pokazywane w oknach. */
+    public ?int $teamId = null;
+
+    /** Długie tabele (Liga Legend, podwórkowa): do wyboru liczba zespołów na stronie. */
+    public const TABLE_PER_PAGE_OPTIONS = [10, 20, 50, 100];
+
+    /** Zespołów na stronie tabeli (jedna z TABLE_PER_PAGE_OPTIONS). */
+    public int $tablePerPage = 20;
+
+    /** Szybki filtr tabeli po nazwie zespołu (działa od 3 liter). */
+    public string $tableSearch = '';
+
+    /** Strona tabeli; 0 = automatycznie (strona z wyróżnionym zespołem albo pierwsza). */
+    public int $tablePage = 0;
+
+    /** Szukany zespół (season_teams.id, parametr ?team= z profilu zespołu): wyróżniony, a lista meczów otwiera się na jego stronie. */
+    public ?int $focusTeamId = null;
+
+    /**
+     * Przyjazny adres: /results/sezon-2/ekstraklasa/kolejka-9. Stare adresy z parametrami (?c=league-1&round=9&s=2,
+     * np. w informacjach systemowych) też działają, a po pierwszej zmianie w formularzu adres zmienia się na nowy.
+     */
+    public function mount(?string $season_slug = null, ?string $competition_slug = null, ?string $round_slug = null): void
     {
-        // Domyślnie rozgrywki zalogowanego gracza (jego liga albo podwórkowa), inaczej Ekstraklasa.
+        $this->seasonNumber = (int) str_replace('sezon-', '', $season_slug ?? (string) request()->query('s', '0'));
+        $this->round = (int) str_replace('kolejka-', '', $round_slug ?? (string) request()->query('round', '0'));
+        $this->key = $competition_slug ?? $this->legacyKey((string) request()->query('c', ''));
+
+        $this->normalize();
+
+        $team = (int) request()->query('team', '0');
+        if ($team > 0) {
+            $this->focusTeamId = $team;
+            $this->openFocusPage();
+        }
+    }
+
+    /** Strona listy meczów (po 32), na której gra szukany zespół w wybranej kolejce. */
+    private function openFocusPage(): void
+    {
+        if (!$this->focusTeamId || !$this->competition) {
+            return;
+        }
+
+        $ids = Fixture::where('competition_id', $this->competition->id)->where('round', $this->round)->orderBy('id')->pluck('id')->all();
+        $own = Fixture::where('competition_id', $this->competition->id)->where('round', $this->round)
+            ->where(fn($q) => $q->whereHas('home', fn($h) => $h->where('season_team_id', $this->focusTeamId))
+                ->orWhereHas('away', fn($a) => $a->where('season_team_id', $this->focusTeamId)))
+            ->value('id');
+        $index = $own === null ? false : array_search($own, $ids, true);
+
+        if ($index !== false) {
+            $this->setPage(intdiv((int) $index, 32) + 1, 'matchesPage');
+        }
+    }
+
+    /** Czy zespół wyróżniamy: zespół zalogowanego gracza albo szukany z profilu. */
+    public function highlighted(?int $teamId): bool
+    {
+        return $teamId !== null && in_array($teamId, array_filter([$this->myTeamId, $this->focusTeamId]), true);
+    }
+
+    /** Stare klucze z parametru c (league-N, cup, swiss, c-ID) na klucze z adresu. */
+    private function legacyKey(string $key): string
+    {
+        if ($key === '' || !$this->season) {
+            return '';
+        }
+
+        $competition = Competition::where('season_id', $this->season->id)->get()->first(fn(Competition $c) => match ($c->type) {
+            CompetitionType::League => $key === 'league-' . $c->tier,
+            CompetitionType::Cup => $key === 'cup',
+            CompetitionType::Swiss => $key === 'swiss',
+            default => $key === 'c-' . $c->id,
+        });
+
+        return $competition?->slug() ?? '';
+    }
+
+    /** Adres strony dla sezonu, rozgrywek i kolejki (domyślnie bieżący wybór). */
+    public function pageUrl(?int $round = null, ?int $seasonNumber = null): string
+    {
+        $number = $seasonNumber ?? $this->season?->number;
+
+        if (!$number || $this->key === '') {
+            return route('results');
+        }
+
+        return route('results', [
+            'season_slug' => 'sezon-' . $number,
+            'competition_slug' => $this->key,
+            'round_slug' => 'kolejka-' . ($round ?? $this->round),
+        ]);
+    }
+
+    /** Po zmianie wyboru podmieniamy adres w pasku przeglądarki bez przeładowania strony. */
+    private function syncUrl(): void
+    {
+        // Inne rozgrywki, kolejka albo sezon: tabela wraca na stronę z wyróżnionym zespołem.
+        $this->tablePage = 0;
+        $this->js('history.replaceState(history.state, "", ' . json_encode($this->pageUrl()) . ')');
+        // Panel meczu Lecha w prawej kolumnie pokazuje wybraną kolejkę.
+        $this->dispatch('results-matchday', id: (int) $this->matchday?->id);
+    }
+
+    /** Poprawia wybór rozgrywek i kolejki po wejściu na stronę albo po zmianie sezonu. */
+    private function normalize(): void
+    {
+        // Domyślnie Ekstraklasa (pierwsza w kolejności CompetitionColors::order()).
         if (!array_key_exists($this->key, $this->options)) {
-            $this->key = $this->myKey() ?? (array_key_first($this->options) ?? '');
+            $this->key = array_key_first($this->options) ?? '';
         }
 
         if ($this->round < 1 || $this->round > Matchday::PER_SEASON) {
@@ -52,21 +168,114 @@ new #[Layout('layouts::public')] class extends Component {
     public function updatedKey(): void
     {
         $this->resetPage('matchesPage');
+        $this->syncUrl();
     }
 
     public function updatedRound(): void
     {
         $this->resetPage('matchesPage');
+        $this->syncUrl();
     }
 
     /* ==================================================================
      | DANE
      * ================================================================*/
 
+    /**
+     * Numery sezonów do przeglądania (aktywny i zakończone), rosnąco.
+     *
+     * @return array<int, int>
+     */
+    #[Computed]
+    public function seasonNumbers(): array
+    {
+        return Season::whereIn('status', [SeasonStatus::Active->value, SeasonStatus::Finished->value])
+            ->orderBy('number')
+            ->pluck('number')
+            ->map(fn ($number) => (int) $number)
+            ->all();
+    }
+
+    /** Sezon domyślny: aktywny, a gdy go nie ma, ostatnio zakończony. */
+    #[Computed]
+    public function defaultSeasonNumber(): int
+    {
+        $active = Season::current()?->number;
+
+        return (int) ($active ?? Season::where('status', SeasonStatus::Finished->value)->max('number'));
+    }
+
     #[Computed]
     public function season(): ?Season
     {
-        return Season::current();
+        $number = in_array($this->seasonNumber, $this->seasonNumbers, true) ? $this->seasonNumber : $this->defaultSeasonNumber;
+
+        return $number > 0 ? Season::where('number', $number)->first() : null;
+    }
+
+    /** Numer sezonu o $step dalej na liście archiwum (−1 starszy, 1 nowszy) albo null na krańcu. */
+    public function neighbourSeason(int $step): ?int
+    {
+        $index = array_search($this->season?->number, $this->seasonNumbers, true);
+
+        return $index === false ? null : ($this->seasonNumbers[$index + $step] ?? null);
+    }
+
+    /**
+     * Strzałki w banerze: przejście o jeden sezon. Rozgrywki i kolejka zostają (klucz rozgrywek jest taki sam
+     * w każdym sezonie), więc można porównać ten sam etap w różnych sezonach.
+     */
+    public function shiftSeason(int $step): void
+    {
+        $target = $this->neighbourSeason($step <=> 0);
+
+        if ($target === null) {
+            return;
+        }
+
+        $this->seasonNumber = $target;
+        $this->teamId = null;
+
+        unset($this->season, $this->options, $this->competition, $this->isCup, $this->hasTable, $this->table,
+            $this->isEuropean, $this->groupTables, $this->isLegends, $this->myEntry, $this->myPath, $this->cupPath, $this->cupPlayed, $this->matchday, $this->matches, $this->myTeamId);
+
+        $this->normalize();
+        $this->resetPage('matchesPage');
+        $this->syncUrl();
+    }
+
+    /**
+     * Strzałki w banerze: poprzednie albo następne rozgrywki w kolejności. Sezon i kolejka zostają.
+     */
+    public function shiftCompetition(int $step): void
+    {
+        $keys = array_keys($this->options);
+        $index = array_search($this->key, $keys, true);
+        $target = $index === false ? null : ($keys[$index + ($step <=> 0)] ?? null);
+
+        if ($target === null) {
+            return;
+        }
+
+        $this->key = $target;
+        $this->teamId = null;
+        unset($this->competition, $this->isCup, $this->hasTable, $this->table, $this->isEuropean, $this->groupTables, $this->isLegends, $this->myEntry,
+            $this->myPath, $this->cupPath, $this->cupPlayed, $this->matches);
+        $this->updatedKey();
+    }
+
+    /** Strzałki w banerze: poprzednia albo następna kolejka (runda). Sezon i rozgrywki zostają. */
+    public function shiftRound(int $step): void
+    {
+        $target = $this->round + ($step <=> 0);
+
+        if ($target < 1 || $target > Matchday::PER_SEASON) {
+            return;
+        }
+
+        $this->round = $target;
+        unset($this->table, $this->tableMoves, $this->finalMoves, $this->legendsOut, $this->cupPlayed, $this->matchday, $this->matches);
+        $this->updatedRound();
     }
 
     /** klucz => nazwa rozgrywek sezonu */
@@ -77,12 +286,27 @@ new #[Layout('layouts::public')] class extends Component {
             return [];
         }
 
+        // Kolejność: ligi od Ekstraklasy do podwórkowej, Puchar Polski, LM, LE, LK, Liga Legend.
         $options = [];
-        foreach (Competition::where('season_id', $this->season->id)->orderBy('tier')->orderBy('id')->get() as $competition) {
+        $competitions = Competition::where('season_id', $this->season->id)->orderBy('id')->get()
+            ->sortBy(fn(Competition $c) => \App\Support\CompetitionColors::rank($c->trophyKey()));
+        foreach ($competitions as $competition) {
             $options[$this->keyOf($competition)] = $competition->name;
         }
 
         return $options;
+    }
+
+    /** klucz rozgrywek => klucz barw (Competition::trophyKey()) do przycisków pod banerem */
+    #[Computed]
+    public function optionColors(): array
+    {
+        if (!$this->season) {
+            return [];
+        }
+
+        return Competition::where('season_id', $this->season->id)->get()
+            ->mapWithKeys(fn(Competition $c) => [$this->keyOf($c) => $c->trophyKey()])->all();
     }
 
     #[Computed]
@@ -92,7 +316,7 @@ new #[Layout('layouts::public')] class extends Component {
             return null;
         }
 
-        return Competition::where('season_id', $this->season->id)->get()->first(fn(Competition $c) => $this->keyOf($c) === $this->key);
+        return Competition::with('sponsor')->where('season_id', $this->season->id)->get()->first(fn(Competition $c) => $this->keyOf($c) === $this->key);
     }
 
     #[Computed]
@@ -104,13 +328,146 @@ new #[Layout('layouts::public')] class extends Component {
     #[Computed]
     public function hasTable(): bool
     {
-        return $this->competition !== null && !$this->isCup && $this->competition->type !== CompetitionType::Legends;
+        return $this->competition !== null && !$this->isCup && !$this->isEuropean;
     }
 
+    /** Liga Mistrzów, Europy albo Konferencji: grupy A-D, potem faza pucharowa (EuropeanCup). */
+    #[Computed]
+    public function isEuropean(): bool
+    {
+        return (bool) $this->competition?->type->isEuropean();
+    }
+
+    /**
+     * Puchary europejskie: tabele grup z meczów fazy grupowej (litera => wiersze Standings).
+     *
+     * @return array<string, \Illuminate\Support\Collection<int, array<string, mixed>>>
+     */
+    #[Computed]
+    public function groupTables(): array
+    {
+        return $this->isEuropean ? EuropeanCup::groupTables($this->competition) : [];
+    }
+
+    /** Tabela po wybranej kolejce (mecze rund 1..N), zmiana kolejki w banerze zmienia też tabelę. */
     #[Computed]
     public function table()
     {
-        return $this->hasTable ? Standings::for($this->competition) : collect();
+        return $this->hasTable ? Standings::for($this->competition, null, max(1, $this->round)) : collect();
+    }
+
+    /** Czy tabela ma filtr i strony: Liga Legend i podwórkowa (ligi 1-10 mają po 10 zespołów). */
+    public function tableBrowsable(): bool
+    {
+        return $this->isLegends || $this->competition?->type === CompetitionType::Swiss;
+    }
+
+    public function perPage(): int
+    {
+        if (!$this->tableBrowsable()) {
+            return max(1, $this->table->count());
+        }
+
+        return in_array($this->tablePerPage, self::TABLE_PER_PAGE_OPTIONS, true) ? $this->tablePerPage : 20;
+    }
+
+    /**
+     * Wiersze tabeli po filtrze nazwy (od 3 liter), klucz = indeks w całej tabeli (miejsce − 1).
+     *
+     * @return \Illuminate\Support\Collection<int, array<string, mixed>>
+     */
+    public function filteredTable()
+    {
+        $rows = $this->table->values();
+        $needle = mb_strtolower(trim($this->tableSearch));
+
+        if (!$this->tableBrowsable() || mb_strlen($needle) < 3) {
+            return $rows;
+        }
+
+        return $rows->filter(fn (array $row) => str_contains(mb_strtolower((string) $row['team']->name), $needle));
+    }
+
+    /** Liczba stron tabeli (po perPage() zespołów, po filtrze). */
+    public function tablePages(): int
+    {
+        return max(1, (int) ceil($this->filteredTable()->count() / $this->perPage()));
+    }
+
+    /** Wiersze oglądanej strony (klucz = indeks w całej tabeli). */
+    public function tablePageRows()
+    {
+        return $this->filteredTable()->slice(($this->currentTablePage() - 1) * $this->perPage(), $this->perPage(), true);
+    }
+
+    public function updatedTableSearch(): void
+    {
+        $this->tablePage = 0;
+    }
+
+    public function updatedTablePerPage(): void
+    {
+        $this->tablePage = 0;
+    }
+
+    /** Oglądana strona tabeli: wybrana strzałkami albo ta, na której jest zespół gracza lub szukany zespół. */
+    public function currentTablePage(): int
+    {
+        if ($this->tablePage > 0) {
+            return min($this->tablePage, $this->tablePages());
+        }
+
+        $position = $this->filteredTable()->keys()->search(fn (int $index) => $this->highlighted($this->table->values()[$index]['team']->id));
+
+        return $position === false ? 1 : intdiv((int) $position, $this->perPage()) + 1;
+    }
+
+    /** Strzałki pod tabelą: poprzednia albo następna strona. */
+    public function shiftTablePage(int $step): void
+    {
+        $this->tablePage = max(1, min($this->tablePages(), $this->currentTablePage() + ($step <=> 0)));
+    }
+
+    /**
+     * Zmiana miejsca względem tabeli po poprzedniej kolejce: id wpisu => o ile miejsc w górę (+) albo w dół (−).
+     * Od kolejki 2 i tylko gdy wybrana kolejka ma już wyniki.
+     *
+     * @return array<int, int>
+     */
+    #[Computed]
+    public function tableMoves(): array
+    {
+        if (!$this->hasTable || $this->round < 2
+            || !Fixture::where('competition_id', $this->competition->id)->where('round', $this->round)->whereNotNull('home_goals')->exists()) {
+            return [];
+        }
+
+        $before = Standings::for($this->competition, null, $this->round - 1)->pluck('entry_id')->flip();
+        $moves = [];
+        foreach ($this->table->values() as $index => $row) {
+            if (isset($before[$row['entry_id']])) {
+                $moves[$row['entry_id']] = (int) $before[$row['entry_id']] - $index;
+            }
+        }
+
+        return $moves;
+    }
+
+    /**
+     * Ostatnia kolejka ligi z wynikami: awanse i spadki całego sezonu z czyszczeniem z botów
+     * (Standings::seasonMoves), id miejsca na liście => 'up'/'down'. Wcześniej pusta tablica i zostają stałe strefy.
+     *
+     * @return array<int, string>
+     */
+    #[Computed]
+    public function finalMoves(): array
+    {
+        if (!$this->hasTable || !in_array($this->competition->type, [CompetitionType::League, CompetitionType::Swiss], true)
+            || $this->round < (int) Fixture::where('competition_id', $this->competition->id)->max('round')) {
+            return [];
+        }
+
+        return Standings::seasonMoves($this->competition->season_id);
     }
 
     #[Computed]
@@ -119,11 +476,109 @@ new #[Layout('layouts::public')] class extends Component {
         return $this->competition?->type === CompetitionType::Legends;
     }
 
-    /** Liga Legend: ranking po wybranej kolejce (narastająco od kolejki 1). */
+    /** Wpis zespołu zalogowanego gracza w wybranych rozgrywkach (Liga Legend, puchary europejskie). */
     #[Computed]
-    public function legends()
+    public function myEntry(): ?\App\Models\CompetitionEntry
     {
-        return $this->isLegends ? LegendsRanking::for($this->competition, $this->round) : collect();
+        if (!$this->competition || !$this->myTeamId) {
+            return null;
+        }
+
+        return \App\Models\CompetitionEntry::where('competition_id', $this->competition->id)->where('season_team_id', $this->myTeamId)->first();
+    }
+
+    /**
+     * Ligi, Liga podwórkowa, Liga Legend i puchary europejskie: mecze zespołu gracza w kolejnych kolejkach
+     * (kolejka => lista meczów, w Lidze Legend dwa na kolejkę). Do bloków „Twoje mecze ligowe”,
+     * „Twoje mecze w Lidze Legend” i „Twoje mecze w Europie”.
+     *
+     * @return array<int, list<Fixture>>
+     */
+    #[Computed]
+    public function myPath(): array
+    {
+        if (!$this->myEntry || !($this->hasTable || $this->isEuropean)) {
+            return [];
+        }
+
+        $entryId = $this->myEntry->id;
+        $path = [];
+
+        $fixtures = Fixture::query()
+            ->with(['home.seasonTeam.user:id,name,team_name', 'home.seasonTeam.bot:id,name', 'away.seasonTeam.user:id,name,team_name', 'away.seasonTeam.bot:id,name'])
+            ->where('competition_id', $this->competition->id)
+            ->where(fn ($q) => $q->where('home_entry_id', $entryId)->orWhere('away_entry_id', $entryId))
+            ->orderBy('round')
+            ->orderBy('id')
+            ->get();
+
+        foreach ($fixtures as $fixture) {
+            $path[$fixture->round][] = $fixture;
+        }
+
+        return $path;
+    }
+
+    /**
+     * Liga Legend: id wpisu => kolejka, po której zespół odpadł (wyniki zostają w tabeli, wiersz jest wyszarzony).
+     *
+     * @return array<int, int>
+     */
+    #[Computed]
+    public function legendsOut(): array
+    {
+        if (!$this->isLegends) {
+            return [];
+        }
+
+        // Tylko odpadnięcia do wybranej kolejki (tabela pokazuje stan po niej).
+        return \App\Models\CompetitionEntry::where('competition_id', $this->competition->id)
+            ->whereNotNull('eliminated_round')
+            ->where('eliminated_round', '<=', max(1, $this->round))
+            ->pluck('eliminated_round', 'id')
+            ->map(fn ($round) => (int) $round)
+            ->all();
+    }
+
+    /**
+     * Puchar Polski: mecze zespołu zalogowanego gracza w kolejnych rundach (runda => mecz).
+     * Do paska „Twoja droga” i przypiętego meczu nad drabinką.
+     *
+     * @return array<int, Fixture>
+     */
+    #[Computed]
+    public function cupPath(): array
+    {
+        if (!$this->isCup || !$this->myTeamId) {
+            return [];
+        }
+
+        $entryId = \App\Models\CompetitionEntry::where('competition_id', $this->competition->id)
+            ->where('season_team_id', $this->myTeamId)
+            ->value('id');
+
+        if (!$entryId) {
+            return [];
+        }
+
+        return Fixture::query()
+            ->with(['home.seasonTeam.user:id,name,team_name', 'home.seasonTeam.bot:id,name', 'away.seasonTeam.user:id,name,team_name', 'away.seasonTeam.bot:id,name'])
+            ->where('competition_id', $this->competition->id)
+            ->where(fn ($q) => $q->where('home_entry_id', $entryId)->orWhere('away_entry_id', $entryId))
+            ->get()
+            ->keyBy('round')
+            ->all();
+    }
+
+    /** Puchar Polski: ile meczów wybranej rundy ma już wynik. */
+    #[Computed]
+    public function cupPlayed(): int
+    {
+        if (!$this->isCup) {
+            return 0;
+        }
+
+        return Fixture::where('competition_id', $this->competition->id)->where('round', $this->round)->whereNotNull('home_goals')->count();
     }
 
     #[Computed]
@@ -159,227 +614,674 @@ new #[Layout('layouts::public')] class extends Component {
     }
 
     /* ==================================================================
-     | POMOCNICZE
+     | OKNA: ZESPÓŁ I MECZ
      * ================================================================*/
 
-    private function myKey(): ?string
+    public function showTeam(int $id): void
     {
-        if (!$this->myTeamId) {
+        $this->teamId = $id;
+        unset($this->teamCard);
+        Flux::modal('duel-details')->close();
+        Flux::modal('team-details')->show();
+    }
+
+    /** Szczegóły pojedynku w uniwersalnym oknie (pages::home.duel-modal w layoucie publicznym). */
+    public function showFixture(int $id): void
+    {
+        $this->dispatch('show-duel', id: $id);
+    }
+
+    /** Statystyki zespołu w sezonie; część tylko dla premium (oglądającego). */
+    #[Computed]
+    public function teamCard(): ?array
+    {
+        if (!$this->teamId || !$this->season) {
             return null;
         }
 
-        $competition = Competition::where('season_id', $this->season->id)
-            ->whereIn('type', [CompetitionType::League->value, CompetitionType::Swiss->value])
-            ->whereHas('entries', fn($q) => $q->where('season_team_id', $this->myTeamId))
-            ->first();
+        $team = SeasonTeam::with(['user:id,name,team_name,premium_until', 'bot:id,name'])
+            ->where('season_id', $this->season->id)
+            ->find($this->teamId);
 
-        return $competition ? $this->keyOf($competition) : null;
+        if (!$team) {
+            return null;
+        }
+
+        $viewer = auth()->user();
+        $premium = $viewer !== null && Premium::isActive($viewer);
+        $index = $this->hasTable ? $this->table->search(fn($row) => $row['team']->id === $team->id) : false;
+
+        return [
+            'team' => $team,
+            'place' => $index === false ? null : $index + 1,
+            'count' => $this->table->count(),
+            'stats' => PlayerStats::teamSeason($team, $this->season),
+            'premium' => $premium,
+            'owner_premium' => $team->user !== null && Premium::isActive($team->user),
+            'favourite' => $premium && $team->user ? PlayerStats::favourites($team->user)['mine'] : null,
+            'h2h' => $premium && $team->user_id !== $viewer?->id ? Rivals::headToHead($viewer, $team) : null,
+        ];
     }
+
+    /* ==================================================================
+     | POMOCNICZE
+     * ================================================================*/
 
     private function keyOf(Competition $competition): string
     {
-        return match ($competition->type) {
-            CompetitionType::League => 'league-' . $competition->tier,
-            CompetitionType::Cup => 'cup',
-            CompetitionType::Swiss => 'swiss',
-            default => 'c-' . $competition->id,
-        };
+        return $competition->slug();
     }
 }; ?>
 
-<div class="mx-auto flex w-full max-w-5xl flex-col gap-6">
-    <div class="space-y-1">
-        <flux:heading size="xl" level="1">{{ __('Results and tables') }}</flux:heading>
-        @if ($this->season)
-            <flux:text>{{ $this->season->title }}</flux:text>
-        @endif
-    </div>
+<div class="mx-auto flex w-full max-w-6xl flex-col gap-6">
+    @php
+        $older = $this->neighbourSeason(-1);
+        $newer = $this->neighbourSeason(1);
+        $archived = $this->season && $this->season->status !== \App\Enums\SeasonStatus::Active;
+    @endphp
+    @if ($this->competition)
+        {{--
+            Baner rozgrywek w ich barwach (App\Support\CompetitionColors): trofeum w odznace, nazwa rozgrywek i sezon,
+            etap (kolejka albo runda) i strzałki: rozgrywki, kolejka, sezon. Zmiana jednego zostawia dwa pozostałe.
+        --}}
+        @php
+            $colorKey = $this->competition->trophyKey();
+            $dashed = \App\Support\CompetitionColors::dashed($colorKey) ? 'comp-dashed' : '';
+            $bannerIcons = \App\Support\HallOfFame::iconUrls();
+            $optionKeys = array_keys($this->options);
+            $keyIndex = array_search($this->key, $optionKeys, true);
+            $sponsor = $this->competition->sponsor;
+            $arrowClass = 'flex size-8 items-center justify-center rounded-full bg-white/15 transition hover:bg-white/25 disabled:cursor-default disabled:opacity-30 disabled:hover:bg-white/15';
+            $navs = [
+                [__('Competition'), 'shiftCompetition', $keyIndex !== false && $keyIndex > 0, $keyIndex !== false && $keyIndex < count($optionKeys) - 1],
+                [$this->isCup ? __('Round') : __('Matchday'), 'shiftRound', $round > 1, $round < \App\Models\Matchday::PER_SEASON],
+                [__('Season'), 'shiftSeason', (bool) $older, (bool) $newer],
+            ];
+        @endphp
+        <section class="comp-banner {{ $dashed }} rounded-2xl px-5 py-6 sm:px-8" style="{{ \App\Support\CompetitionColors::style($colorKey) }}">
+            <div class="relative z-10 flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
+                <div class="flex min-w-0 items-center gap-4">
+                    <div class="comp-badge {{ $dashed }} flex size-20 shrink-0 items-center justify-center rounded-full shadow-lg" title="{{ __('Trophy to win') }}">
+                        @if (isset($bannerIcons[$colorKey]))
+                            <img src="{{ $bannerIcons[$colorKey] }}" alt="" class="size-14 object-contain">
+                        @else
+                            <flux:icon.trophy class="size-9" />
+                        @endif
+                    </div>
+                    <div class="min-w-0 space-y-1">
+                        <p class="comp-accent text-xs font-bold uppercase tracking-[0.2em]">
+                            {{ $this->season->title }} – {{ $this->competition->type->stageLabel($round) }}
+                            @if ($archived) · {{ __('Season archive') }} @endif
+                        </p>
+                        <h1 class="text-3xl font-black uppercase tracking-tight sm:text-4xl">
+                            {{ $this->competition->name ?: $this->competition->type->label() }}
+                        </h1>
+                        @if ($sponsor)
+                            <a @if ($sponsor->url) href="{{ $sponsor->url }}" target="_blank" rel="noopener sponsored" @endif
+                                class="inline-flex items-center gap-2 text-xs opacity-80 hover:opacity-100">
+                                <span class="uppercase tracking-widest">powered by</span>
+                                @if ($sponsor->logoUrl())
+                                    <img src="{{ $sponsor->logoUrl() }}" alt="{{ $sponsor->name }}" class="h-7 max-w-28 rounded bg-white object-contain p-0.5">
+                                @else
+                                    <span class="font-semibold">{{ $sponsor->name }}</span>
+                                @endif
+                            </a>
+                        @endif
+                    </div>
+                </div>
+
+                <div class="flex flex-wrap gap-2">
+                    @foreach ($navs as [$navLabel, $navMethod, $canBack, $canForward])
+                        <div class="flex items-center gap-1.5 rounded-full bg-black/15 px-1.5 py-1">
+                            <button type="button" wire:click="{{ $navMethod }}(-1)" @disabled(!$canBack) class="{{ $arrowClass }}"
+                                aria-label="{{ $navLabel }}: {{ __('Previous') }}" title="{{ __('Previous') }}">
+                                <flux:icon.chevron-left variant="mini" />
+                            </button>
+                            <span class="min-w-16 text-center text-[11px] font-bold uppercase tracking-wider">{{ $navLabel }}</span>
+                            <button type="button" wire:click="{{ $navMethod }}(1)" @disabled(!$canForward) class="{{ $arrowClass }}"
+                                aria-label="{{ $navLabel }}: {{ __('Next') }}" title="{{ __('Next') }}">
+                                <flux:icon.chevron-right variant="mini" />
+                            </button>
+                        </div>
+                    @endforeach
+                </div>
+            </div>
+        </section>
+    @else
+    <x-page-banner :title="__('Results and tables')" :subtitle="$this->season?->title"
+            :eyebrow="$archived ? __('Season archive') : '#LechTYPER'">
+            {{-- Dyskretne strzałki archiwum: o jeden sezon wstecz albo do przodu --}}
+            @if ($older || $newer)
+                <x-slot:aside>
+                    <div class="flex items-center gap-2">
+                        <button type="button" wire:click="shiftSeason(-1)" @disabled(!$older)
+                            title="{{ __('Previous season') }}" aria-label="{{ __('Previous season') }}"
+                            class="flex size-9 items-center justify-center rounded-full bg-white/10 text-white transition hover:bg-white/20 disabled:cursor-default disabled:opacity-30 disabled:hover:bg-white/10">
+                            <flux:icon.chevron-left variant="mini" />
+                        </button>
+                        <button type="button" wire:click="shiftSeason(1)" @disabled(!$newer)
+                            title="{{ __('Next season') }}" aria-label="{{ __('Next season') }}"
+                            class="flex size-9 items-center justify-center rounded-full bg-white/10 text-white transition hover:bg-white/20 disabled:cursor-default disabled:opacity-30 disabled:hover:bg-white/10">
+                            <flux:icon.chevron-right variant="mini" />
+                        </button>
+                    </div>
+                </x-slot:aside>
+            @endif
+        </x-page-banner>
+    @endif
 
     @if (!$this->season || count($this->options) === 0)
         <flux:card>
-            <flux:text>{{ __('There is no active season right now.') }}</flux:text>
+            <flux:text>{{ __('There is no season to show yet.') }}</flux:text>
         </flux:card>
     @else
-        <div class="flex flex-wrap items-end gap-3">
-            <div class="w-full sm:w-72">
-                <flux:select wire:model.live="key" :label="__('Competition')">
-                    @foreach ($this->options as $optionKey => $optionName)
-                        <flux:select.option :value="$optionKey">{{ $optionName }}</flux:select.option>
-                    @endforeach
-                </flux:select>
-            </div>
+        {{--
+            Wybór rozgrywek: jeden wąski pasek w kolorach strony. Ligi (Ekstraklasa … podwórkowa) zwinięte w menu,
+            pozostałe rozgrywki jako zakładki. Barwa rozgrywek (CompetitionColors) tylko jako mała kropka.
+            Zmiana rozgrywek zostawia kolejkę i sezon.
+        --}}
+        @php
+            $leagueOptions = [];
+            $otherOptions = [];
+            foreach ($this->options as $optionKey => $optionName) {
+                $optionColor = $this->optionColors[$optionKey] ?? 'league_1';
+                if (str_starts_with($optionColor, 'league_')) {
+                    $leagueOptions[$optionKey] = [$optionName, $optionColor];
+                } else {
+                    $otherOptions[$optionKey] = [$optionName, $optionColor];
+                }
+            }
+            $leagueActive = array_key_exists($this->key, $leagueOptions);
+            $pill = 'inline-flex shrink-0 items-center gap-2 rounded-full px-3.5 py-1.5 text-sm font-semibold transition';
+            // Aktywna opcja: tylko obwódka w kolorze strony (lech), bez ciemnego tła.
+            $pillOn = 'text-lech-800 ring-2 ring-inset ring-lech-600 dark:text-lech-200 dark:ring-lech-400';
+            $pillOff = 'text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800 dark:hover:text-white';
+        @endphp
+        <nav class="-mt-2 flex flex-wrap items-center gap-1 rounded-3xl border border-zinc-200 bg-white p-1 shadow-sm dark:border-zinc-700 dark:bg-zinc-900" aria-label="{{ __('Competition') }}">
+            @if (count($leagueOptions) > 0)
+                <flux:dropdown position="bottom" align="start">
+                    <button type="button" class="{{ $pill }} {{ $leagueActive ? $pillOn : $pillOff }}">
+                        @if ($leagueActive)
+                            <span class="size-3 shrink-0 rounded-full" style="{{ \App\Support\CompetitionColors::dotStyle($leagueOptions[$this->key][1]) }}"></span>
+                            {{ $leagueOptions[$this->key][0] }}
+                        @else
+                            {{ __('Leagues') }}
+                        @endif
+                        <flux:icon.chevron-down variant="micro" />
+                    </button>
+                    <flux:menu>
+                        @foreach ($leagueOptions as $optionKey => [$optionName, $optionColor])
+                            <flux:menu.item wire:click="$set('key', '{{ $optionKey }}')" wire:key="lg-opt-{{ $optionKey }}">
+                                <span class="flex items-center gap-2">
+                                    <span class="size-3 shrink-0 rounded-full" style="{{ \App\Support\CompetitionColors::dotStyle($optionColor) }}"></span>
+                                    <span class="{{ $optionKey === $this->key ? 'font-bold' : '' }}">{{ $optionName }}</span>
+                                </span>
+                            </flux:menu.item>
+                        @endforeach
+                    </flux:menu>
+                </flux:dropdown>
+                <span class="mx-1 h-5 w-px shrink-0 bg-zinc-200 dark:bg-zinc-700"></span>
+            @endif
+            @foreach ($otherOptions as $optionKey => [$optionName, $optionColor])
+                <button type="button" wire:click="$set('key', '{{ $optionKey }}')" wire:key="opt-{{ $optionKey }}"
+                    class="{{ $pill }} {{ $optionKey === $this->key ? $pillOn : $pillOff }}"
+                    @if ($optionKey === $this->key) aria-current="true" @endif>
+                    <span class="size-3 shrink-0 rounded-full" style="{{ \App\Support\CompetitionColors::dotStyle($optionColor) }}"></span>
+                    {{ $optionName }}
+                </button>
+            @endforeach
+        </nav>
 
-            <div class="w-full sm:w-64">
-                <flux:select wire:model.live="round" :label="$this->isCup ? __('Round') : __('Matchday')">
-                    @foreach (range(1, \App\Models\Matchday::PER_SEASON) as $number)
-                        <flux:select.option :value="$number">
-                            {{ $this->isCup ? $number . '. ' . \App\Support\CupBracket::roundName($number) : __('Matchday :number', ['number' => $number]) }}
-                        </flux:select.option>
-                    @endforeach
-                </flux:select>
-            </div>
-        </div>
 
-        @if ($this->matchday && filled($this->matchday->opponent))
-            <flux:text>
-                {{ $this->matchday->fixture }}
-                @if ($this->matchday->lech_goals !== null)
-                    &middot; <span class="font-semibold">{{ $this->matchday->is_home ? $this->matchday->lech_goals . ':' . $this->matchday->opponent_goals : $this->matchday->opponent_goals . ':' . $this->matchday->lech_goals }}</span>
-                @elseif ($this->matchday->kickoff_at)
-                    &middot; {{ $this->matchday->kickoff_at->translatedFormat('j F Y, H:i') }}
-                @endif
-            </flux:text>
+        {{-- Ligi, podwórkowa, Liga Legend i puchary europejskie: mecze zespołu gracza w kolejnych kolejkach (jak „Twoja droga” w pucharze) --}}
+        @if ($this->myEntry && ($this->hasTable || $this->isEuropean))
+            @php
+                $pathEntry = $this->myEntry;
+                $pathOut = $pathEntry->eliminated_round;
+                if ($this->hasTable) {
+                    $pathIndex = $this->table->search(fn ($row) => $row['entry_id'] === $pathEntry->id);
+                    $pathStatus = $pathOut !== null
+                        ? __('Knocked out after matchday :number', ['number' => $pathOut])
+                        : ($pathIndex === false ? '' : __(':place. place of :count', ['place' => $pathIndex + 1, 'count' => $this->table->count()]));
+                } else {
+                    $pathStatus = match (true) {
+                        $pathOut === \App\Support\EuropeanCup::GROUP_ROUNDS => __('Knocked out in the group stage'),
+                        $pathOut !== null => __('Knocked out in: :round', ['round' => \App\Support\EuropeanCup::stageLabel($pathOut)]),
+                        default => __('Group :group', ['group' => \App\Support\EuropeanCup::groupOf($pathEntry->seed)]),
+                    };
+                }
+                $pathType = $this->competition->type;
+            @endphp
+            @include('partials.my-matches-path', [
+                'title' => match (true) {
+                    $this->isLegends => __('Your matches in Liga Legend'),
+                    $this->isEuropean => __('Your matches in Europe'),
+                    default => __('Your league matches'),
+                },
+                'status' => $pathStatus,
+                'rounds' => \App\Models\Matchday::PER_SEASON,
+                'perRound' => $this->isLegends ? 2 : 1,
+                'path' => $this->myPath,
+                'entryId' => $pathEntry->id,
+                'eliminated' => $pathOut,
+                'stageLabel' => fn (int $stage) => $this->hasTable ? __('Matchday :number', ['number' => $stage]) : \App\Support\EuropeanCup::stageLabel($stage),
+                'stageUrl' => fn (int $stage) => $this->pageUrl($stage),
+                'current' => $round,
+            ])
         @endif
 
-        <div class="grid gap-6 {{ $this->hasTable || $this->isLegends ? 'lg:grid-cols-[1fr_20rem]' : '' }}">
+        <div class="grid grid-cols-[minmax(0,1fr)] gap-6 {{ $this->hasTable ? 'lg:grid-cols-[minmax(0,1fr)_20rem]' : '' }}">
             {{-- ============ Tabela ============ --}}
+            {{--
+                Karta tabeli w barwach rozgrywek (jak grupy pucharów europejskich): kolorowa ramka obejmuje nagłówek
+                („Tabela” i trofeum w kółku), nagłówek tabeli i stopkę z legendą; jasne są tylko wiersze.
+            --}}
             @if ($this->hasTable)
-                <flux:card class="overflow-x-auto p-0">
-                    <table class="w-full text-sm">
-                        <thead class="text-xs text-zinc-500">
-                            <tr class="border-b border-zinc-200 dark:border-zinc-700">
-                                <th class="px-3 py-2 text-right">#</th>
-                                <th class="px-3 py-2 text-left">{{ __('Team') }}</th>
-                                <th class="px-2 py-2 text-right" title="{{ __('Matches played') }}">{{ __('P') }}</th>
-                                <th class="px-2 py-2 text-right" title="{{ __('Won') }}">{{ __('W') }}</th>
-                                <th class="px-2 py-2 text-right" title="{{ __('Drawn') }}">{{ __('D') }}</th>
-                                <th class="px-2 py-2 text-right" title="{{ __('Lost') }}">{{ __('L') }}</th>
-                                <th class="px-2 py-2 text-right" title="{{ __('Goals') }}">{{ __('Goals') }}</th>
-                                <th class="px-2 py-2 text-right" title="{{ __('Exact tips') }}">{{ __('Ex.') }}</th>
-                                <th class="px-2 py-2 text-right" title="{{ __('Bonus') }}">{{ __('Bon.') }}</th>
-                                <th class="px-3 py-2 text-right">{{ __('Pts') }}</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @foreach ($this->table as $index => $row)
-                                @php
-                                    $zone = \App\Support\Standings::zone($this->competition, $index + 1, $this->table->count());
-                                    $badge = \App\Support\Standings::europeanBadge($this->competition, $index + 1);
-                                    $zoneClass = match ($zone) {
-                                        'up' => 'border-l-4 border-l-green-500',
-                                        'down' => 'border-l-4 border-l-red-500',
-                                        default => 'border-l-4 border-l-transparent',
-                                    };
-                                @endphp
-                                <tr wire:key="row-{{ $row['entry_id'] }}"
-                                    class="{{ $zoneClass }} border-b border-zinc-100 last:border-b-0 dark:border-zinc-700/50 {{ $row['team']->id == $this->myTeamId ? 'bg-amber-50 font-semibold dark:bg-amber-900/20' : '' }}">
-                                    <td class="px-3 py-1.5 text-right tabular-nums text-zinc-500">{{ $index + 1 }}.</td>
-                                    <td class="max-w-56 truncate px-3 py-1.5">
-                                        {{ $row['team']->name }}
-                                        @if ($badge)
-                                            <span class="ms-1 rounded bg-blue-100 px-1 text-[10px] font-semibold text-blue-700 dark:bg-blue-900/40 dark:text-blue-300">{{ $badge }}</span>
-                                        @endif
-                                    </td>
-                                    <td class="px-2 py-1.5 text-right tabular-nums">{{ $row['played'] }}</td>
-                                    <td class="px-2 py-1.5 text-right tabular-nums">{{ $row['won'] }}</td>
-                                    <td class="px-2 py-1.5 text-right tabular-nums">{{ $row['drawn'] }}</td>
-                                    <td class="px-2 py-1.5 text-right tabular-nums">{{ $row['lost'] }}</td>
-                                    <td class="px-2 py-1.5 text-right tabular-nums">{{ $row['for'] }}:{{ $row['against'] }}</td>
-                                    <td class="px-2 py-1.5 text-right tabular-nums">{{ $row['exact'] }}</td>
-                                    <td class="px-2 py-1.5 text-right tabular-nums">{{ $row['bonus'] }}</td>
-                                    <td class="px-3 py-1.5 text-right font-semibold tabular-nums">{{ $row['points'] }}</td>
-                                </tr>
-                            @endforeach
-                        </tbody>
-                    </table>
-                    @if (in_array($this->competition->type, [\App\Enums\CompetitionType::League, \App\Enums\CompetitionType::Swiss], true))
-                        <div class="flex flex-wrap gap-4 border-t border-zinc-200 px-3 py-2 text-xs text-zinc-500 dark:border-zinc-700">
-                            <span class="flex items-center gap-1"><span class="inline-block h-3 w-1 bg-green-500"></span>{{ __('Promotion') }}</span>
-                            @if ($this->competition->type === \App\Enums\CompetitionType::League)
-                                <span class="flex items-center gap-1"><span class="inline-block h-3 w-1 bg-red-500"></span>{{ __('Relegation') }}</span>
-                                <span>{{ __('LM, LE, LK: Liga Mistrzów, Europy and Konferencji next season') }}</span>
+                @php
+                    $tableStyle = \App\Support\CompetitionColors::style($colorKey);
+                @endphp
+                <section class="self-start overflow-hidden rounded-2xl p-1 shadow-md"
+                    style="{{ $tableStyle }} background-image: linear-gradient(140deg, var(--c-bg1), var(--c-bg2)); color: var(--c-ink); border: 2px solid var(--c-accent);">
+                    <header class="flex items-center justify-between gap-2.5 px-3 pb-1.5 pt-2">
+                        <div>
+                            <h3 class="text-sm font-black uppercase tracking-[0.25em]">{{ __('Table') }}</h3>
+                            <p class="text-[11px] opacity-80">{{ __('After matchday :number', ['number' => max(1, $round)]) }}</p>
+                        </div>
+                        <span class="comp-badge {{ $dashed }} flex size-9 shrink-0 items-center justify-center rounded-full shadow">
+                            @if (isset($bannerIcons[$colorKey]))
+                                <img src="{{ $bannerIcons[$colorKey] }}" alt="" class="size-6 object-contain">
+                            @else
+                                <flux:icon.trophy variant="micro" />
                             @endif
+                        </span>
+                    </header>
+
+                    @php
+                        $tablePageNow = $this->currentTablePage();
+                        $tablePageCount = $this->tablePages();
+                        $tableFound = $this->filteredTable()->count();
+                        $tableSize = $this->perPage();
+                    @endphp
+                    {{-- Liga Legend i podwórkowa: szybki filtr nazwy (od 3 liter) i liczba zespołów na stronie --}}
+                    @if ($this->tableBrowsable())
+                        <div class="flex flex-wrap items-center gap-2 px-2 pb-2">
+                            <label class="relative min-w-0 flex-1">
+                                <span class="sr-only">{{ __('Find a team') }}</span>
+                                <input type="search" wire:model.live.debounce.300ms="tableSearch" placeholder="{{ __('Find a team (min. 3 letters)') }}"
+                                    class="w-full rounded-lg border-0 bg-white/90 px-3 py-1.5 text-sm text-zinc-800 shadow-inner placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-white/70 dark:bg-zinc-900/90 dark:text-zinc-100">
+                            </label>
+                            <div class="flex shrink-0 items-center gap-1 text-xs" role="group" aria-label="{{ __('Teams per page') }}">
+                                @foreach ($this::TABLE_PER_PAGE_OPTIONS as $option)
+                                    <button type="button" wire:click="$set('tablePerPage', {{ $option }})"
+                                        class="{{ $tableSize === $option ? 'comp-badge font-bold shadow' : 'bg-black/20 hover:bg-black/30' }} rounded-md px-2 py-1 tabular-nums transition">{{ $option }}</button>
+                                @endforeach
+                            </div>
                         </div>
                     @endif
-                </flux:card>
-            @endif
-
-            {{-- ============ Liga Legend: ranking z odcięciem ============ --}}
-            @if ($this->isLegends)
-                <flux:card class="overflow-x-auto p-0">
-                    <div class="px-3 py-2 text-xs text-zinc-500">
-                        @if ($round < \App\Support\LegendsRanking::ROUNDS)
-                            {{ __('After matchday :round the best :limit teams stay in the competition.', ['round' => $round, 'limit' => \App\Support\LegendsRanking::limitAfter($round)]) }}
-                        @else
-                            {{ __('Final: the better total from matchday 1 wins.') }}
-                        @endif
-                    </div>
-                    <table class="w-full text-sm">
-                        <thead class="text-xs text-zinc-500">
-                            <tr class="border-b border-zinc-200 dark:border-zinc-700">
-                                <th class="px-3 py-2 text-right">#</th>
-                                <th class="px-3 py-2 text-left">{{ __('Team') }}</th>
-                                <th class="px-2 py-2 text-right" title="{{ __('Points for the tip') }}">{{ __('Tip') }}</th>
-                                <th class="px-2 py-2 text-right" title="{{ __('Bonus') }}">{{ __('Bon.') }}</th>
-                                <th class="px-2 py-2 text-right" title="{{ __('Exact tips') }}">{{ __('Ex.') }}</th>
-                                <th class="px-3 py-2 text-left">{{ __('Status') }}</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @foreach ($this->legends as $index => $row)
-                                @php
-                                    $out = $row['eliminated_round'] !== null && $row['eliminated_round'] < $round;
-                                    $cut = $row['eliminated_round'] === $round;
-                                @endphp
-                                <tr wire:key="leg-{{ $row['entry_id'] }}"
-                                    class="border-b border-zinc-100 last:border-b-0 dark:border-zinc-700/50 {{ $out ? 'text-zinc-400' : '' }} {{ $row['team']->id == $this->myTeamId ? 'bg-amber-50 font-semibold dark:bg-amber-900/20' : '' }}">
-                                    <td class="px-3 py-1.5 text-right tabular-nums">{{ $index + 1 }}.</td>
-                                    <td class="max-w-56 truncate px-3 py-1.5">{{ $row['team']->name }}</td>
-                                    <td class="px-2 py-1.5 text-right tabular-nums">{{ $row['tip_points'] }}</td>
-                                    <td class="px-2 py-1.5 text-right tabular-nums">{{ $row['bonus'] }}</td>
-                                    <td class="px-2 py-1.5 text-right tabular-nums">{{ $row['exact'] }}</td>
-                                    <td class="px-3 py-1.5 text-xs">
-                                        @if ($out || $cut)
-                                            <span class="text-red-600 dark:text-red-400">{{ __('out after matchday :round', ['round' => $row['eliminated_round']]) }}</span>
-                                        @endif
-                                    </td>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-sm">
+                            <thead class="text-[11px] font-semibold uppercase tracking-wide opacity-80">
+                                <tr>
+                                    <th class="px-3 py-1.5 text-right">#</th>
+                                    <th class="px-2 py-1.5 text-left">{{ __('Team') }}</th>
+                                    <th class="px-1.5 py-1.5 text-right" title="{{ __('Matches played') }}">{{ __('P') }}</th>
+                                    <th class="px-1.5 py-1.5 text-right" title="{{ __('Won') }}">{{ __('W') }}</th>
+                                    <th class="px-1.5 py-1.5 text-right" title="{{ __('Drawn') }}">{{ __('D') }}</th>
+                                    <th class="px-1.5 py-1.5 text-right" title="{{ __('Lost') }}">{{ __('L') }}</th>
+                                    <th class="px-1.5 py-1.5 text-right" title="{{ __('Goals') }}">{{ __('Goals') }}</th>
+                                    <th class="px-1.5 py-1.5 text-right" title="{{ __('Exact tips') }}">{{ __('Ex.') }}</th>
+                                    <th class="px-1.5 py-1.5 text-right" title="{{ __('Bonus') }}">{{ __('Bon.') }}</th>
+                                    <th class="px-3 py-1.5 text-right">{{ __('Pts') }}</th>
                                 </tr>
-                            @endforeach
-                        </tbody>
-                    </table>
-                </flux:card>
+                            </thead>
+                            <tbody class="bg-white text-zinc-800 dark:bg-zinc-900 dark:text-zinc-100">
+                                @forelse ($this->tablePageRows() as $index => $row)
+                                    @php
+                                        // Po ostatniej kolejce belki wynikają z faktycznych awansów i spadków (razem z zamianami za boty).
+                                        $zone = $this->finalMoves !== []
+                                            ? ($this->finalMoves[$row['team']->id] ?? null)
+                                            : \App\Support\Standings::zone($this->competition, $index + 1, $this->table->count());
+                                        $zoneClass = match ($zone) {
+                                            'up' => 'border-l-4 border-l-green-500',
+                                            'down' => 'border-l-4 border-l-red-500',
+                                            default => 'border-l-4 border-l-transparent',
+                                        };
+                                        // Liga Legend: zespół, który odpadł, zostaje w tabeli wyciszony: szary pasek z lewej, delikatne ukośne
+                                        // paski w tle, przygaszony tekst, a zamiast strzałki zmiany miejsca ikona wyjścia z kolejką w podpowiedzi.
+                                        $outRound = $this->legendsOut[$row['entry_id']] ?? null;
+                                        if ($outRound !== null) {
+                                            $zoneClass = 'border-l-4 border-l-zinc-400 text-zinc-400 dark:border-l-zinc-600 dark:text-zinc-500 bg-[repeating-linear-gradient(135deg,rgba(113,113,122,0.08)_0_6px,transparent_6px_12px)]';
+                                        }
+                                        $move = $this->tableMoves[$row['entry_id']] ?? 0;
+                                    @endphp
+                                    <tr wire:key="row-{{ $row['entry_id'] }}"
+                                        class="{{ $zoneClass }} border-b border-zinc-100 last:border-b-0 dark:border-zinc-700/50 {{ $this->highlighted($row['team']->id) ? 'bg-amber-50 font-semibold dark:bg-amber-900/20' : '' }}">
+                                        {{-- Miejsce, a po prawej zmiana po kolejce: zielony trójkąt w górę, czerwony w dół (liczba miejsc w podpowiedzi) --}}
+                                        <td class="px-2 py-1.5 text-right tabular-nums text-zinc-500">
+                                            <span class="inline-flex items-center justify-end gap-1">
+                                                <span>{{ $index + 1 }}.</span>
+                                                @if ($outRound !== null)
+                                                    <span title="{{ __('Knocked out after matchday :number', ['number' => $outRound]) }}" class="flex w-5 text-zinc-400"><flux:icon.arrow-right-start-on-rectangle variant="micro" class="size-3.5" /></span>
+                                                @elseif ($move > 0)
+                                                    <span title="{{ __('Up :count places', ['count' => $move]) }}" class="flex w-5 items-center text-[10px] font-semibold text-green-600 dark:text-green-400"><svg class="size-2.5" viewBox="0 0 10 10" aria-hidden="true"><path d="M5 1 9.5 9h-9z" fill="currentColor" /></svg>{{ $move }}</span>
+                                                @elseif ($move < 0)
+                                                    <span title="{{ __('Down :count places', ['count' => -$move]) }}" class="flex w-5 items-center text-[10px] font-semibold text-red-600 dark:text-red-400"><svg class="size-2.5" viewBox="0 0 10 10" aria-hidden="true"><path d="M5 9 .5 1h9z" fill="currentColor" /></svg>{{ -$move }}</span>
+                                                @else
+                                                    {{-- Puste miejsce o szerokości trójkąta, żeby numery stały w jednej kolumnie --}}
+                                                    <span class="w-5"></span>
+                                                @endif
+                                            </span>
+                                        </td>
+                                        <td class="max-w-56 truncate px-2 py-1.5">
+                                            <button type="button" wire:click="showTeam({{ $row['team']->id }})" class="truncate hover:text-lech-700 hover:underline dark:hover:text-lech-300 {{ $row['team']->is_bot ? 'italic' : '' }}">{{ $row['team']->name }}</button>
+                                            <x-champion-trophies :team="$row['team']" class="ms-1" />
+                                        </td>
+                                        <td class="px-1.5 py-1.5 text-right tabular-nums">{{ $row['played'] }}</td>
+                                        <td class="px-1.5 py-1.5 text-right tabular-nums">{{ $row['won'] }}</td>
+                                        <td class="px-1.5 py-1.5 text-right tabular-nums">{{ $row['drawn'] }}</td>
+                                        <td class="px-1.5 py-1.5 text-right tabular-nums">{{ $row['lost'] }}</td>
+                                        <td class="px-1.5 py-1.5 text-right tabular-nums">{{ $row['for'] }}:{{ $row['against'] }}</td>
+                                        <td class="px-1.5 py-1.5 text-right tabular-nums">{{ $row['exact'] }}</td>
+                                        <td class="px-1.5 py-1.5 text-right tabular-nums">{{ $row['bonus'] }}</td>
+                                        <td class="px-3 py-1.5 text-right font-bold tabular-nums">{{ $row['points'] }}</td>
+                                    </tr>
+                                @empty
+                                    <tr>
+                                        <td colspan="10" class="px-3 py-4 text-center text-sm text-zinc-500">{{ __('No team matches the filter.') }}</td>
+                                    </tr>
+                                @endforelse
+                            </tbody>
+                        </table>
+                    </div>
+
+                    {{-- Strony tabeli (Liga Legend, podwórkowa): zwarty pager jak przy meczach --}}
+                    @if ($tablePageCount > 1)
+                        <div class="flex items-center justify-between gap-2 px-1 pt-2">
+                            <button type="button" wire:click="shiftTablePage(-1)" @disabled($tablePageNow <= 1)
+                                class="flex size-8 items-center justify-center rounded-full bg-black/20 transition hover:bg-black/30 disabled:opacity-30" aria-label="{{ __('Previous') }}">
+                                <flux:icon.chevron-left variant="micro" />
+                            </button>
+                            <span class="text-xs tabular-nums opacity-85">
+                                {{ __('Page :current of :last', ['current' => $tablePageNow, 'last' => $tablePageCount]) }} &middot; {{ trans_choice(':count team|:count teams', $tableFound, ['count' => $tableFound]) }}
+                            </span>
+                            <button type="button" wire:click="shiftTablePage(1)" @disabled($tablePageNow >= $tablePageCount)
+                                class="flex size-8 items-center justify-center rounded-full bg-black/20 transition hover:bg-black/30 disabled:opacity-30" aria-label="{{ __('Next') }}">
+                                <flux:icon.chevron-right variant="micro" />
+                            </button>
+                        </div>
+                    @endif
+
+                    {{-- Stopka w barwach rozgrywek: objaśnienia i legenda stref --}}
+                    @if ($this->isLegends || in_array($this->competition->type, [\App\Enums\CompetitionType::League, \App\Enums\CompetitionType::Swiss], true))
+                        <footer class="space-y-1.5 px-2 pb-1.5 pt-2.5 text-xs">
+                            @if ($this->isLegends)
+                                @php
+                                    $outCount = count($this->legendsOut);
+                                @endphp
+                                <p class="flex flex-wrap items-center gap-x-4 gap-y-1 opacity-95">
+                                    <span class="flex items-center gap-1"><flux:icon.arrow-right-start-on-rectangle variant="micro" class="size-3.5" />{{ __('Knocked out (two losses in one matchday)') }}</span>
+                                    <span class="font-semibold">{{ __('Still playing: :left of :count', ['left' => $this->table->count() - $outCount, 'count' => $this->table->count()]) }}</span>
+                                </p>
+                                <p class="italic opacity-85">
+                                    {{ __('Every matchday each team plays two duels: 1-2, 2-3 … and the first with the last (matchday 1 from the list, then by the table). Two losses in one matchday knock the team out; its results stay in the table. After matchday 9 the top of the whole table wins.') }}
+                                </p>
+                            @else
+                                {{-- Legenda tylko dla stref, które są w tej lidze: z Ekstraklasy nie ma awansu, z podwórkowej spadku --}}
+                                @php
+                                    $isSwiss = $this->competition->type === \App\Enums\CompetitionType::Swiss;
+                                    $hasPromotion = $isSwiss || (int) $this->competition->tier > 1;
+                                    $hasRelegation = !$isSwiss;
+                                @endphp
+                                <p class="flex flex-wrap gap-4 opacity-90">
+                                    @if ($hasPromotion)
+                                        <span class="flex items-center gap-1"><span class="inline-block h-3 w-1 bg-green-500"></span>{{ __('Promotion') }}</span>
+                                    @endif
+                                    @if ($hasRelegation)
+                                        <span class="flex items-center gap-1"><span class="inline-block h-3 w-1 bg-red-500"></span>{{ __('Relegation') }}</span>
+                                    @endif
+                                @if ($this->finalMoves !== [])
+                                        <span>{{ __('Final moves, including swaps for bots') }}</span>
+                                    @endif
+                                </p>
+                            @endif
+                        </footer>
+                    @endif
+                </section>
             @endif
 
-            {{-- ============ Mecze kolejki / rundy ============ --}}
-            @if (!$this->isLegends)
-            <flux:card class="space-y-2 self-start">
-                <flux:heading>
-                    {{ $this->isCup ? \App\Support\CupBracket::roundName($round) : __('Matchday :number', ['number' => $round]) }}
-                </flux:heading>
+            {{-- ============ Puchar Polski: drabinka rundy w kartach meczów ============ --}}
+            @if ($this->isCup)
+                @php
+                    $rounds = \App\Support\CupBracket::ROUNDS;
+                    $total = intdiv(\App\Support\CupBracket::seatsInRound($round), 2);
+                    $path = $this->cupPath;
+                    $myId = $this->myTeamId;
+                    $final = $round === $rounds ? $this->matches?->first() : null;
+                    // Cztery kolumny tej samej szerokości; półfinał (2 mecze) i finał (1) wyśrodkowane, karty nie rosną.
+                    $cupGrid = 'flex flex-wrap justify-center gap-2';
+                    $cupCell = 'shrink-0 grow-0';
+                    $cupCellStyle = 'width: calc((100% - 1.5rem) / 4); min-width: min(100%, 16rem);';
+                    // Etykieta etapu w pasku: liczba zespołów, od ćwierćfinału nazwa etapu (KnockoutStage).
+                    $stageLabel = fn (int $stage) => $stage >= \App\Enums\KnockoutStage::QuarterFinal->value
+                        ? \App\Enums\KnockoutStage::labelFor($stage)
+                        : (string) \App\Support\CupBracket::seatsInRound($stage);
+                @endphp
+                <div class="space-y-3">
+                    {{-- Pasek etapów: 512 → 256 → … → Finał, każdy etap to link do swojej rundy --}}
+                    <nav class="flex flex-wrap items-center gap-1 text-xs" aria-label="{{ __('Rounds') }}">
+                        @foreach (range(1, $rounds) as $stage)
+                            @php
+                                $stageClass = $stage === $round
+                                    ? 'lech-bar font-semibold'
+                                    : ($stage < $round ? 'bg-lech-100 text-lech-800 hover:bg-lech-200 dark:bg-lech-900/40 dark:text-lech-200' : 'bg-zinc-100 text-zinc-500 hover:bg-zinc-200 dark:bg-zinc-800');
+                            @endphp
+                            <a href="{{ $this->pageUrl($stage) }}" wire:navigate title="{{ \App\Support\CupBracket::roundName($stage) }}"
+                                class="{{ $stageClass }} rounded-full px-2.5 py-1 tabular-nums transition">{{ $stageLabel($stage) }}</a>
+                            @if ($stage < $rounds)
+                                <flux:icon.chevron-right variant="micro" class="text-zinc-400" />
+                            @endif
+                        @endforeach
+                    </nav>
 
-                @if ($this->matches && $this->matches->isNotEmpty())
-                    <ul class="space-y-1.5">
+                    {{-- Zdobywca pucharu po rozegranym finale --}}
+                    @if ($final && $final->winner_entry_id)
+                        @php
+                            $champion = $final->winner_entry_id === $final->home_entry_id ? $final->home : $final->away;
+                        @endphp
+                        <div class="lech-banner lech-bar-shadow flex items-center gap-3 rounded-xl px-4 py-3">
+                            <flux:icon.trophy class="size-8 shrink-0 text-amber-300" />
+                            <div class="min-w-0">
+                                <div class="text-xs uppercase tracking-wide opacity-80">{{ __('Cup winner') }}</div>
+                                <button type="button" wire:click="showTeam({{ $champion?->season_team_id ?? 0 }})" class="truncate text-lg font-bold hover:underline {{ $champion?->seasonTeam?->is_bot ? 'italic' : '' }}">{{ $champion?->seasonTeam->name }}</button>
+                            </div>
+                        </div>
+                    @endif
+
+                    {{-- Twoja droga w pucharze: karta na rundę z paskiem koloru (zielony = awans, czerwony = odpadnięcie, bursztynowy = przed wynikiem) --}}
+                    @if ($path)
+                        @php
+                            $pathLabel = fn (int $stage) => match ($stage) {
+                                $rounds => __('Final'),
+                                default => '1/' . intdiv(\App\Support\CupBracket::seatsInRound($stage), 2),
+                            };
+                            $lastStage = max(array_keys($path));
+                            $lastFx = $path[$lastStage];
+                            $lastMine = $lastFx->home?->season_team_id === $myId ? $lastFx->home_entry_id : $lastFx->away_entry_id;
+                            $pathStatus = match (true) {
+                                !$lastFx->isPlayed() => __('Still in: :round', ['round' => \App\Support\CupBracket::roundName($lastStage)]),
+                                $lastFx->winner_entry_id !== $lastMine => __('Knocked out: :round', ['round' => \App\Support\CupBracket::roundName($lastStage)]),
+                                $lastStage === $rounds => __('Cup winner'),
+                                default => __('Through to: :round', ['round' => \App\Support\CupBracket::roundName($lastStage + 1)]),
+                            };
+                        @endphp
+                        <section class="lech-bar-shadow overflow-hidden rounded-2xl border border-lech-950/20 bg-white dark:border-lech-900 dark:bg-zinc-900">
+                            <header class="lech-bar flex flex-wrap items-center justify-between gap-2 px-5 py-3">
+                                <h3 class="flex items-center gap-2 font-bold">
+                                    <flux:icon.trophy class="size-5 text-lech-200" />
+                                    {{ __('Your cup path') }}
+                                </h3>
+                                <span class="text-sm font-semibold text-lech-200">{{ $pathStatus }}</span>
+                            </header>
+                            <div class="overflow-x-auto p-4">
+                                <ol class="grid gap-2" style="grid-template-columns: repeat({{ $rounds }}, minmax(4.5rem, 1fr));">
+                                    @foreach (range(1, $rounds) as $stage)
+                                        @php
+                                            $fx = $path[$stage] ?? null;
+                                            $isHome = $fx && $fx->home?->season_team_id === $myId;
+                                            $myEntryId = $fx ? ($isHome ? $fx->home_entry_id : $fx->away_entry_id) : null;
+                                            $opponent = $fx ? ($isHome ? $fx->away : $fx->home) : null;
+                                            $myGoals = $fx ? ($isHome ? $fx->home_goals : $fx->away_goals) : null;
+                                            $theirGoals = $fx ? ($isHome ? $fx->away_goals : $fx->home_goals) : null;
+                                            [$strip, $stateClass, $stateText] = match (true) {
+                                                $fx === null => ['bg-zinc-200 dark:bg-zinc-700', 'text-zinc-400', '—'],
+                                                !$fx->isPlayed() => ['bg-amber-400', 'text-amber-700 dark:text-amber-300', __('Not played yet')],
+                                                $fx->winner_entry_id === $myEntryId => ['bg-green-500', 'text-green-700 dark:text-green-400', $fx->decided_by_time ? __('Through on penalties') : __('Through')],
+                                                default => ['bg-red-500', 'text-red-600 dark:text-red-400', $fx->decided_by_time ? __('Out on penalties') : __('Out')],
+                                            };
+                                        @endphp
+                                        <li>
+                                            <a @if ($fx) href="{{ $this->pageUrl($stage) }}" wire:navigate @endif
+                                                title="{{ \App\Support\CupBracket::roundName($stage) }}"
+                                                class="{{ $stage === $round ? 'ring-2 ring-lech-600 dark:ring-lech-400' : '' }} {{ $fx ? 'hover:shadow-md' : 'opacity-60' }} flex h-full flex-col overflow-hidden rounded-xl border border-zinc-200 bg-white transition dark:border-zinc-700 dark:bg-zinc-900">
+                                                <span class="{{ $strip }} block h-1.5"></span>
+                                                <span class="flex flex-1 flex-col items-center gap-0.5 px-2 py-2 text-center">
+                                                    <span class="text-xs font-semibold uppercase tracking-wide text-zinc-500">{{ $pathLabel($stage) }}</span>
+                                                    <span class="text-2xl font-black tabular-nums text-lech-900 dark:text-white">
+                                                        {{ $fx && $fx->isPlayed() ? $myGoals . ':' . $theirGoals : '–' }}
+                                                    </span>
+                                                    <span class="w-full truncate text-xs text-zinc-600 dark:text-zinc-300 {{ $opponent?->seasonTeam?->is_bot ? 'italic' : '' }}">{{ $opponent?->seasonTeam->name ?? ($fx ? __('Opponent not known yet') : '') }}</span>
+                                                    <span class="{{ $stateClass }} text-xs font-semibold">{{ $stateText }}</span>
+                                                </span>
+                                            </a>
+                                        </li>
+                                    @endforeach
+                                </ol>
+                            </div>
+                        </section>
+                    @endif
+                    <flux:card class="space-y-3">
+                        <div class="flex flex-wrap items-baseline justify-between gap-2">
+                            <flux:heading>{{ \App\Support\CupBracket::roundName($round) }}</flux:heading>
+                            <flux:text class="text-xs tabular-nums">
+                                {{ __(':played of :total matches played', ['played' => $this->cupPlayed, 'total' => $total]) }}
+                            </flux:text>
+                        </div>
+                        {{-- Pasek postępu rundy --}}
+                        <div class="h-1.5 overflow-hidden rounded-full bg-zinc-100 dark:bg-zinc-800">
+                            <div class="h-full rounded-full bg-lech-600" style="width: {{ $total ? round($this->cupPlayed / $total * 100) : 0 }}%"></div>
+                        </div>
+
+                        @if ($this->matches && $this->matches->isNotEmpty())
+                            <div class="{{ $cupGrid }}">
+                                @foreach ($this->matches as $fixture)
+                                    <div class="{{ $cupCell }}" style="{{ $cupCellStyle }}" wire:key="cup-cell-{{ $fixture->id }}">
+                                        @include('partials.cup-fixture-card', [
+                                            'fixture' => $fixture,
+                                            'mine' => $this->highlighted($fixture->home?->season_team_id) || $this->highlighted($fixture->away?->season_team_id),
+                                        ])
+                                    </div>
+                                @endforeach
+                            </div>
+
+                            @if ($this->matches->hasPages())
+                                <div class="flex items-center justify-between gap-2 pt-1">
+                                    <flux:button size="sm" variant="ghost" icon="chevron-left"
+                                        wire:click="previousPage('matchesPage')" :disabled="$this->matches->onFirstPage()" />
+                                    <flux:text class="text-xs tabular-nums">
+                                        {{ __('Page :current of :last', ['current' => $this->matches->currentPage(), 'last' => $this->matches->lastPage()]) }}
+                                    </flux:text>
+                                    <flux:button size="sm" variant="ghost" icon="chevron-right"
+                                        wire:click="nextPage('matchesPage')" :disabled="!$this->matches->hasMorePages()" />
+                                </div>
+                            @endif
+                        @else
+                            <flux:text>{{ __('No matches yet.') }}</flux:text>
+                        @endif
+                    </flux:card>
+
+                    {{-- Objaśnienia kursywą pod drabinką i legenda kolorów --}}
+                    <div class="space-y-1 px-1 text-xs italic text-zinc-500">
+                        <p>
+                            {{ __('The favourite plays on the left and the winner takes the better seed of the pair. A draw goes to the team whose tip was saved first (every save gets its own number; bots and missing tips come last, then the higher seed), shown as “after penalties”.') }}
+                            {{ __('The number next to the team is its seed in this round.') }}
+                        </p>
+                        <p class="flex flex-wrap gap-4 not-italic">
+                            <span class="flex items-center gap-1"><span class="inline-block h-3 w-3 rounded bg-green-500"></span>{{ __('Goes through') }}</span>
+                            <span class="flex items-center gap-1"><span class="inline-block h-3 w-3 rounded bg-red-400"></span>{{ __('Eliminated') }}</span>
+                            <span class="flex items-center gap-1"><span class="inline-block h-3 w-3 rounded bg-amber-400"></span>{{ __('Your match / not played yet') }}</span>
+                        </p>
+                    </div>
+                </div>
+            @endif
+
+            {{-- ============ Puchary europejskie: grupy A-D, potem faza pucharowa ============ --}}
+            @if ($this->isEuropean)
+                @include('partials.european-results', ['round' => $round])
+            @endif
+
+            {{-- ============ Mecze kolejki (ligi, podwórkowa, Liga Legend) ============ --}}
+            {{-- Karta w barwach rozgrywek jak stopka grupy pucharów europejskich: wynik w wyróżnionym kafelku na środku. --}}
+            @if (!$this->isCup && !$this->isEuropean)
+                <section class="self-start space-y-1.5 overflow-hidden rounded-2xl p-2 shadow-md"
+                    style="{{ \App\Support\CompetitionColors::style($colorKey) }} background-image: linear-gradient(140deg, var(--c-bg1), var(--c-bg2)); color: var(--c-ink); border: 2px solid var(--c-accent);">
+                    <header class="flex items-center justify-between gap-2 px-1 pb-1">
+                        <h3 class="text-sm font-black uppercase tracking-[0.25em]">{{ __('Matchday :number', ['number' => $round]) }}</h3>
+                        @if ($this->matches && $this->matches->total() > 0)
+                            <span class="comp-accent text-[11px] font-bold tabular-nums">{{ trans_choice(':count match|:count matches', $this->matches->total(), ['count' => $this->matches->total()]) }}</span>
+                        @endif
+                    </header>
+
+                    @if ($this->matches && $this->matches->isNotEmpty())
                         @foreach ($this->matches as $fixture)
                             @php
-                                $mine = $this->myTeamId && in_array($this->myTeamId, [$fixture->home?->season_team_id, $fixture->away?->season_team_id]);
+                                $mine = $this->highlighted($fixture->home?->season_team_id) || $this->highlighted($fixture->away?->season_team_id);
+                                $homeWon = $fixture->isPlayed() && $fixture->home_goals > $fixture->away_goals;
+                                $awayWon = $fixture->isPlayed() && $fixture->away_goals > $fixture->home_goals;
                             @endphp
-                            <li wire:key="fx-{{ $fixture->id }}"
-                                class="grid grid-cols-[1fr_auto_1fr] items-center gap-2 text-sm {{ $mine ? 'font-semibold' : '' }}">
-                                <span class="truncate text-right {{ $fixture->winner_entry_id && $fixture->winner_entry_id === $fixture->home_entry_id && $this->isCup ? 'text-green-700 dark:text-green-400' : '' }}">
-                                    {{ $fixture->home?->seasonTeam->name ?? __('Seat :number', ['number' => $fixture->home_seat]) }}
-                                </span>
-                                <span class="tabular-nums {{ $fixture->isPlayed() ? '' : 'text-zinc-400' }}">{{ $fixture->score() }}</span>
-                                <span class="truncate {{ $fixture->winner_entry_id && $fixture->winner_entry_id === $fixture->away_entry_id && $this->isCup ? 'text-green-700 dark:text-green-400' : '' }}">
+                            <button type="button" wire:click="showFixture({{ $fixture->id }})" title="{{ __('Match details') }}" wire:key="fx-{{ $fixture->id }}"
+                                class="{{ $mine ? 'ring-2 ring-amber-400' : '' }} grid w-full grid-cols-[1fr_auto_1fr] items-center gap-2 rounded-lg bg-black/20 px-2 py-1.5 text-sm transition hover:bg-black/30">
+                                <span class="flex min-w-0 items-center justify-end gap-1 {{ $homeWon ? 'font-bold' : 'opacity-85' }}"><x-champion-trophies :team="$fixture->home?->seasonTeam" :size="14" /><span class="truncate {{ $fixture->home?->seasonTeam?->is_bot ? 'italic' : '' }}">{{ $fixture->home?->seasonTeam->name ?? __('Seat :number', ['number' => $fixture->home_seat]) }}</span></span>
+                                @if ($fixture->isPlayed())
+                                    <span class="comp-badge min-w-14 rounded-md px-2 py-0.5 text-center text-base font-black tabular-nums shadow">{{ $fixture->home_goals }}:{{ $fixture->away_goals }}</span>
+                                @else
+                                    <span class="min-w-14 rounded-md border border-dashed border-current px-2 py-0.5 text-center text-base font-bold tabular-nums opacity-60">–:–</span>
+                                @endif
+                                <span class="flex min-w-0 items-center gap-1 text-left {{ $awayWon ? 'font-bold' : 'opacity-85' }}">
                                     @if ($fixture->away)
-                                        {{ $fixture->away->seasonTeam->name }}
+                                        <span class="truncate {{ $fixture->away->seasonTeam->is_bot ? 'italic' : '' }}">{{ $fixture->away->seasonTeam->name }}</span>
+                                        <x-champion-trophies :team="$fixture->away->seasonTeam" :size="14" />
                                     @elseif ($fixture->away_seat)
                                         {{ __('Seat :number', ['number' => $fixture->away_seat]) }}
                                     @else
                                         <span class="italic">{{ \App\Models\Fixture::VIRTUAL_OPPONENT }}</span>
                                     @endif
                                 </span>
-                            </li>
+                            </button>
                         @endforeach
-                    </ul>
 
-                    @if ($this->matches->hasPages())
-                        <div class="pt-2">{{ $this->matches->links() }}</div>
+                        @if ($this->matches->hasPages())
+                            {{-- Własny, zwarty pager: domyślne linki Laravela nie mieszczą się w wąskiej kolumnie. --}}
+                            <div class="flex items-center justify-between gap-2 px-1 pt-1">
+                                <button type="button" wire:click="previousPage('matchesPage')" @disabled($this->matches->onFirstPage())
+                                    class="flex size-8 items-center justify-center rounded-full bg-black/20 transition hover:bg-black/30 disabled:opacity-30" aria-label="{{ __('Previous') }}">
+                                    <flux:icon.chevron-left variant="micro" />
+                                </button>
+                                <span class="text-xs tabular-nums opacity-85">
+                                    {{ __('Page :current of :last', ['current' => $this->matches->currentPage(), 'last' => $this->matches->lastPage()]) }}
+                                </span>
+                                <button type="button" wire:click="nextPage('matchesPage')" @disabled(!$this->matches->hasMorePages())
+                                    class="flex size-8 items-center justify-center rounded-full bg-black/20 transition hover:bg-black/30 disabled:opacity-30" aria-label="{{ __('Next') }}">
+                                    <flux:icon.chevron-right variant="micro" />
+                                </button>
+                            </div>
+                        @endif
+                    @else
+                        <div class="px-1 text-sm opacity-80">{{ __('No matches yet.') }}</div>
                     @endif
-                @else
-                    <flux:text>{{ __('No matches yet.') }}</flux:text>
-                @endif
-            </flux:card>
+                </section>
             @endif
         </div>
     @endif
+
+    @include('partials.results-modals')
 </div>

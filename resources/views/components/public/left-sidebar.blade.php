@@ -1,10 +1,11 @@
 {{-- WAŻNE: atrybuty <flux:sidebar> porównaj z resources/views/layouts/app/sidebar.blade.php
     w panelu. Tam, gdzie działa na telefonie, skopiuj dokładnie ten sam zestaw
     (np. collapsible="mobile" albo starsze stashable). --}}
+    {{-- Klasa dark: elementy menu w wersji jasnej na granatowym tle (barwy Lecha). --}}
     <flux:sidebar sticky collapsible="mobile"
-        class="border-e border-zinc-200 bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900">
+        class="dark border-e border-lech-950 bg-linear-to-b from-lech-900 via-lech-950 to-black text-white">
         <flux:sidebar.header>
-            <flux:brand href="{{ route('home') }}" name="{{ config('app.name') }}" />
+            <x-lechtyper-logo class="text-white" />
             <flux:sidebar.collapse class="lg:hidden" />
         </flux:sidebar.header>
 
@@ -16,7 +17,7 @@
                 @if (\App\Support\Players::canPlay(auth()->user()))
                     <flux:sidebar.item icon="pencil-square" :href="route('tips')" :current="request()->routeIs('tips')"
                         wire:navigate>
-                        {{ __('My tips') }}
+                        #LechTYPER
                     </flux:sidebar.item>
                 @endif
             @endauth
@@ -28,10 +29,39 @@
                 :current="request()->routeIs('hall-of-fame', 'team.show')" wire:navigate>
                 {{ __('Hall of Fame') }}
             </flux:sidebar.item>
-            {{-- kolejne pozycje opracujemy później --}}
+            <flux:sidebar.item icon="building-library" :href="route('history')" :current="request()->routeIs('history')"
+                wire:navigate>
+                {{ __('History and records') }}
+            </flux:sidebar.item>
+            <flux:sidebar.item icon="sparkles" :href="route('stars')" :current="request()->routeIs('stars')" wire:navigate>
+                {{ __('Game stars') }}
+            </flux:sidebar.item>
+            <flux:sidebar.item icon="heart" :href="route('support')" :current="request()->routeIs('support')"
+                wire:navigate>
+                {{ __('Premium and support') }}
+            </flux:sidebar.item>
+            <flux:sidebar.item icon="book-open" :href="route('rules')" :current="request()->routeIs('rules')"
+                wire:navigate>
+                {{ __('Rules of the game') }}
+            </flux:sidebar.item>
+            <flux:sidebar.item icon="question-mark-circle" :href="route('faq')" :current="request()->routeIs('faq')"
+                wire:navigate>
+                {{ __('FAQ') }}
+            </flux:sidebar.item>
+            <flux:sidebar.item icon="inbox" :href="route('office')" :current="request()->routeIs('office')"
+                wire:navigate>
+                {{ __('Complaints and requests office') }}
+            </flux:sidebar.item>
         </flux:sidebar.nav>
 
         <flux:spacer />
+
+        {{-- Panel administracyjny w menu na telefonie (w nagłówku widoczny od szerokości sm) --}}
+        @can(\App\Enums\Permission::DashboardAccess->value)
+            <flux:sidebar.nav class="sm:hidden">
+                <flux:sidebar.item icon="squares-2x2" :href="route('dashboard')">{{ __('Dashboard') }}</flux:sidebar.item>
+            </flux:sidebar.nav>
+        @endcan
 
         @guest
             <flux:sidebar.nav>

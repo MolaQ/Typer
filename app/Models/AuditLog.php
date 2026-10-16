@@ -5,6 +5,9 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
+/**
+ * Wpis dziennika zmian w panelu admina (zapis przez App\Support\Audit::log).
+ */
 class AuditLog extends Model
 {
     // Dziennik tylko się dopisuje, więc nie ma updated_at.
