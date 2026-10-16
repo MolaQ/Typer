@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
 <defs><linearGradient id="lt-bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#2563eb"/><stop offset="1" stop-color="#0b1f4d"/></linearGradient></defs>
-<rect rx="56" fill="url(#lt-bg)"/>
+<rect width="256" height="256" rx="56" fill="url(#lt-bg)"/>
 <g transform="translate(8 14) scale(0.92)"><g fill="#fff">
 <circle cx="172" cy="94" r="40"/>
 <path d="M198 70 L242 58 L214 96 Z"/>
