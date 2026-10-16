@@ -23,7 +23,5 @@
         <flux:text>{{ __('Latest announcements will appear here.') }}</flux:text>
     @endforelse
     <flux:separator />
-    <x-public.quote />
-    <flux:separator />
     <x-public.premium-card />
 </div>

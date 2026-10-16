@@ -378,8 +378,7 @@ new class extends Component {
                     <flux:table.cell align="end">
                         @if ($req->status === \App\Enums\TeamNameRequestStatus::Pending)
                             <div class="flex justify-end gap-2">
-                                <flux:button size="sm" variant="primary" icon="check" wire:click="approve({{ $req->id }})"
-                                    wire:confirm="{{ __('Approve this change?') }}">
+                                <flux:button size="sm" variant="primary" icon="check" x-on:click="$dispatch('confirm-action', { message: @js(__('Approve this change?')), run: () => $wire.approve({{ $req->id }}) })">
                                     {{ __('Approve') }}
                                 </flux:button>
                                 <flux:button size="sm" variant="ghost" icon="x-mark" wire:click="confirmReject({{ $req->id }})">

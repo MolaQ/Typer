@@ -545,6 +545,14 @@ final class PlayerStats
         return $minutes === null ? '—' : number_format($minutes, 0, ',', ' ').' min';
     }
 
+    /** Liczy z góry statystyki sezonu (po rozliczeniu kolejki i końcu sezonu), żeby nie czekał na nie pierwszy gracz. */
+    public static function warm(int $seasonId): void
+    {
+        if ($season = Season::find($seasonId)) {
+            self::seasonAll($season);
+        }
+    }
+
     /**
      * Statystyki wszystkich zespołów ludzi w sezonie: id zespołu => statystyki.
      *

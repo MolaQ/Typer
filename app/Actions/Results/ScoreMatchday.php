@@ -15,6 +15,7 @@ use App\Support\EuropeanCup;
 use App\Support\GameStars;
 use App\Support\LegendsLeague;
 use App\Support\PageCache;
+use App\Support\PlayerStats;
 use App\Support\Scoring;
 use App\Support\SeasonArchive;
 use App\Support\Squad;
@@ -58,6 +59,8 @@ class ScoreMatchday
             SeasonArchive::forget($matchday->season_id);
             // Gwiazdy gry: gotowe sumy zawodników sezonu po zatwierdzeniu wyników.
             DB::afterCommit(fn () => GameStars::rebuild($matchday->season_id));
+            // Statystyki sezonu gracza liczone od razu (zamiast przy pierwszym wejściu na /tips).
+            DB::afterCommit(fn () => PlayerStats::warm($matchday->season_id));
 
             $kickoff = ($matchday->kickoff_at ?? now())->format('Y-m-d H:i:s.u');
 

@@ -15,6 +15,9 @@ use Illuminate\Support\Facades\DB;
  */
 class SeasonArchive
 {
+    /** Czas życia danych sezonu w trakcie (sekundy). */
+    public const LIVE_TTL = 86400;
+
     /** @var array<string, array<array-key, mixed>> pamięć w obrębie żądania */
     private static array $memo = [];
 
@@ -34,7 +37,8 @@ class SeasonArchive
         }
 
         if (! self::finished($seasonId)) {
-            return self::$memo[$memoKey] = PageCache::remember('archive:'.$memoKey, $callback);
+            // Doba: wpis i tak znika po rozliczeniu kolejki (PageCache::flush), a liczenie sezonu w trakcie bywa ciężkie.
+            return self::$memo[$memoKey] = PageCache::remember('archive:'.$memoKey, $callback, self::LIVE_TTL);
         }
 
         $payload = DB::table('season_archives')->where('season_id', $seasonId)->where('key', $key)->value('payload');

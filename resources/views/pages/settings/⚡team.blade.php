@@ -237,8 +237,7 @@ new class extends Component {
         <flux:text class="text-sm">{{ __('Sent') }}: {{ $pending->created_at->format('Y-m-d H:i') }}</flux:text>
 
         <div>
-            <flux:button size="sm" variant="ghost" wire:click="cancelRequest"
-                wire:confirm="{{ __('Cancel this request?') }}">
+            <flux:button size="sm" variant="ghost" x-on:click="$dispatch('confirm-action', { message: @js(__('Cancel this request?')), run: () => $wire.cancelRequest() })">
                 {{ __('Cancel request') }}
             </flux:button>
         </div>

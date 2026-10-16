@@ -5,7 +5,5 @@
             <span>v{{ config('app.version', '0.1.0') }}</span>
             <span class="hidden sm:inline">{{ now()->translatedFormat('j F Y') }}</span>
         </div>
-
-        <x-public.quote class="hidden max-w-md truncate md:block" />
     </div>
 </footer>

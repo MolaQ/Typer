@@ -243,6 +243,7 @@
     </flux:toast.group>
     @endpersist
 
+    <x-confirm-dialog />
     @fluxScripts
 </body>
 

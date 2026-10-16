@@ -21,6 +21,7 @@ use App\Support\CupBracket;
 use App\Support\EuropeanCup;
 use App\Support\HallOfFame;
 use App\Support\PageCache;
+use App\Support\PlayerStats;
 use App\Support\Roster;
 use App\Support\SeasonArchive;
 use App\Support\Standings;
@@ -55,6 +56,8 @@ class FinishSeason
             PageCache::flush();
             // Gotowe dane sezonu (season_archives) do policzenia od nowa.
             SeasonArchive::forget($season->id);
+            // Statystyki zakończonego sezonu od razu do archiwum.
+            DB::afterCommit(fn () => PlayerStats::warm($season->id));
 
             $season = Season::query()->lockForUpdate()->findOrFail($season->id);
 

@@ -389,10 +389,8 @@ new class extends Component {
         </flux:button>
         @if ($checkedCount > 0)
             <flux:button size="sm" variant="ghost" icon="x-mark" wire:click="clearChecked">{{ __('Clear selection') }}</flux:button>
-            <flux:button size="sm" icon="lock-open" wire:click="releaseRole('{{ \App\Enums\RoleName::Banned->value }}')"
-                wire:confirm="{{ __('Remove the ban from the selected accounts?') }}">{{ __('Remove ban') }}</flux:button>
-            <flux:button size="sm" icon="arrow-uturn-left" wire:click="releaseRole('{{ \App\Enums\RoleName::Inactive->value }}')"
-                wire:confirm="{{ __('Remove Inactive from the selected accounts?') }}">{{ __('Remove Inactive') }}</flux:button>
+            <flux:button size="sm" icon="lock-open" x-on:click="$dispatch('confirm-action', { message: @js(__('Remove the ban from the selected accounts?')), run: () => $wire.releaseRole(@js(\App\Enums\RoleName::Banned->value)) })">{{ __('Remove ban') }}</flux:button>
+            <flux:button size="sm" icon="arrow-uturn-left" x-on:click="$dispatch('confirm-action', { message: @js(__('Remove Inactive from the selected accounts?')), run: () => $wire.releaseRole(@js(\App\Enums\RoleName::Inactive->value)) })">{{ __('Remove Inactive') }}</flux:button>
         @endif
     </div>
 
@@ -463,8 +461,7 @@ new class extends Component {
                                 @endif
                                 <flux:button variant="ghost" size="xs" icon="arrow-path" wire:click="newCode({{ $user->id }})"
                                     :aria-label="__('New code')" :tooltip="__('New code')" />
-                                <flux:button variant="ghost" size="xs" icon="check-badge" wire:click="confirmEmail({{ $user->id }})"
-                                    wire:confirm="{{ __('Confirm this email without a code?') }}" :aria-label="__('Confirm without a code')"
+                                <flux:button variant="ghost" size="xs" icon="check-badge" x-on:click="$dispatch('confirm-action', { message: @js(__('Confirm this email without a code?')), run: () => $wire.confirmEmail({{ $user->id }}) })" :aria-label="__('Confirm without a code')"
                                     :tooltip="__('Confirm without a code')" />
                             </div>
                         @endif

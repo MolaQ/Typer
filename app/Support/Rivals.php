@@ -10,10 +10,14 @@ use App\Models\CompetitionEntry;
 use App\Models\DesignatedPlayer;
 use App\Models\Fixture;
 use App\Models\Matchday;
+use App\Models\Season;
 use App\Models\SeasonTeam;
 use App\Models\TeamScore;
 use App\Models\Tip;
 use App\Models\User;
+use Illuminate\Database\Query\Builder as QueryBuilder;
+use Illuminate\Database\Query\JoinClause;
+use Illuminate\Support\Facades\DB;
 
 /**
  * Podgląd rywali gracza w kolejce (mecze z terminarza z rundą = numer kolejki), z widocznością zależną od etapu:
@@ -256,53 +260,78 @@ final class Rivals
      */
     public static function headToHead(User $viewer, SeasonTeam $rival): array
     {
-        // Liczą się tylko kolejki, w których oba miejsca zajmowali ci właściciele (gracz za bota nie przejmuje meczów bota, Ownership).
-        $rivalKey = Ownership::key($rival->user_id, $rival->bot_id);
-        $mineTeams = CompetitionEntry::whereIn('season_team_id', PlayerStats::ownerTeamIds($viewer->id, null))->pluck('season_team_id', 'id');
-        $theirTeams = CompetitionEntry::whereIn('season_team_id', PlayerStats::ownerTeamIds($rival->user_id, $rival->bot_id))->pluck('season_team_id', 'id');
-        $mine = $mineTeams->keys();
-        $theirs = $theirTeams->keys();
+        // Liczą się tylko kolejki, w których oba miejsca zajmowali ci właściciele (gracz za bota nie przejmuje meczów bota):
+        // strony meczu z team_scores kolejki, całość w SQL (16.10.2026).
+        // Wpisy rozgrywek obu stron zawężają mecze (indeksy home/away_entry_id), właściciela kolejki sprawdza team_scores.
+        $mine = CompetitionEntry::whereIn('season_team_id', PlayerStats::ownerTeamIds($viewer->id, null))->pluck('id')->all();
+        $theirs = CompetitionEntry::whereIn('season_team_id', PlayerStats::ownerTeamIds($rival->user_id, $rival->bot_id))->pluck('id')->all();
 
-        $fixtures = Fixture::with('competition.season:id,number')
-            ->whereNotNull('home_goals')
-            ->where(fn ($q) => $q
-                ->where(fn ($w) => $w->whereIn('home_entry_id', $mine)->whereIn('away_entry_id', $theirs))
-                ->orWhere(fn ($w) => $w->whereIn('home_entry_id', $theirs)->whereIn('away_entry_id', $mine)))
-            ->get()
-            ->filter(function (Fixture $f) use ($mine, $mineTeams, $theirTeams, $viewer, $rivalKey) {
-                $home = $mine->contains($f->home_entry_id);
-                $seasonId = (int) $f->competition?->getAttribute('season_id');
-                $myTeam = (int) $mineTeams[$home ? $f->home_entry_id : $f->away_entry_id];
-                $theirTeam = (int) $theirTeams[$home ? $f->away_entry_id : $f->home_entry_id];
+        if ($mine === [] || $theirs === []) {
+            return ['won' => 0, 'drawn' => 0, 'lost' => 0, 'meetings' => []];
+        }
 
-                return Ownership::playedBy($seasonId, $myTeam, (int) $f->round, $viewer->id)
-                    && Ownership::at($seasonId, $theirTeam, (int) $f->round) === $rivalKey;
-            })
-            ->sortByDesc(fn ($f) => [$f->competition->season->number, $f->round, $f->id]);
+        $rows = DB::query()->fromSub(
+            self::h2hSide($viewer->id, $rival, $mine, $theirs, 'home_entry_id', 'away_entry_id', 'c.season_id, c.name as competition_name, c.type as competition_type, f.round, f.id as fid,
+                f.home_goals as mine, f.away_goals as theirs, f.decided_by_time,
+                CASE WHEN f.winner_entry_id IS NULL THEN 0 WHEN f.winner_entry_id = f.home_entry_id THEN 1 ELSE -1 END as tb, se.number as sn')
+                ->unionAll(self::h2hSide($viewer->id, $rival, $mine, $theirs, 'away_entry_id', 'home_entry_id', 'c.season_id, c.name as competition_name, c.type as competition_type, f.round, f.id as fid,
+                f.away_goals as mine, f.home_goals as theirs, f.decided_by_time,
+                CASE WHEN f.winner_entry_id IS NULL THEN 0 WHEN f.winner_entry_id = f.away_entry_id THEN 1 ELSE -1 END as tb, se.number as sn')),
+            'x')
+            ->orderByDesc('sn')->orderByDesc('round')->orderByDesc('fid')
+            ->get();
 
+        $seasons = Season::whereIn('id', $rows->pluck('season_id')->unique())->get()->keyBy('id');
         $out = ['won' => 0, 'drawn' => 0, 'lost' => 0, 'meetings' => []];
-        foreach ($fixtures as $fixture) {
-            $home = $mine->contains($fixture->home_entry_id);
-            $entryId = $home ? $fixture->home_entry_id : $fixture->away_entry_id;
-            $for = (int) ($home ? $fixture->home_goals : $fixture->away_goals);
-            $against = (int) ($home ? $fixture->away_goals : $fixture->home_goals);
+        foreach ($rows as $row) {
+            $for = (int) $row->mine;
+            $against = (int) $row->theirs;
 
             // Remis rozstrzygnięty czasem typu (puchar) liczymy jako wygraną albo porażkę.
-            $outcome = $for === $against && $fixture->winner_entry_id
-                ? ((int) $fixture->winner_entry_id === $entryId ? 'W' : 'L')
+            $outcome = $for === $against && (int) $row->tb !== 0
+                ? ((int) $row->tb > 0 ? 'W' : 'L')
                 : ($for > $against ? 'W' : ($for === $against ? 'D' : 'L'));
 
             $out[['W' => 'won', 'D' => 'drawn', 'L' => 'lost'][$outcome]]++;
             $out['meetings'][] = [
-                'season' => $fixture->competition->season->roman_number,
-                'competition' => $fixture->competition->name ?: $fixture->competition->type->label(),
-                'round' => (int) $fixture->round,
-                'score' => $for.':'.$against.($fixture->decided_by_time ? ' '.__('(pen.)') : ''),
+                'season' => (string) $seasons->get((int) $row->season_id)?->roman_number,
+                'competition' => $row->competition_name ?: (CompetitionType::tryFrom((string) $row->competition_type)?->label() ?? ''),
+                'round' => (int) $row->round,
+                'score' => $for.':'.$against.($row->decided_by_time ? ' '.__('(pen.)') : ''),
                 'outcome' => $outcome,
             ];
         }
 
         return $out;
+    }
+
+    /**
+     * Mecze widza z rywalem jedną stroną (widz gospodarzem albo gościem).
+     *
+     * @param  list<int>  $mineIds  wpisy rozgrywek widza
+     * @param  list<int>  $theirIds  wpisy rozgrywek rywala
+     * @param  literal-string  $select
+     */
+    private static function h2hSide(int $viewerId, SeasonTeam $rival, array $mineIds, array $theirIds, string $mine, string $theirs, string $select): QueryBuilder
+    {
+        return DB::table('fixtures as f')
+            ->join('competitions as c', 'c.id', '=', 'f.competition_id')
+            ->join('seasons as se', 'se.id', '=', 'c.season_id')
+            ->join('matchdays as fm', fn (JoinClause $j) => $j->on('fm.season_id', '=', 'c.season_id')->on('fm.number', '=', 'f.round'))
+            ->join('competition_entries as me', 'me.id', '=', 'f.'.$mine)
+            ->join('competition_entries as re', 're.id', '=', 'f.'.$theirs)
+            ->join('team_scores as ms', fn (JoinClause $j) => $j->on('ms.matchday_id', '=', 'fm.id')
+                ->on('ms.season_team_id', '=', 'me.season_team_id')
+                ->on('ms.score_set', '=', DB::raw(GameStars::SCORE_SET_SQL)))
+            ->join('team_scores as rs', fn (JoinClause $j) => $j->on('rs.matchday_id', '=', 'fm.id')
+                ->on('rs.season_team_id', '=', 're.season_team_id')
+                ->on('rs.score_set', '=', DB::raw(GameStars::SCORE_SET_SQL)))
+            ->whereIn('f.'.$mine, $mineIds)
+            ->whereIn('f.'.$theirs, $theirIds)
+            ->whereNotNull('f.home_goals')
+            ->where('ms.user_id', $viewerId)
+            ->when($rival->user_id, fn ($q) => $q->where('rs.user_id', $rival->user_id), fn ($q) => $q->whereNull('rs.user_id')->where('rs.bot_id', $rival->bot_id))
+            ->selectRaw($select);
     }
 
     /** Rozstrzygnięcie z perspektywy Lecha. */

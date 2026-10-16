@@ -57,11 +57,22 @@ class Audit
             'season.activated' => __('Season activated'),
             'season.finished' => __('Season finished'),
             'season.deleted' => __('Season deleted'),
+            'season.set_up' => __('Season set up automatically'),
 
             // Kolejki sezonu (mecze Lecha)
             'matchday.created' => __('Matchdays created'),
             'matchday.updated' => __('Matchday updated'),
             'matchday.scored' => __('Matchday result saved'),
+            'matchday.result' => __('Matchday result saved'),
+
+            // Kalendarz i kadra Lecha
+            'lech_match.created' => __('Lech match added'),
+            'lech_match.updated' => __('Lech match updated'),
+            'lech_match.deleted' => __('Lech match deleted'),
+            'lech_player.created' => __('Lech player added'),
+            'lech_player.updated' => __('Lech player updated'),
+            'lech_player.status' => __('Lech player status changed'),
+            'lech_player.deleted' => __('Lech player deleted'),
 
             // Lista przedsezonowa
             'season_list.built' => __('Team list built'),
@@ -78,10 +89,38 @@ class Audit
             'competition.updated' => __('Competition updated'),
             'competition.drawn' => __('Round drawn'),
             'competition.deleted' => __('Competition deleted'),
+            'competition.sponsor' => __('Competition sponsor changed'),
+            'competition_colors.saved' => __('Competition colours changed'),
+            'european_qualification.updated' => __('European qualification order changed'),
+            'european_qualification.reset' => __('European qualification order reset'),
+
+            // Hall of Fame
+            'hall_of_fame.settings' => __('Hall of Fame points changed'),
+            'hall_of_fame.recalculated' => __('Hall of Fame recalculated'),
+            'hall_of_fame.icon' => __('Trophy icon changed'),
 
             // Boty
             'bot.renamed' => __('Bot renamed'),
-            'bot.proposal_rejected' => __('Bot name proposal rejected'),
+
+            // Gracze, premium i wpłaty
+            'user.role_removed' => __('Role removed'),
+            'premium.manual' => __('Premium granted manually'),
+            'premium.expired' => __('Premium expired'),
+            'payment.paid' => __('Payment received'),
+
+            // Treści
+            'news.created' => __('News created'),
+            'news.updated' => __('News updated'),
+            'news.deleted' => __('News deleted'),
+            'sponsor.created' => __('Sponsor added'),
+            'sponsor.updated' => __('Sponsor updated'),
+            'sponsor.deleted' => __('Sponsor deleted'),
+            'office.accepted' => __('Office request accepted'),
+            'office.rejected' => __('Office request rejected'),
+
+            // Ustawienia
+            'maintenance.enabled' => __('Maintenance mode on'),
+            'maintenance.disabled' => __('Maintenance mode off'),
 
             // Desygnowanie zawodników
             'designation.settings' => __('Designation settings changed'),
@@ -103,15 +142,21 @@ class Audit
             str_ends_with($event, '.built'),
             str_ends_with($event, '.players_added'),
             str_ends_with($event, '.bots_added'),
-            str_ends_with($event, '.player_assigned') => 'green',
+            str_ends_with($event, '.player_assigned'),
+            str_ends_with($event, '.accepted'),
+            str_ends_with($event, '.paid'),
+            str_ends_with($event, '.added') => 'green',
 
             str_ends_with($event, '.rejected'),
             str_ends_with($event, '.deleted'),
             str_ends_with($event, '.reset'),
-            str_ends_with($event, '.player_released') => 'red',
+            str_ends_with($event, '.player_released'),
+            str_ends_with($event, '.role_removed'),
+            str_ends_with($event, '.expired') => 'red',
 
             str_ends_with($event, '.requested'),
-            str_ends_with($event, '.unapproved') => 'amber',
+            str_ends_with($event, '.unapproved'),
+            str_ends_with($event, '.enabled') => 'amber',
 
             default => 'zinc',
         };

@@ -1,19 +1,16 @@
-{{-- Znak LechTYPER: tarcza w barwach Lecha z ptakiem o skrzydle z piór (nawiązanie do herbu i dawnego
-     znaczka Twittera, gdzie zaczęła się zabawa). Projekt roboczy: plik można podmienić na docelowe logo. --}}
+{{-- Znak LechTYPER (16.10.2026): tarcza w barwach Lecha, piłka i złoty znak „trafiony typ”. Ten sam rysunek w public/favicon.svg. --}}
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" {{ $attributes }}>
-    <defs>
-        <linearGradient id="lechtyper-shield" x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0" stop-color="#1d4ed8" />
-            <stop offset="1" stop-color="#0b1f4d" />
-        </linearGradient>
-    </defs>
-    <path d="M32 2 L58 10 V32 C58 46 47 56 32 62 C17 56 6 46 6 32 V10 Z" fill="url(#lechtyper-shield)" />
-    <path d="M32 6 L54 13 V32 C54 44 45 52.5 32 57.5 C19 52.5 10 44 10 32 V13 Z" fill="none" stroke="#fff"
-        stroke-opacity=".35" stroke-width="1.2" />
-    <path fill="#fff"
-        d="M17 38 C21 46 33 48 40 42 C45 38 46 31 45 27 L50 24.5 L45.5 23.5 C44 20 40.5 18.5 37 19.5 C33.5 20.5 32 24 32.5 27.5 C27 28 21 33 17 38 Z" />
-    <circle cx="40" cy="23.5" r="1.2" fill="#0b1f4d" />
-    <path fill="#fff" d="M30 31 C26 25 25 18 27 12 C29 17 31 21 34 24 Z" />
-    <path fill="#fff" d="M27 33 C21 29 18 23 18 16 C21 21 25 25 30 28 Z" />
-    <path fill="#fff" d="M24 35 C17 33 13 28 11 22 C15 26 20 29 26 31 Z" />
+<defs>
+<linearGradient id="lt-shield" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#2563eb"/><stop offset="1" stop-color="#0b1f4d"/></linearGradient>
+<radialGradient id="lt-ball" cx="0.38" cy="0.32" r="0.75"><stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#d3dbe8"/></radialGradient>
+<clipPath id="lt-clip"><circle cx="31" cy="30" r="16"/></clipPath>
+</defs>
+<path d="M32 2 L58 10 V32 C58 46 47 56 32 62 C17 56 6 46 6 32 V10 Z" fill="url(#lt-shield)"/>
+<path d="M32 6 L54 13 V32 C54 44 45 52.5 32 57.5 C19 52.5 10 44 10 32 V13 Z" fill="none" stroke="#fff" stroke-opacity=".35" stroke-width="1.2"/>
+<circle cx="31" cy="30" r="16" fill="url(#lt-ball)"/>
+<g clip-path="url(#lt-clip)"><path d="M31.00 23.80 L31.00 17.20 M36.90 28.08 L43.17 26.04 M34.64 35.02 L38.52 40.36 M27.36 35.02 L23.48 40.36 M25.10 28.08 L18.83 26.04 " stroke="#0b2f74" stroke-width="0.9" stroke-linecap="round"/><polygon points="31.00,18.00 26.05,14.41 27.94,8.59 34.06,8.59 35.95,14.41" fill="#0b2f74"/><polygon points="42.41,26.29 44.30,20.48 50.41,20.48 52.30,26.29 47.36,29.88" fill="#0b2f74"/><polygon points="38.05,39.71 44.17,39.71 46.06,45.52 41.11,49.12 36.16,45.52" fill="#0b2f74"/><polygon points="23.95,39.71 25.84,45.52 20.89,49.12 15.94,45.52 17.83,39.71" fill="#0b2f74"/><polygon points="19.59,26.29 14.64,29.88 9.70,26.29 11.59,20.48 17.70,20.48" fill="#0b2f74"/></g>
+<polygon points="31.00,23.60 37.09,28.02 34.76,35.18 27.24,35.18 24.91,28.02" fill="#0b2f74"/>
+<circle cx="31" cy="30" r="16" fill="none" stroke="#0b1f4d" stroke-width="1"/>
+<circle cx="45.5" cy="44.5" r="8.5" fill="#fbbf24" stroke="#0b1f4d" stroke-width="2"/>
+<path d="M41.6 44.7 L44.3 47.4 L49.4 41.9" fill="none" stroke="#0b1f4d" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
 </svg>

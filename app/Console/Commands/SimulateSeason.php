@@ -151,7 +151,7 @@ class SimulateSeason extends Command
     /** @var array<string, mixed>|null zajęte nazwy zespołów (małymi literami) */
     private ?array $takenNames = null;
 
-    /** @var list<string>|null nieużyte nazwy zespołów (kluby, potem generator) */
+    /** @var list<string>|null nieużyte nazwy zespołów z generatora */
     private ?array $clubNames = null;
 
     public function handle(SetUpSeason $setUp, SaveTip $saveTip, SaveMatchdayResult $results, FinishSeason $finish): int
@@ -541,7 +541,7 @@ class SimulateSeason extends Command
     }
 
     /**
-     * Losuje nazwę zespołu (najpierw z puli prawdziwych klubów), której nie ma jeszcze żaden gracz ani bot (bez względu na wielkość liter).
+     * Losuje nazwę zespołu, której nie ma jeszcze żaden gracz ani bot (bez względu na wielkość liter).
      * Numer dopisuje dopiero po wyczerpaniu wszystkich kilku tysięcy nazw.
      */
     private function uniqueTeamName(): string
@@ -552,11 +552,8 @@ class SimulateSeason extends Command
             ->flip()
             ->all();
 
-        // Kolejność: prawdziwe kluby (database/data/club-names.php), potem „przydomek miejsce”, potem z dopiskiem.
-        // array_pop bierze od końca, więc kluby lądują na końcu listy.
+        // Kolejność: „przydomek miejsce”, potem z dopiskiem (array_pop bierze od końca).
         if ($this->clubNames === null) {
-            /** @var list<string> $clubs */
-            $clubs = require database_path('data/club-names.php');
             $plain = $suffixed = [];
             foreach (self::TEAM_PREFIXES as $prefix) {
                 foreach (self::TEAM_PLACES as $place) {
@@ -566,10 +563,9 @@ class SimulateSeason extends Command
                     }
                 }
             }
-            shuffle($clubs);
             shuffle($plain);
             shuffle($suffixed);
-            $this->clubNames = array_merge($suffixed, $plain, $clubs);
+            $this->clubNames = array_merge($suffixed, $plain);
         }
 
         while (($candidate = array_pop($this->clubNames)) !== null) {

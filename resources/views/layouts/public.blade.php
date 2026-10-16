@@ -51,6 +51,7 @@
     {{-- Okno meczu Lecha (zdarzenie „show-lech-match”): szczegóły typów --}}
     <livewire:pages::home.lech-match-modal />
 
+    <x-confirm-dialog />
     @fluxScripts
 </body>
 
