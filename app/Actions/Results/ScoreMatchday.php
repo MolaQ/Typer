@@ -12,6 +12,7 @@ use App\Models\SeasonTeam;
 use App\Models\TeamScore;
 use App\Models\Tip;
 use App\Support\EuropeanCup;
+use App\Support\GameStars;
 use App\Support\LegendsLeague;
 use App\Support\PageCache;
 use App\Support\Scoring;
@@ -52,6 +53,8 @@ class ScoreMatchday
         return DB::transaction(function () use ($matchday): array {
             // Policzone bloki stron (tabele, mistrzowie) do odświeżenia po zatwierdzeniu zmian.
             PageCache::flush();
+            // Gwiazdy gry: gotowe sumy zawodników sezonu po zatwierdzeniu wyników.
+            DB::afterCommit(fn () => GameStars::rebuild($matchday->season_id));
 
             $kickoff = ($matchday->kickoff_at ?? now())->format('Y-m-d H:i:s.u');
 

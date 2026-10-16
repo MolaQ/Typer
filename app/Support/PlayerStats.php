@@ -5,6 +5,7 @@ namespace App\Support;
 use App\Enums\CompetitionType;
 use App\Enums\League;
 use App\Enums\MatchdayStatus;
+use App\Enums\RoleName;
 use App\Models\Bot;
 use App\Models\Competition;
 use App\Models\CompetitionEntry;
@@ -17,8 +18,11 @@ use App\Models\SeasonTeam;
 use App\Models\TeamScore;
 use App\Models\Tip;
 use App\Models\User;
+use Illuminate\Database\Query\Builder as QueryBuilder;
+use Illuminate\Database\Query\JoinClause;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 
 /**
  * Statystyki gracza do zakładek strony „Moje typy”: kolejki (typy i braki), postęp w rozgrywkach,
@@ -295,72 +299,19 @@ final class PlayerStats
      */
     public static function scalps(User $user, bool $blacklist = false): array
     {
-        // Miejsca, którymi gracz grał (także oddane botowi); liczą się tylko kolejki rozegrane przez niego (Ownership).
-        $mine = CompetitionEntry::whereIn('season_team_id', self::userTeamIds($user))->pluck('id');
-
-        if ($mine->isEmpty()) {
-            return [];
-        }
-
-        $fixtures = Fixture::query()
-            ->join('competitions', 'competitions.id', '=', 'fixtures.competition_id')
-            ->whereNotNull('home_goals')
-            ->where(fn ($q) => $q->whereIn('home_entry_id', $mine)->orWhereIn('away_entry_id', $mine))
-            ->whereNotNull('home_entry_id')
-            ->whereNotNull('away_entry_id')
-            ->select('fixtures.*', 'competitions.season_id as fixture_season_id')
-            ->get();
-
-        $teamOfEntry = CompetitionEntry::whereIn('id', $fixtures->pluck('home_entry_id')->merge($fixtures->pluck('away_entry_id'))->unique())
-            ->pluck('season_team_id', 'id');
-
-        $records = [];
-        foreach ($fixtures as $fixture) {
-            $home = $mine->contains($fixture->home_entry_id);
-            $myEntry = (int) ($home ? $fixture->home_entry_id : $fixture->away_entry_id);
-            $rivalEntry = (int) ($home ? $fixture->away_entry_id : $fixture->home_entry_id);
-            $seasonId = (int) $fixture->getAttribute('fixture_season_id');
-            $round = (int) $fixture->round;
-
-            if (! isset($teamOfEntry[$myEntry], $teamOfEntry[$rivalEntry]) || ! Ownership::playedBy($seasonId, (int) $teamOfEntry[$myEntry], $round, $user->id)) {
-                continue;
-            }
-
-            // Rywal = ten, kto grał jego miejscem w tej kolejce (gracz albo bot).
-            $owner = Ownership::at($seasonId, (int) $teamOfEntry[$rivalEntry], $round);
-
-            if (! $owner || $owner === 'u'.$user->id) {
-                continue;
-            }
-
-            [$outcome] = self::result($fixture, $myEntry, $home);
-            $records[$owner] ??= ['won' => 0, 'drawn' => 0, 'lost' => 0];
-            $records[$owner][['W' => 'won', 'D' => 'drawn', 'L' => 'lost'][$outcome]]++;
-        }
-
-        $records = array_filter($records, fn ($r) => $blacklist ? $r['lost'] > $r['won'] : $r['won'] > $r['lost']);
+        $records = array_filter(self::rivalRecords($user->id), fn ($r) => $blacklist ? $r['lost'] > $r['won'] : $r['won'] > $r['lost']);
 
         if ($records === []) {
             return [];
         }
 
-        $userIds = array_map(fn ($k) => (int) substr($k, 1), array_filter(array_keys($records), fn ($k) => $k[0] === 'u'));
-        $botIds = array_map(fn ($k) => (int) substr($k, 1), array_filter(array_keys($records), fn ($k) => $k[0] === 'b'));
-
-        $hofUsers = HallOfFameAward::whereIn('user_id', $userIds)->groupBy('user_id')->selectRaw('user_id, sum(points) as total')->pluck('total', 'user_id');
-        $hofBots = HallOfFameAward::whereIn('bot_id', $botIds)->groupBy('bot_id')->selectRaw('bot_id, sum(points) as total')->pluck('total', 'bot_id');
-        $users = User::whereIn('id', $userIds)->get(['id', 'name', 'team_name'])->keyBy('id');
-        $bots = Bot::whereIn('id', $botIds)->get(['id', 'name'])->keyBy('id');
+        $ids = array_keys($records);
+        $hof = HallOfFameAward::whereIn('user_id', $ids)->groupBy('user_id')->selectRaw('user_id, sum(points) as total')->pluck('total', 'user_id');
 
         $out = [];
-        foreach ($records as $owner => $record) {
-            $id = (int) substr($owner, 1);
-
-            if ($owner[0] === 'u' && ($rival = $users->get($id))) {
-                $out[] = ['name' => $rival->team_name ?: $rival->name, 'owner' => $rival->name, 'user' => $rival, 'url' => route('team.show', $rival), 'bot' => false, 'hof' => round((float) ($hofUsers[$id] ?? 0), 1)] + $record;
-            } elseif ($owner[0] === 'b' && ($bot = $bots->get($id))) {
-                $out[] = ['name' => $bot->name, 'owner' => null, 'user' => null, 'url' => route('bot.show', $bot), 'bot' => true, 'hof' => round((float) ($hofBots[$id] ?? 0), 1)] + $record;
-            }
+        foreach (User::whereIn('id', $ids)->get(['id', 'name', 'team_name']) as $rival) {
+            $out[] = ['name' => $rival->team_name ?: $rival->name, 'owner' => $rival->name, 'url' => route('team.show', $rival), 'bot' => false,
+                'hof' => round((float) ($hof[$rival->id] ?? 0), 1)] + $records[$rival->id];
         }
 
         if ($blacklist) {
@@ -372,10 +323,75 @@ final class PlayerStats
         return $out;
     }
 
-    /** Liczba rywali-ludzi gracza (do procentu skalpów): wszyscy inni gracze z zespołem w jakimkolwiek sezonie. */
+    /**
+     * Bilans bezpośredni gracza z każdym innym graczem (wszystkie sezony i rozgrywki), cały w SQL i w PageCache.
+     * Strony meczu = kto grał miejscem w tej kolejce (team_scores, Ownership). Bez botów i zbanowanych kont (16.10.2026):
+     * gracz i tak nie może już zmienić z nimi bilansu. Remis w pucharze rozstrzygnięty czasem typu = wygrana albo porażka.
+     *
+     * @return array<int, array{won: int, drawn: int, lost: int}>
+     */
+    public static function rivalRecords(int $userId): array
+    {
+        return PageCache::remember('rivals:'.$userId, function () use ($userId): array {
+            $sides = self::rivalSide($userId, 'home_entry_id', 'away_entry_id', 'rs.user_id as rival,
+                CASE WHEN f.home_goals > f.away_goals OR (f.home_goals = f.away_goals AND f.winner_entry_id = f.home_entry_id) THEN 1 ELSE 0 END as won,
+                CASE WHEN f.home_goals = f.away_goals AND f.winner_entry_id IS NULL THEN 1 ELSE 0 END as drawn')
+                ->unionAll(self::rivalSide($userId, 'away_entry_id', 'home_entry_id', 'rs.user_id as rival,
+                CASE WHEN f.away_goals > f.home_goals OR (f.home_goals = f.away_goals AND f.winner_entry_id = f.away_entry_id) THEN 1 ELSE 0 END as won,
+                CASE WHEN f.home_goals = f.away_goals AND f.winner_entry_id IS NULL THEN 1 ELSE 0 END as drawn'));
+
+            $out = [];
+            foreach (DB::query()->fromSub($sides, 'x')
+                ->whereNotIn('rival', self::bannedIds())
+                ->groupBy('rival')
+                ->selectRaw('rival, SUM(won) as won, SUM(drawn) as drawn, COUNT(*) - SUM(won) - SUM(drawn) as lost')
+                ->get() as $row) {
+                $out[(int) $row->rival] = ['won' => (int) $row->won, 'drawn' => (int) $row->drawn, 'lost' => (int) $row->lost];
+            }
+
+            return $out;
+        });
+    }
+
+    /**
+     * Mecze gracza jedną stroną (gospodarz albo gość) z rywalem-graczem w tej samej kolejce.
+     *
+     * @param  literal-string  $select
+     */
+    private static function rivalSide(int $userId, string $mine, string $theirs, string $select): QueryBuilder
+    {
+        return DB::table('fixtures as f')
+            ->join('competitions as c', 'c.id', '=', 'f.competition_id')
+            ->join('matchdays as fm', fn (JoinClause $j) => $j->on('fm.season_id', '=', 'c.season_id')->on('fm.number', '=', 'f.round'))
+            ->join('competition_entries as me', 'me.id', '=', 'f.'.$mine)
+            ->join('competition_entries as re', 're.id', '=', 'f.'.$theirs)
+            ->join('team_scores as ms', fn (JoinClause $j) => $j->on('ms.matchday_id', '=', 'fm.id')
+                ->on('ms.season_team_id', '=', 'me.season_team_id')
+                ->on('ms.score_set', '=', DB::raw(GameStars::SCORE_SET_SQL)))
+            ->join('team_scores as rs', fn (JoinClause $j) => $j->on('rs.matchday_id', '=', 'fm.id')
+                ->on('rs.season_team_id', '=', 're.season_team_id')
+                ->on('rs.score_set', '=', DB::raw(GameStars::SCORE_SET_SQL)))
+            ->whereNotNull('f.home_goals')
+            ->where('ms.user_id', $userId)
+            ->whereNotNull('rs.user_id')
+            ->where('rs.user_id', '!=', $userId)
+            ->selectRaw($select);
+    }
+
+    /** Liczba rywali-ludzi gracza (do procentu skalpów): wszyscy inni niezbanowani gracze z zespołem w jakimkolwiek sezonie. */
     public static function humanRivals(User $user): int
     {
-        return (int) SeasonTeam::whereNotNull('user_id')->where('user_id', '!=', $user->id)->distinct()->count('user_id');
+        return (int) SeasonTeam::whereNotNull('user_id')->where('user_id', '!=', $user->id)->whereNotIn('user_id', self::bannedIds())->distinct()->count('user_id');
+    }
+
+    /** Podzapytanie: id zbanowanych kont (pomijane w skalpach i czarnej liście). */
+    private static function bannedIds(): QueryBuilder
+    {
+        return DB::table('model_has_roles as mr')
+            ->join('roles as r', 'r.id', '=', 'mr.role_id')
+            ->where('r.name', RoleName::Banned->value)
+            ->where('mr.model_type', (new User)->getMorphClass())
+            ->select('mr.model_id');
     }
 
     /**

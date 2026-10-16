@@ -297,7 +297,7 @@
         @include('partials.rival-list', [
             'rivals' => $this->myScalps,
             'title' => __('My scalps'),
-            'subtitle' => __('Rivals (players and bots) you have a better head-to-head record against, from the highest in the Hall of Fame ranking.'),
+            'subtitle' => __('Players you have a better head-to-head record against, from the highest in the Hall of Fame ranking. Bots and banned accounts are left out.'),
             'icon' => 'fire',
             'tone' => 'scalps',
         ])
@@ -314,7 +314,7 @@
         @include('partials.rival-list', [
             'rivals' => $this->myBlacklist,
             'title' => __('Blacklist'),
-            'subtitle' => __('Rivals (players and bots) you have a worse head-to-head record against, from the worst record.'),
+            'subtitle' => __('Players you have a worse head-to-head record against, from the worst record. Bots and banned accounts are left out.'),
             'icon' => 'no-symbol',
             'tone' => 'blacklist',
         ])
