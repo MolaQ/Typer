@@ -186,7 +186,7 @@ new class extends Component {
         ];
 
         if (auth()->check() && Players::canPlay(auth()->user())) {
-            $pages[] = ['LechTYPER', route('tips')];
+            $pages[] = ['#LechTYPER', route('tips')];
         }
 
         return collect($pages)

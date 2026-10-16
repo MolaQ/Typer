@@ -13,7 +13,7 @@ return [
     |
     */
 
-    'name' => env('APP_NAME', 'LechTYPER'),
+    'name' => env('APP_NAME', '#LechTYPER'),
     'version' => env('APP_VERSION', '0.9.0'),
 
     /*

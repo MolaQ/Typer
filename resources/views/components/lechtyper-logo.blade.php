@@ -1,4 +1,4 @@
-{{-- Logo serwisu: znak (x-app-logo-icon) i napis LechTYPER. --}}
+{{-- Logo serwisu: znak (x-app-logo-icon) i napis #LechTYPER (hashtag z czasów Twittera, pisownia razem). --}}
 @props(['href' => route('home'), 'size' => 'md'])
 
 @php
@@ -9,6 +9,6 @@
 <a href="{{ $href }}" wire:navigate {{ $attributes->class('flex items-center gap-2') }}>
     <x-app-logo-icon class="{{ $icon }} shrink-0 drop-shadow" />
     <span class="{{ $text }} font-black tracking-tight">
-        <span>Lech</span><span class="font-light text-blue-500 dark:text-blue-300">TYPER</span>
+        <span>#Lech</span><span class="font-light text-blue-500 dark:text-blue-300">TYPER</span>
     </span>
 </a>

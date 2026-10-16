@@ -1,16 +1,15 @@
-{{-- Znak LechTYPER (16.10.2026): tarcza w barwach Lecha, piłka i złoty znak „trafiony typ”. Ten sam rysunek w public/favicon.svg. --}}
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" {{ $attributes }}>
-<defs>
-<linearGradient id="lt-shield" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#2563eb"/><stop offset="1" stop-color="#0b1f4d"/></linearGradient>
-<radialGradient id="lt-ball" cx="0.38" cy="0.32" r="0.75"><stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#d3dbe8"/></radialGradient>
-<clipPath id="lt-clip"><circle cx="31" cy="30" r="16"/></clipPath>
-</defs>
-<path d="M32 2 L58 10 V32 C58 46 47 56 32 62 C17 56 6 46 6 32 V10 Z" fill="url(#lt-shield)"/>
-<path d="M32 6 L54 13 V32 C54 44 45 52.5 32 57.5 C19 52.5 10 44 10 32 V13 Z" fill="none" stroke="#fff" stroke-opacity=".35" stroke-width="1.2"/>
-<circle cx="31" cy="30" r="16" fill="url(#lt-ball)"/>
-<g clip-path="url(#lt-clip)"><path d="M31.00 23.80 L31.00 17.20 M36.90 28.08 L43.17 26.04 M34.64 35.02 L38.52 40.36 M27.36 35.02 L23.48 40.36 M25.10 28.08 L18.83 26.04 " stroke="#0b2f74" stroke-width="0.9" stroke-linecap="round"/><polygon points="31.00,18.00 26.05,14.41 27.94,8.59 34.06,8.59 35.95,14.41" fill="#0b2f74"/><polygon points="42.41,26.29 44.30,20.48 50.41,20.48 52.30,26.29 47.36,29.88" fill="#0b2f74"/><polygon points="38.05,39.71 44.17,39.71 46.06,45.52 41.11,49.12 36.16,45.52" fill="#0b2f74"/><polygon points="23.95,39.71 25.84,45.52 20.89,49.12 15.94,45.52 17.83,39.71" fill="#0b2f74"/><polygon points="19.59,26.29 14.64,29.88 9.70,26.29 11.59,20.48 17.70,20.48" fill="#0b2f74"/></g>
-<polygon points="31.00,23.60 37.09,28.02 34.76,35.18 27.24,35.18 24.91,28.02" fill="#0b2f74"/>
-<circle cx="31" cy="30" r="16" fill="none" stroke="#0b1f4d" stroke-width="1"/>
-<circle cx="45.5" cy="44.5" r="8.5" fill="#fbbf24" stroke="#0b1f4d" stroke-width="2"/>
-<path d="M41.6 44.7 L44.3 47.4 L49.4 41.9" fill="none" stroke="#0b1f4d" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
-</svg>
+{{-- Znak #LechTYPER (16.10.2026): nowoczesna wersja pierwszego logo z czasów Twittera. Ptak z Twittera, a jego skrzydło
+     to cztery pióra jak połączone skrzydła z herbu Lecha (zabawa zaczęła się na Twitterze pod hashtagiem). Ten sam rysunek w public/favicon.svg. --}}
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" {{ $attributes }}>
+<defs><linearGradient id="lt-bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#2563eb"/><stop offset="1" stop-color="#0b1f4d"/></linearGradient></defs>
+<rect width="256" height="256" rx="56" fill="url(#lt-bg)"/>
+<g transform="translate(8 14) scale(0.92)"><g fill="#fff">
+<circle cx="172" cy="94" r="40"/>
+<path d="M198 70 L242 58 L214 96 Z"/>
+<path d="M192 62 L226 34 L212 80 Z"/>
+<path d="M211 104 C214 172 160 216 94 214 C66 213 46 205 28 190 C64 196 98 186 118 166 L136 106 Z"/>
+<path d="M46 30 L142 96 L135 114 L42 58 Z"/>
+<path d="M34 68 L134 124 L127 142 L32 96 Z"/>
+<path d="M30 106 L126 152 L119 170 L34 134 Z"/>
+<path d="M42 144 L116 178 L106 192 L56 172 Z"/>
+</g></g></svg>

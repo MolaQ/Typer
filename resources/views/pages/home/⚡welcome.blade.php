@@ -286,7 +286,7 @@ new #[Layout('layouts::public')] class extends Component {
                         {{ $this->upcoming->title }} · {{ __('Coming soon') }}
                     </span>
                 @else
-                    <p class="text-sm font-semibold uppercase tracking-[0.25em] text-lech-200">LechTYPER</p>
+                    <p class="text-sm font-semibold uppercase tracking-[0.25em] text-lech-200">#LechTYPER</p>
                 @endif
                 <h1 class="text-4xl font-black leading-tight tracking-tight sm:text-6xl">{{ __('Tip Lech. Pick your squad. Win trophies.') }}</h1>
                 <p class="text-lg text-lech-100 sm:text-xl">{{ __('One tip per Lech match decides your games in a league, the Polish Cup, European cups and Liga Legend. Pick Lech players, collect experience and climb from Liga podwórkowa to Ekstraklasa.') }}</p>

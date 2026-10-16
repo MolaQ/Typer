@@ -3,7 +3,7 @@
     Slot domyślny trafia pod podtytuł, slot „aside” po prawej stronie (np. sponsor, liczby).
     Użycie: <x-page-banner :title="__('Hall of Fame')" :subtitle="..." />
 --}}
-@props(['title', 'subtitle' => null, 'eyebrow' => 'LechTYPER'])
+@props(['title', 'subtitle' => null, 'eyebrow' => '#LechTYPER'])
 
 <section {{ $attributes->class('lech-banner relative overflow-hidden rounded-2xl px-6 py-10 sm:px-10') }}>
     <div class="relative flex flex-col gap-6 md:flex-row md:items-end md:justify-between">

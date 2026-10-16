@@ -57,7 +57,7 @@ new #[Layout('layouts::public')] class extends Component {
 
     public function render(): View
     {
-        return $this->view()->title('LechTYPER');
+        return $this->view()->title('#LechTYPER');
     }
 
     /** Adres bieżącej kolejki i zakładki. */
@@ -449,7 +449,7 @@ new #[Layout('layouts::public')] class extends Component {
 }; ?>
 <div class="mx-auto flex w-full max-w-6xl flex-col gap-6">
     {{-- Baner jak na stronie głównej --}}
-    <x-page-banner :eyebrow="$this->season?->title ?? 'LechTYPER'" title="LechTYPER"
+    <x-page-banner :eyebrow="$this->season?->title ?? '#LechTYPER'" title="#LechTYPER"
         :subtitle="__('Tip the score of the Lech match. You can change your tip until kickoff.')" />
 
     @if (!$this->season)

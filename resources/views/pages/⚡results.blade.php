@@ -749,7 +749,7 @@ new #[Layout('layouts::public')] class extends Component {
         </section>
     @else
     <x-page-banner :title="__('Results and tables')" :subtitle="$this->season?->title"
-            :eyebrow="$archived ? __('Season archive') : 'LechTYPER'">
+            :eyebrow="$archived ? __('Season archive') : '#LechTYPER'">
             {{-- Dyskretne strzałki archiwum: o jeden sezon wstecz albo do przodu --}}
             @if ($older || $newer)
                 <x-slot:aside>

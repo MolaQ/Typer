@@ -17,7 +17,7 @@
                 @if (\App\Support\Players::canPlay(auth()->user()))
                     <flux:sidebar.item icon="pencil-square" :href="route('tips')" :current="request()->routeIs('tips')"
                         wire:navigate>
-                        LechTYPER
+                        #LechTYPER
                     </flux:sidebar.item>
                 @endif
             @endauth

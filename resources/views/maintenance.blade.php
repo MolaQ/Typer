@@ -12,7 +12,7 @@
         <div class="w-full max-w-lg overflow-hidden rounded-2xl shadow-xl">
             <div class="lech-banner flex flex-col items-center gap-4 px-6 py-10 text-center text-white">
                 <x-app-logo-icon class="size-14 fill-current" />
-                <div class="text-xs font-bold uppercase tracking-[0.2em] text-white/70">LechTYPER</div>
+                <div class="text-xs font-bold uppercase tracking-[0.2em] text-white/70">#LechTYPER</div>
                 <h1 class="text-2xl font-bold">{{ __('Technical break') }}</h1>
                 <p class="text-sm text-white/80">{{ __('We are updating the site and adding new features. Your tips and results are safe.') }}</p>
             </div>
